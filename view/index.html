@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>SAVE HOME | مرجع فارسی Hazbin Hotel و Helluva Boss</title>
+
+  <meta name="description"
+    content="SAVE HOME مرجع فارسی Hazbin Hotel و Helluva Boss؛ اخبار، تئوری‌ها، معرفی شخصیت‌ها، تحلیل قسمت‌ها و ویدیوهای اختصاصی.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap"
+    rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #0a0412;
+      --bg-secondary: #150a1f;
+      --card: rgba(255, 255, 255, .05);
+      --border: rgba(255, 255, 255, .08);
+      --primary: #ff2d6d;
+      --secondary: #f5c56b;
+      --hell-deep: #7c2ae8;
+      --heaven-light: #eaf3ff;
+      --text: #ffffff;
+      --muted: #c9c4d6;
+      --shadow: rgba(255, 41, 109, .35);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Cairo', sans-serif;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background:
+        radial-gradient(circle at top, rgba(245, 197, 107, .16), transparent 40%),
+        radial-gradient(circle at top right, rgba(234, 243, 255, .06), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(255, 41, 109, .18), transparent 35%),
+        radial-gradient(circle at bottom left, rgba(124, 42, 232, .18), transparent 32%),
+        var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, .02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .02) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .container {
+      width: min(1200px, 92%);
+      margin: auto;
+    }
+
+    header {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      padding: 40px 0;
+    }
+
+    .hero {
+      text-align: center;
+      max-width: 850px;
+    }
+
+    .logo {
+      width: 220px;
+      height: 220px;
+      object-fit: cover;
+      border-radius: 50%;
+      border: 4px solid rgba(245, 197, 107, .35);
+      box-shadow:
+        0 -10px 40px rgba(245, 197, 107, .35),
+        0 20px 60px rgba(255, 41, 109, .4),
+        0 0 90px rgba(124, 42, 232, .2);
+      animation: pulse 4s infinite alternate;
+    }
+
+    @keyframes pulse {
+      from {
+        transform: scale(1);
+      }
+
+      to {
+        transform: scale(1.03);
+        box-shadow:
+          0 -14px 55px rgba(245, 197, 107, .5),
+          0 26px 80px rgba(255, 41, 109, .55),
+          0 0 120px rgba(124, 42, 232, .3);
+      }
+    }
+
+    .badge {
+      display: inline-block;
+      margin-top: 28px;
+      padding: 8px 18px;
+      border-radius: 999px;
+      background: rgba(255, 41, 109, .12);
+      border: 1px solid rgba(255, 41, 109, .3);
+      color: var(--secondary);
+      font-size: .95rem;
+    }
+
+    h1 {
+      font-size: clamp(3rem, 8vw, 5.5rem);
+      margin-top: 20px;
+      line-height: 1.1;
+      background: linear-gradient(180deg, var(--heaven-light) 0%, var(--secondary) 35%, var(--primary) 75%, var(--hell-deep) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .hero p {
+      margin: 24px auto 0;
+      color: var(--muted);
+      line-height: 2;
+      max-width: 720px;
+      font-size: 1.1rem;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 40px;
+    }
+
+    .btn {
+      text-decoration: none;
+      padding: 16px 32px;
+      border-radius: 18px;
+      font-weight: 700;
+      transition: .3s;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--secondary), var(--primary));
+      color: #1a0b12;
+      box-shadow: 0 15px 40px rgba(255, 41, 109, .3);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, .05);
+      border-color: rgba(245, 197, 107, .3);
+      color: white;
+    }
+
+    .btn:hover {
+      transform: translateY(-6px);
+    }
+
+    section {
+      padding: 90px 0;
+    }
+
+    .section-title {
+      text-align: center;
+      margin-bottom: 50px;
+    }
+
+    .section-title h2 {
+      font-size: 2.4rem;
+      margin-bottom: 12px;
+    }
+
+    .section-title p {
+      color: var(--muted);
+    }
+
+    .about-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 30px;
+      padding: 40px;
+      text-align: center;
+      line-height: 2.2;
+      color: var(--muted);
+      backdrop-filter: blur(10px);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 30px;
+      transition: .3s;
+      backdrop-filter: blur(12px);
+    }
+
+    .card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, .35);
+      border-color: rgba(245, 197, 107, .35);
+    }
+
+    .card-icon {
+      font-size: 3rem;
+      margin-bottom: 18px;
+    }
+
+    .card h3 {
+      margin-bottom: 12px;
+      color: var(--secondary);
+    }
+
+    .card p {
+      color: var(--muted);
+      line-height: 1.9;
+    }
+
+    .characters {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 20px;
+    }
+
+    .character {
+      text-align: center;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 28px 20px;
+      transition: .3s;
+    }
+
+    .character:hover {
+      transform: translateY(-8px);
+      border-color: rgba(124, 42, 232, .4);
+      box-shadow: 0 20px 40px rgba(124, 42, 232, .15);
+    }
+
+    .character .emoji {
+      font-size: 3rem;
+      margin-bottom: 14px;
+    }
+
+    .character span {
+      display: block;
+      color: var(--muted);
+      margin-top: 8px;
+      font-size: .95rem;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 24px;
+    }
+
+    .stat {
+      text-align: center;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 35px 20px;
+    }
+
+    .stat-number {
+      font-size: 2.8rem;
+      color: var(--primary);
+      font-weight: 900;
+      margin-bottom: 10px;
+    }
+
+    .stat:nth-child(2) .stat-number {
+      color: var(--secondary);
+    }
+
+    .stat:nth-child(3) .stat-number {
+      color: var(--hell-deep);
+    }
+
+    .cta {
+      text-align: center;
+      padding: 60px 30px;
+      background: linear-gradient(135deg,
+          rgba(245, 197, 107, .14),
+          rgba(255, 41, 109, .12),
+          rgba(124, 42, 232, .16));
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 30px;
+    }
+
+    .cta h2 {
+      margin-bottom: 16px;
+      font-size: 2rem;
+    }
+
+    .cta p {
+      color: var(--muted);
+      max-width: 700px;
+      margin: auto;
+      line-height: 2;
+    }
+
+    footer {
+      margin-top: 80px;
+      padding: 40px 0;
+      border-top: 1px solid rgba(255, 255, 255, .06);
+      text-align: center;
+      color: var(--muted);
+    }
+
+    footer .links {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    footer a {
+      color: var(--secondary);
+      text-decoration: none;
+    }
+
+    .particle {
+      position: fixed;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      animation: float linear infinite;
+      z-index: -1;
+    }
+
+    .particle.hell {
+      background: rgba(255, 41, 109, .7);
+    }
+
+    .particle.heaven {
+      background: rgba(245, 197, 107, .8);
+    }
+
+    @keyframes float {
+      from {
+        transform: translateY(110vh);
+        opacity: 0;
+      }
+
+      20% {
+        opacity: 1;
+      }
+
+      to {
+        transform: translateY(-100px);
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div class="container">
+
+      <div class="hero">
+
+        <img src="image-1.jpg" alt="SAVE HOME Logo" class="logo">
+
+        <div class="badge">
+     یکی از  بهترین مراجع hazbin hotel و Helluva Boss
+        </div>
+
+        <h1>SAVE HOME</h1>
+
+        <p>
+          اخبار، تئوری‌ها، تحلیل قسمت‌ها، معرفی شخصیت‌ها و ویدیوهای اختصاصی
+          از دنیای جذاب هازبین هتل و هلووا باس.
+        </p>
+
+        <div class="buttons">
+
+          <a href="https://t.me/Save7Home" target="_blank" class="btn btn-primary">
+            ✈️ عضویت در تلگرام
+          </a>
+
+          <a href="https://www.youtube.com/@SAVEH00ME" target="_blank" class="btn btn-secondary">
+            ▶️ مشاهده یوتیوب
+          </a>
+
+        </div>
+
+      </div>
+
+    </div>
+  </header>
+
+  <section>
+    <div class="container">
+
+      <div class="section-title">
+        <h2>درباره SAVE HOME</h2>
+        <p>هر چیزی که یک طرفدار واقعی نیاز دارد.</p>
+      </div>
+
+      <div class="about-box">
+        SAVE HOME یک جامعه فارسی برای طرفداران Hazbin Hotel و Helluva Boss است.
+        اینجا می‌توانید آخرین اخبار رسمی، تئوری‌های جذاب، تحلیل قسمت‌ها،
+        معرفی شخصیت‌ها و محتوای اختصاصی را دنبال کنید.
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+
+      <div class="section-title">
+        <h2>چه چیزهایی پیدا می‌کنید؟</h2>
+        <p>محتوای تخصصی برای طرفداران دنیای هزبین.</p>
+      </div>
+
+      <div class="grid">
+
+        <div class="card">
+          <div class="card-icon">📰</div>
+          <h3>آخرین اخبار</h3>
+          <p>اطلاع‌رسانی درباره فصل‌های جدید، اخبار رسمی و تاریخ انتشار قسمت‌ها.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🧠</div>
+          <h3>تئوری‌ها</h3>
+          <p>بررسی رازها، جزئیات مخفی و تئوری‌های طرفداران.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🎬</div>
+          <h3>کلیپ و ویدیو</h3>
+          <p>ویدیوهای اختصاصی، کلیپ‌های کوتاه و تحلیل صحنه‌ها.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">⭐</div>
+          <h3>معرفی شخصیت‌ها</h3>
+          <p>آشنایی کامل با شخصیت‌ها، گذشته و نقش آن‌ها در داستان.</p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+
+      <div class="section-title">
+        <h2>شخصیت‌های محبوب</h2>
+        <p>چهره‌های معروف دنیای Hazbin Hotel و Helluva Boss</p>
+      </div>
+
+      <div class="characters">
+
+        <div class="character">
+          <div class="emoji">🎙️</div>
+          <h3>Alastor</h3>
+          <span>Radio Demon</span>
+        </div>
+
+        <div class="character">
+          <div class="emoji">👑</div>
+          <h3>Charlie</h3>
+          <span>Princess of Hell</span>
+        </div>
+
+        <div class="character">
+          <div class="emoji">🕷️</div>
+          <h3>Angel Dust</h3>
+          <span>Hazbin Hotel</span>
+        </div>
+
+        <div class="character">
+          <div class="emoji">🔥</div>
+          <h3>Blitzø</h3>
+          <span>Helluva Boss</span>
+        </div>
+
+        <div class="character">
+          <div class="emoji">🦉</div>
+          <h3>Stolas</h3>
+          <span>Prince of Hell</span>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+
+      <div class="section-title">
+        <h2>حضور ما در شبکه‌های اجتماعی</h2>
+        <p>همیشه همراه شما هستیم.</p>
+      </div>
+
+      <div class="stats">
+
+        <div class="stat">
+          <div class="stat-number">24/7</div>
+          <p>فعالیت روزانه</p>
+        </div>
+
+        <div class="stat">
+          <div class="stat-number">TG</div>
+          <p>کانال تلگرام</p>
+        </div>
+
+        <div class="stat">
+          <div class="stat-number">YT</div>
+          <p>کانال یوتیوب</p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+
+      <div class="cta">
+
+        <h2>به جامعه SAVE HOME بپیوندید</h2>
+
+        <p>
+          اگر از طرفداران Hazbin Hotel و Helluva Boss هستید،
+          همین حالا عضو کانال تلگرام شوید و جدیدترین ویدیوها را در یوتیوب دنبال کنید.
+        </p>
+
+        <div class="buttons">
+
+          <a href="https://t.me/Save7Home" target="_blank" class="btn btn-primary">
+            ✈️ تلگرام
+          </a>
+
+          <a href="https://www.youtube.com/@SAVEH00ME" target="_blank" class="btn btn-secondary">
+            ▶️ یوتیوب
+          </a>
+
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <footer>
+
+    <div class="links">
+      <a href="https://t.me/Save7Home" target="_blank">تلگرام</a>
+      <a href="https://www.youtube.com/@SAVEH00ME" target="_blank">یوتیوب</a>
+      <a href="#">تماس با ما</a>
+      <a href="#">قوانین سایت</a>
+    </div>
+
+    <p>© 2026 SAVE HOME — All Rights Reserved.</p>
+
+  </footer>
+
+  <script>
+    for (let i = 0; i < 40; i++) {
+      const particle = document.createElement('div');
+
+      particle.classList.add('particle', i % 2 === 0 ? 'hell' : 'heaven');
+
+      particle.style.left = Math.random() * 100 + '%';
+      particle.style.animationDuration = (6 + Math.random() * 8) + 's';
+      particle.style.animationDelay = Math.random() * 5 + 's';
+
+      document.body.appendChild(particle);
+    }
+  </script>
+
+</body>
+
+</html>
+```

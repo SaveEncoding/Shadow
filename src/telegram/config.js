@@ -1,0 +1,1 @@
+export const ADMINS = [6585308690];

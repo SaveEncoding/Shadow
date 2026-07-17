@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>صفحه پیدا نشد | SAVE HOME</title>
+  <meta name="robots" content="noindex">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap"
+    rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #0a0412;
+      --card: rgba(255, 255, 255, .05);
+      --border: rgba(255, 255, 255, .08);
+      --primary: #ff2d6d;
+      --secondary: #f5c56b;
+      --hell-deep: #7c2ae8;
+      --heaven-light: #eaf3ff;
+      --text: #ffffff;
+      --muted: #c9c4d6;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Cairo', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      background:
+        radial-gradient(circle at top, rgba(245, 197, 107, .18), transparent 40%),
+        radial-gradient(circle at bottom right, rgba(255, 41, 109, .2), transparent 35%),
+        radial-gradient(circle at bottom left, rgba(124, 42, 232, .2), transparent 32%),
+        var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, .02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .02) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .container {
+      width: min(700px, 92%);
+      text-align: center;
+    }
+
+    .code {
+      font-size: clamp(6rem, 22vw, 11rem);
+      font-weight: 900;
+      line-height: 1;
+      background: linear-gradient(180deg, var(--secondary), var(--primary), var(--hell-deep));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 0 60px rgba(255, 41, 109, .35);
+      animation: flicker 3.5s infinite;
+    }
+
+    @keyframes flicker {
+
+      0%,
+      19%,
+      21%,
+      23%,
+      25%,
+      54%,
+      56%,
+      100% {
+        opacity: 1;
+      }
+
+      20%,
+      22%,
+      24%,
+      55% {
+        opacity: .6;
+      }
+    }
+
+    .emoji {
+      font-size: 3rem;
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      margin-top: 10px;
+    }
+
+    p {
+      margin: 20px auto 0;
+      color: var(--muted);
+      line-height: 2;
+      max-width: 520px;
+      font-size: 1.05rem;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 36px;
+    }
+
+    .btn {
+      text-decoration: none;
+      padding: 15px 30px;
+      border-radius: 18px;
+      font-weight: 700;
+      transition: .3s;
+      border: 1px solid transparent;
+      display: inline-block;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--secondary), var(--primary));
+      color: #1a0b12;
+      box-shadow: 0 15px 40px rgba(255, 41, 109, .3);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, .05);
+      border-color: rgba(245, 197, 107, .3);
+      color: white;
+    }
+
+    .btn:hover {
+      transform: translateY(-6px);
+    }
+
+    .particle {
+      position: fixed;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      animation: float linear infinite;
+      z-index: -1;
+    }
+
+    .particle.hell {
+      background: rgba(255, 41, 109, .7);
+    }
+
+    .particle.heaven {
+      background: rgba(245, 197, 107, .8);
+    }
+
+    @keyframes float {
+      from {
+        transform: translateY(110vh);
+        opacity: 0;
+      }
+
+      20% {
+        opacity: 1;
+      }
+
+      to {
+        transform: translateY(-100px);
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+    <div class="emoji">😈</div>
+    <div class="code">404</div>
+    <h1>این صفحه هم مثل خیلی‌ها، به جهنم فرستاده شد!</h1>
+    <p>
+      ظاهراً صفحه‌ای که دنبالش بودید یا حذف شده یا اصلاً وجود نداشته.
+      نگران نباشید، می‌تونید به خانه برگردید یا سری به کانال‌های ما بزنید.
+    </p>
+
+    <div class="buttons">
+      <a href="index.html" class="btn btn-primary">🏠 بازگشت به خانه</a>
+      <a href="https://t.me/Save7Home" target="_blank" class="btn btn-secondary">✈️ تلگرام</a>
+    </div>
+  </div>
+
+  <script>
+    for (let i = 0; i < 30; i++) {
+      const particle = document.createElement('div');
+      particle.classList.add('particle', i % 2 === 0 ? 'hell' : 'heaven');
+      particle.style.left = Math.random() * 100 + '%';
+      particle.style.animationDuration = (6 + Math.random() * 8) + 's';
+      particle.style.animationDelay = Math.random() * 5 + 's';
+      document.body.appendChild(particle);
+    }
+  </script>
+
+</body>
+
+</html>
