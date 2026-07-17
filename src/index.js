@@ -6,13 +6,13 @@ export default {
     try {
       const url = new URL(request.url);
 
-      // اینجا مربوط به تلگرامه
+      // Telegram
       if (url.pathname === "/telegram" && request.method === "POST") {
         return await handleTelegramUpdate(request, env);
       }
 
-      // اینجا مربوط به سایته
-      return env.ASSETS.fetch(request);
+      // Website
+      return await handleWebsiteUpdate(request);
 
     } catch (err) {
       console.error(err);
