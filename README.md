@@ -1,19 +1,11 @@
 # TODO
 
-This text is not a task.
+List of tasks to be done.
 
-## Section
+## Website
 
-And this text neither.
+- [ ] Removing "ASSETS" and writing code to handle this automatically.
 
-- [ ] This task is open @owner
-  - [ ] And it has a subtask!
+## Telegram bot
 
-# BACKLOG
-
-- [ ] This task is postponed
-
-# DONE
-
-- [x] This task is done #prio1
-- [-] This task has been declined
+- [ ] System-wide error management design
