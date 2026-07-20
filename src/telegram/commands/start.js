@@ -8,7 +8,7 @@
 // from "../keyboards/home";
 
 import { reportErrorToAdmin }
-from "../utils/error";
+from "../utils/Error";
 
 import { createBot } from "../bot";
 

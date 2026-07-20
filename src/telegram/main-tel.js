@@ -1,6 +1,6 @@
 import { createBot } from "./bot.js";
 import { webhookCallback } from "grammy";
-import { reportErrorToAdmin } from "./utils/error.js";
+import { reportErrorToAdmin } from "./utils/Error.js";
 import { startCommand } from "./commands/start.js";
 import { echo } from "./services/echoFun.js";
 

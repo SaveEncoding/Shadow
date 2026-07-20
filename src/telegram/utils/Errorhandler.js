@@ -1,4 +1,4 @@
-import { reportErrorToAdmin } from "./error.js";
+import { reportErrorToAdmin } from "./Error.js";
 
 const DEFAULT_USER_MESSAGE = "⚠️ مشکلی پیش اومد، لطفاً چند لحظه دیگه دوباره تلاش کن.";
 

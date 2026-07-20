@@ -1,3 +1,3 @@
-async function handleWebsiteUpdate(request) {
+export async function handleWebsiteUpdate(request) {
     return env.ASSETS.fetch(request);
 }

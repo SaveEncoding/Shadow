@@ -1,5 +1,6 @@
 import { handleTelegramUpdate } from "./telegram/main-tel.js"
-import { reportErrorToAdmin } from "./telegram/utils/error.js"
+import { reportErrorToAdmin } from "./telegram/utils/Error.js"
+import { handleWebsiteUpdate } from "./website/main-web.js";
 
 export default {
   async fetch(request, env, ctx) {
