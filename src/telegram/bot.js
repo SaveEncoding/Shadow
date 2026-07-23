@@ -16,7 +16,7 @@ export function createBot(env) {
     const from = ctx.from;
     const isDirectInteraction = isDirectUserInteraction(ctx);
 
-    if (isDirectUserInteraction) {
+    if (isDirectInteraction) {
       try {
         await userService.registerOrUpdate(from);
       } catch (err) {
