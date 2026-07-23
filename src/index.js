@@ -13,7 +13,7 @@ export default {
       }
 
       // Website
-      return await handleWebsiteUpdate(request);
+      return await handleWebsiteUpdate(request, env);
 
     } catch (err) {
       console.error(err);
