@@ -1,9 +1,10 @@
 import { handleTelegramUpdate } from "./telegram/main-tel.js"
 import { reportErrorToAdmin } from "./telegram/utils/Error.js"
 import { handleWebsiteUpdate } from "./website/main-web.js";
+import { Env } from "./types.js";
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env: Env, ctx) {
     try {
       const url = new URL(request.url);
 

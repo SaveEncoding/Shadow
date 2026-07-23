@@ -178,3 +178,4 @@ package.json
 vitest.config.js
 worker-configuration.d.ts
 wrangler.jsonc
+tsconfig.json
