@@ -102,7 +102,7 @@ function formatErrorMessage(context, error, userId) {
 }
 
 /**
- * ارسال پیام به یک ادمین
+ * Send a message to an admin
  */
 async function sendErrorToAdmin(token, adminId, text) {
   const url = `https://api.telegram.org/bot${token}/sendMessage`;

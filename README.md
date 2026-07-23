@@ -9,6 +9,6 @@ List of tasks to be done.
 
 ## Telegram bot
 
-- [ ] System-wide error management design
+- [x] System-wide error management design
 - [ ] Creating the initial menu
 - [ ] Using Gemini 3.5 Flash

@@ -1,9 +1,9 @@
 /**
- * خطایی که باید به کاربر نمایش داده شود (مثل ورودی نامعتبر)
- * و نیازی نیست به ادمین گزارش شود.
+ * An error to be displayed to the user (e.g., invalid input)
+ * and does not need to be reported to the admin.
  *
- * مثال استفاده:
- *   throw new UserFacingError("Invalid link format", "❌ لینک وارد شده معتبر نیست.");
+ * Usage example:
+ *   throw new UserFacingError("Invalid link format", "❌ The entered link is not valid.");
  */
 export class UserFacingError extends Error {
   constructor(message, userMessage) {
@@ -15,11 +15,11 @@ export class UserFacingError extends Error {
 }
 
 /**
- * خطای بحرانی که حتماً باید به ادمین گزارش شود
- * (مثل قطعی دیتابیس یا خطای غیرمنتظره در سرویس خارجی).
+ *A critical error that must be reported to the admin
+ * (e.g., database outage or an unexpected error in an external service).
  *
- * این کلاس اختیاری است - خطاهای معمولی (Error عادی یا throw شده توسط کتابخانه‌ها)
- * هم به‌صورت پیش‌فرض گزارش می‌شوند مگر اینکه reportToAdmin روی false ست شده باشد.
+ * This class is optional; standard errors (regular Errors or those thrown by libraries)
+ * are also reported by default unless `reportToAdmin` is set to `false`.
  */
 export class CriticalError extends Error {
   constructor(message) {

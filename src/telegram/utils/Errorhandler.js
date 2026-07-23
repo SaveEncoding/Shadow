@@ -3,36 +3,37 @@ import { reportErrorToAdmin } from "./Error.js";
 const DEFAULT_USER_MESSAGE = "⚠️ مشکلی پیش اومد، لطفاً چند لحظه دیگه دوباره تلاش کن.";
 
 /**
- * Higher-order function که یک handler را می‌پیچد و خطاهای آن را مدیریت می‌کند.
+ * A higher-order function that wraps a handler and manages its errors.
  *
- * فرض بر این است که امضای handlerهای شما به شکل (update, env, ctx) است.
- * اگر امضای متفاوتی دارید (مثلاً آرگومان‌های بیشتر)، بخش extractUserId/extractChatId
- * و صدا زدن handler(...) را متناسب تغییر دهید.
+ * It assumes your handlers have the signature (request, env, ctx).
+ * If you use a different signature (e.g., additional arguments),
+ * adjust the extractUserId/extractChatId logic and the handler(...) call accordingly.
  *
- * استفاده (در فایل‌های داخل پوشه handlers):
+ * Usage (in files within the handlers folder):
  *
  *   import { withErrorHandling } from "../errorHandler.js";
  *
- *   async function handleAddChannel(update, env, ctx) {
- *     // منطق اصلی
+ *   async function handleAddChannel(request, env, ctx) {
+ *     // Core logic
  *   }
  *
  *   export default withErrorHandling(handleAddChannel, "addChannel");
  *
- * و در روتر اصلی مثل قبل صدا می‌زنید:
- *   await handleAddChannel(update, env, ctx);
+ * And call it in the main router as before:
+ *   await handleAddChannel(request, env, ctx);
  */
 export function withErrorHandling(handler, context) {
-  return async (update, env, ctx) => {
+  return async (request, env, ctx) => {
     try {
-      return await handler(update, env, ctx);
+      return await handler(request, env, ctx);
     } catch (error) {
       console.error(`[${context}] Error:`, error);
 
+      const update = await request.clone().json();
       const userId = extractUserId(update);
       const chatId = extractChatId(update);
 
-      // گزارش به ادمین - در background تا پاسخ به کاربر/تلگرام معطل نشود
+// Report to admin – runs in the background without blocking the response to the user/Telegram.
       if (error?.reportToAdmin !== false) {
         const reportPromise = reportErrorToAdmin(env, context, error, userId).catch(
           (reportErr) => console.error("Failed to report error to admin:", reportErr)
@@ -44,7 +45,7 @@ export function withErrorHandling(handler, context) {
         }
       }
 
-      // پاسخ دوستانه به کاربر - در background
+      // Friendly response to the user – in the background
       if (chatId && env.TELEGRAM_TOKEN) {
         const userMsg = error?.userMessage || DEFAULT_USER_MESSAGE;
         const sendPromise = sendMessageToUser(env.TELEGRAM_TOKEN, chatId, userMsg).catch(
@@ -57,14 +58,14 @@ export function withErrorHandling(handler, context) {
         }
       }
 
-      // برای Cloudflare Workers که وبهوک تلگرام است، همیشه ۲۰۰ برگردانید
-      // وگرنه تلگرام همان update را دوباره و دوباره ارسال می‌کند
+      // For Cloudflare Workers acting as a Telegram webhook, always return a 200 status code;
+      // otherwise, Telegram will keep resending the same update.
       return new Response("OK", { status: 200 });
     }
   };
 }
 
-/** استخراج آیدی کاربر از انواع مختلف update تلگرام */
+/** Extracting the user ID from various types of Telegram updates. */
 function extractUserId(update) {
   return (
     update?.message?.from?.id ??
@@ -74,7 +75,7 @@ function extractUserId(update) {
   );
 }
 
-/** استخراج chat id برای ارسال پاسخ به کاربر */
+/** Extracting the chat ID to send a reply to the user. */
 function extractChatId(update) {
   return (
     update?.message?.chat?.id ??
@@ -83,7 +84,7 @@ function extractChatId(update) {
   );
 }
 
-/** ارسال پیام خطای دوستانه به کاربر */
+/** Sending a friendly error message to the user */
 async function sendMessageToUser(token, chatId, text) {
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
