@@ -1,14 +1,14 @@
 import { ADMINS } from "../config.js";
 
-const TELEGRAM_MAX_LENGTH = 4000; // کمی کمتر از سقف واقعی ۴۰۹۶ برای اطمینان
-const COOLDOWN_SECONDS = 300; // ۵ دقیقه - فقط اگر env.ERROR_KV تعریف شده باشد فعال می‌شود
+const TELEGRAM_MAX_LENGTH = 4000; // Slightly below the actual limit of 4096, to be safe.
+const COOLDOWN_SECONDS = 300; // 5 minutes - only active if env.ERROR_KV is defined
 
 /**
- * گزارش خطا به ادمین‌های بات
- * @param {Object} env - Environment variables (شامل TELEGRAM_TOKEN و اختیاری ERROR_KV)
- * @param {string} context - محل وقوع خطا (مثلاً "handleMessage", "addChannel")
- * @param {Error|Object} error - شیء خطا
- * @param {number|string|null} userId - آیدی کاربر (اختیاری)
+ * Report error to bot admins
+ * @param {Object} env - Environment variables (including TELEGRAM_TOKEN and optional ERROR_KV)
+ * @param {string} context - Location of the error
+ * @param {Error|Object} error - Error object
+ * @param {number|string|null} userId - User ID (optional)
  */
 export async function reportErrorToAdmin(env, context, error, userId = null) {
   if (!env.TELEGRAM_TOKEN) {
@@ -16,8 +16,8 @@ export async function reportErrorToAdmin(env, context, error, userId = null) {
     return;
   }
 
-  // اگر KV تعریف شده باشد، برای هر context یک cooldown می‌گذاریم
-  // تا در صورت خطای پشت‌سرهم (مثلاً قطعی یک سرویس خارجی)، ادمین‌ها اسپم نشوند
+  // If KV is defined, we set a cooldown for each context.
+  // ...so that admins are not spammed in the event of consecutive errors (e.g., an external service outage).
   if (env.ERROR_KV) {
     const onCooldown = await isOnCooldown(env.ERROR_KV, context);
     if (onCooldown) {
@@ -38,18 +38,18 @@ export async function reportErrorToAdmin(env, context, error, userId = null) {
   }
 }
 
-/** بررسی cooldown برای یک context خاص */
+/** Checking the cooldown for a specific context */
 async function isOnCooldown(kv, context) {
   try {
     const value = await kv.get(`error_cooldown:${context}`);
     return value !== null;
   } catch (e) {
     console.error("KV read failed:", e);
-    return false; // اگر KV مشکل داشت، بهتر است خطا گزارش شود تا اینکه از دست برود
+    return false; // If there is an issue with the KV, it is better to report the error than to let it go unnoticed.
   }
 }
 
-/** ثبت cooldown برای یک context خاص */
+/** Registering a cooldown for a specific context */
 async function setCooldown(kv, context) {
   try {
     await kv.put(`error_cooldown:${context}`, "1", {
@@ -61,7 +61,7 @@ async function setCooldown(kv, context) {
 }
 
 /**
- * escape کردن کاراکترهای خاص HTML تا parse_mode: "HTML" در تلگرام خطا ندهد
+ * Escape special HTML characters to prevent errors in Telegram when using `parse_mode: "HTML"`.
  */
 function escapeHtml(str) {
   return String(str)
@@ -71,7 +71,7 @@ function escapeHtml(str) {
 }
 
 /**
- * فرمت کردن پیام خطا به صورت خوانا
+ * Format the error message in a readable way
  */
 function formatErrorMessage(context, error, userId) {
   const now = new Date().toLocaleString("fa-IR");
