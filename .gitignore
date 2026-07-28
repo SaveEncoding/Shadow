@@ -171,4 +171,3 @@ dist
 # add by me
 .vscode
 worker-configuration.d.ts
-wrangler.jsonc
