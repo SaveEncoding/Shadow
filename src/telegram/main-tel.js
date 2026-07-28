@@ -8,12 +8,22 @@ import { echo } from "./services/echoFun.js";
 // instead of each webhook creating a new Bot from scratch and re-registering the handlers.
 let handlerPromise = null;
 
+// Any new feature simply needs to be added here.
+// Required signature for each entry: (bot, env) => void | Promise<void>
+const FEATURES = [
+  (bot, env) => startCommand(bot, env),
+  (bot, env) => echo(bot),
+];
+
 function getHandler(env) {
   if (!handlerPromise) {
     handlerPromise = (async () => {
       const bot = createBot(env);
-      await echo(bot);
-      // await startCommand(env);
+
+      for (const registerFeature of FEATURES) {
+        await registerFeature(bot, env);
+      }
+
       return webhookCallback(bot, "cloudflare-mod", {
         // secretToken: "your-strong-secret-token"   // امنیت بیشتر (توصیه می‌شود)
       });
@@ -35,7 +45,7 @@ export async function handleTelegramUpdate(request, env) {
   } catch (err) {
     console.error("Telegram handler error:", err);
 
-    // تلاش برای گزارش خطا
+    // Attempting to report an error
     try {
       const update = await requestForErrorReporting.json();
       const userId = update.message?.from?.id || update.callback_query?.from?.id;
