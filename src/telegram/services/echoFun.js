@@ -1,5 +1,3 @@
-import { withErrorHandling } from "../utils/Errorhandler";
-
 export async function echo(bot) {
 
   // Regex commands for echo
@@ -116,5 +114,3 @@ export async function echo(bot) {
   });
      
 }
-
-export default withErrorHandling(echo, "echo");

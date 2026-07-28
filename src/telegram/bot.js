@@ -1,6 +1,6 @@
 import { Bot } from "grammy";
 import { conversations } from "@grammyjs/conversations";
-import { UserService } from "./services/userService";
+import { UserService } from "./services/userService.js";
 
 export function createBot(env) {
   if (!env.TELEGRAM_TOKEN) {

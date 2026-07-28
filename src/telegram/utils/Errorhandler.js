@@ -24,12 +24,16 @@ const DEFAULT_USER_MESSAGE = "⚠️ مشکلی پیش اومد، لطفاً چ�
  */
 export function withErrorHandling(handler, context) {
   return async (request, env, ctx) => {
+    // We need to clone before calling the handler; if the handler has already
+    // read request.json(), the body is consumed, and request.clone() will throw here.
+    const requestForErrorReporting = request.clone();
+
     try {
       return await handler(request, env, ctx);
     } catch (error) {
       console.error(`[${context}] Error:`, error);
 
-      const update = await request.clone().json();
+      const update = await requestForErrorReporting.json();
       const userId = extractUserId(update);
       const chatId = extractChatId(update);
 
