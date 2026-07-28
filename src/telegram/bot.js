@@ -1,6 +1,7 @@
 import { Bot } from "grammy";
 import { conversations } from "@grammyjs/conversations";
 import { UserService } from "./services/userService.js";
+import { homeInlineKeyboard } from "./keyboards/home.js";
 
 export function createBot(env) {
   if (!env.TELEGRAM_TOKEN) {
@@ -26,15 +27,7 @@ export function createBot(env) {
     return next();
   });
 
-  bot.command("start", async (ctx) => {
-    await ctx.reply("👋 <b>بات Shadow</b> فعال شد.\n\nمدیریت کانال‌های تلگرام", {
-      parse_mode: "HTML"
-    });
-  });
-
-  bot.command("help", async (ctx) => {
-    await ctx.reply("دستورات:\n/addchannel - افزودن کانال\n/mychannels - لیست کانال‌ها\n/post - ارسال پست");
-  });
+  startCommand(bot)
 
   return bot;
 };
@@ -53,4 +46,20 @@ function isDirectUserInteraction(ctx) {
   }
 
   return false;
+}
+
+function startCommand(bot) {
+    try {
+        bot.command("start", async (ctx) => {
+            await ctx.reply("👋 <b>بات Shadow</b> فعال شد.\n\nمدیریت کانال‌های تلگرام", {
+            parse_mode: "HTML",
+            reply_markup : homeInlineKeyboard()
+            });
+        });
+
+    } catch (err) {
+        console.error("[startCommand] Error:", err);
+        throw err;
+    }
+
 }
