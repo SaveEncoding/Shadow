@@ -168,14 +168,7 @@ dist
 .dev.vars
 
 
-# add me
+# add by me
 .vscode
-test
-.editorconfig
-.prettierrc
-package-lock.json
-package.json
-vitest.config.js
 worker-configuration.d.ts
 wrangler.jsonc
-tsconfig.json

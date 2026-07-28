@@ -1,0 +1,22 @@
+{
+	"name": "shadow",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev",
+		"test": "vitest"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-pool-workers": "^0.12.4",
+		"@cloudflare/workers-types": "^4.20260702.1",
+		"typescript": "^7.0.2",
+		"vitest": "~3.2.0",
+		"wrangler": "^4.95.0"
+	},
+	"dependencies": {
+		"@grammyjs/conversations": "^2.1.1",
+		"grammy": "^1.44.0"
+	}
+}
