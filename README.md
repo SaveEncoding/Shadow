@@ -4,7 +4,7 @@ List of tasks to be done.
 
 ## Website
 
-- [ ] Removing "ASSETS" and writing code to handle this automatically.
+- [x] Removing "ASSETS" and writing code to handle this automatically.
 - [ ] Creating a search menu
 
 ## Telegram bot
