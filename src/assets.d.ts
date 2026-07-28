@@ -1,6 +1,6 @@
-// این فایل فقط برای TypeScript هست؛ خود Wrangler/esbuild این فایل‌ها رو
-// طبق جدول bundling مستندسازی‌شده (html/txt/sql => string, jpg/png/... => ArrayBuffer با rule "Data")
-// در زمان build جایگزین می‌کنه.
+// This file is for TypeScript only; Wrangler/esbuild itself replaces these files
+// during the build process according to the documented bundling table
+// (html/txt/sql => string, jpg/png/... => ArrayBuffer with the "Data" rule).
 
 declare module "*.html" {
   const content: string;
