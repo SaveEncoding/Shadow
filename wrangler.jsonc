@@ -22,6 +22,6 @@
 		}
 	],
 	"rules": [
-    { "type": "Data", "globs": ["**/*.jpg", "**/*.jpeg", "**/*.png"] }
+    { "type": "Data", "globs": ["**/*.jpg", "**/*.jpeg", "**/*.png"], "fallthrough": true }
   	]
 }
