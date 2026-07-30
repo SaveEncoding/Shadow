@@ -13,3 +13,4 @@ List of tasks to be done.
 - [ ] Creating the initial menu
 - [ ] Using Gemini 3.5 Flash
 - [x] Adding a Webhook Secret
+- [x] Registering bot users in the database and intelligently removing them after a period of inactivity.

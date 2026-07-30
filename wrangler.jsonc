@@ -12,6 +12,7 @@
 	"d1_databases": [
 		{
 			"binding": "my_database",
+			"database_name": "my_database",
 			"database_id": "57a6f751-79c5-4748-b7dd-a81e1ccb284b"
 		}
 	],
@@ -23,5 +24,8 @@
 	],
 	"rules": [
     { "type": "Data", "globs": ["**/*.jpg", "**/*.jpeg", "**/*.png"], "fallthrough": true }
-  	]
+  	],
+	"triggers": {
+		"crons": ["0 3 * * *"]
+	}
 }
