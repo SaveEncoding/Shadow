@@ -31,6 +31,9 @@ const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "SAMEORIGIN",
   "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Content-Security-Policy":
+    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; form-action 'self'",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 };
 
 function withCommonHeaders(headers) {
@@ -43,6 +46,35 @@ function htmlResponse(html, status, method) {
     headers: withCommonHeaders({
       "Content-Type": "text/html; charset=UTF-8",
       "Cache-Control": "public, max-age=300",
+    }),
+  });
+}
+
+function redirectResponse(location) {
+  return new Response(null, {
+    status: 301,
+    headers: withCommonHeaders({
+      Location: location,
+    }),
+  });
+}
+
+function textResponse(body, contentType, maxAge, method) {
+  return new Response(method === "HEAD" ? null : body, {
+    status: 200,
+    headers: withCommonHeaders({
+      "Content-Type": contentType,
+      "Cache-Control": `public, max-age=${maxAge}`,
+    }),
+  });
+}
+
+function binaryResponse(data, contentType, method) {
+  return new Response(method === "HEAD" ? null : data, {
+    status: 200,
+    headers: withCommonHeaders({
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=31536000, immutable",
     }),
   });
 }
@@ -66,30 +98,18 @@ export async function handleWebsiteUpdate(request, env) {
   }
 
   if (pathname === "/robots.txt") {
-    return new Response(method === "HEAD" ? null : ROBOTS_TXT, {
-      status: 200,
-      headers: withCommonHeaders({
-        "Content-Type": "text/plain; charset=UTF-8",
-        "Cache-Control": "public, max-age=3600",
-      }),
-    });
+    return textResponse(ROBOTS_TXT, "text/plain; charset=UTF-8", 3600, method);
   }
 
   const redirectTarget = REDIRECTS[pathname];
   if (redirectTarget) {
     const destination = new URL(redirectTarget + url.search, url);
-    return Response.redirect(destination.toString(), 301);
+    return redirectResponse(destination.toString());
   }
 
   const binary = BINARY_ASSETS[pathname];
   if (binary) {
-    return new Response(method === "HEAD" ? null : binary.data, {
-      status: 200,
-      headers: withCommonHeaders({
-        "Content-Type": binary.contentType,
-        "Cache-Control": "public, max-age=31536000, immutable",
-      }),
-    });
+    return binaryResponse(binary.data, binary.contentType, method);
   }
 
   const page = HTML_PAGES[pathname];
