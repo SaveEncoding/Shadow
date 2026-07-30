@@ -18,6 +18,10 @@ const FEATURES = [
 function getHandler(env) {
   if (!handlerPromise) {
     handlerPromise = (async () => {
+      if (!env.TELEGRAM_WEBHOOK_SECRET) {
+        throw new Error("TELEGRAM_WEBHOOK_SECRET is not set in secrets");
+      }
+
       const bot = createBot(env);
 
       for (const registerFeature of FEATURES) {
@@ -25,7 +29,10 @@ function getHandler(env) {
       }
 
       return webhookCallback(bot, "cloudflare-mod", {
-        // secretToken: "your-strong-secret-token"   // امنیت بیشتر (توصیه می‌شود)
+        // This value must be set to be exactly the same both here (as the secret)
+        // and when calling setWebhook (as the secret_token parameter); otherwise,
+        // Telegram won't send any header, and all requests will result in a 401 error.
+        secretToken: env.TELEGRAM_WEBHOOK_SECRET,
       });
     })();
   }

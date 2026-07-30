@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// از vi.hoisted استفاده می‌کنیم تا با hoist شدن vi.mock به بالای فایل مشکلی پیش نیاد
+// We use vi.hoisted to avoid issues caused by vi.mock being hoisted to the top of the file.
 const { mockWebhookHandler, createBotMock, startCommandMock, echoMock, reportErrorToAdminMock } = vi.hoisted(() => ({
 	mockWebhookHandler: vi.fn(),
 	createBotMock: vi.fn(() => ({ __fakeBot: true })),
@@ -25,7 +25,7 @@ vi.mock('../src/telegram/utils/Error.js', () => ({
 	reportErrorToAdmin: reportErrorToAdminMock,
 }));
 
-const fakeEnv = {};
+const fakeEnv = { TELEGRAM_WEBHOOK_SECRET: "test-secret" };
 
 function makeUpdateRequest(body) {
 	return new Request('http://example.com/telegram', {
@@ -72,9 +72,9 @@ describe('handleTelegramUpdate', () => {
 
 	it('regression: still reports the error correctly even though the handler already consumed the body', async () => {
 		const { handleTelegramUpdate } = await import('../src/telegram/main-tel.js');
-		// mock handler دقیقاً مثل webhookCallback واقعی grammy، خودش body رو می‌خونه و بعد throw می‌کنه.
-		// اگه request قبل از این فراخوانی clone نشده باشه، خوندنش برای گزارش خطا با
-		// "Body has already been used" خطا می‌ده.
+		// The mock handler, just like the real webhookCallback, reads its body and then throws an error.
+		// If the request was not cloned before this call, reading it for error reporting
+		// results in a "body already used" error.
 		mockWebhookHandler.mockImplementationOnce(async (request) => {
 			await request.json();
 			throw new Error('boom');
@@ -97,5 +97,22 @@ describe('handleTelegramUpdate', () => {
 
 		expect(response.status).toBe(200);
 		expect(reportErrorToAdminMock).not.toHaveBeenCalled();
+	});
+
+	it('refuses to build the handler when TELEGRAM_WEBHOOK_SECRET is missing', async () => {
+		const { handleTelegramUpdate } = await import('../src/telegram/main-tel.js');
+		const envWithoutSecret = {};
+
+		const request = makeUpdateRequest({ update_id: 4, message: { from: { id: 444 } } });
+		const response = await handleTelegramUpdate(request, envWithoutSecret);
+
+		expect(response.status).toBe(200); // caught and reported, not thrown to the caller
+		expect(mockWebhookHandler).not.toHaveBeenCalled();
+		expect(reportErrorToAdminMock).toHaveBeenCalledWith(
+			envWithoutSecret,
+			'handleTelegramUpdate',
+			expect.any(Error),
+			444
+		);
 	});
 });

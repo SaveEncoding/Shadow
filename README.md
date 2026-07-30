@@ -12,3 +12,4 @@ List of tasks to be done.
 - [x] System-wide error management design
 - [ ] Creating the initial menu
 - [ ] Using Gemini 3.5 Flash
+- [x] Adding a Webhook Secret
