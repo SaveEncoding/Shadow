@@ -23,7 +23,11 @@
 		}
 	],
 	"rules": [
-    { "type": "Data", "globs": ["**/*.jpg", "**/*.jpeg", "**/*.png"], "fallthrough": true }
+    	{
+			"type": "Data",
+			"globs": ["**/*.jpg", "**/*.jpeg", "**/*.png"],
+			"fallthrough": true 
+		}
   	],
 	"triggers": {
 		"crons": ["0 3 * * *"]
