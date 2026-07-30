@@ -29,17 +29,25 @@ export function createBot(env) {
   return bot;
 };
 
-function isDirectUserInteraction(ctx) {
+export function isDirectUserInteraction(ctx) {
+  // Private chat with the bot: Every message or callback query counts.
   if (ctx.chat?.type === "private") {
     return true;
   }
 
+  // Pressing an inline bot button—even within a group—means the user has interacted directly with the bot.
   if (ctx.callbackQuery) {
     return true;
   }
 
-  if (ctx.message && ctx.chat?.type !== "private") {
-    return true;
+  // Inside a group/supergroup: It only counts if the user has actually called the bot
+  // (not just any message exchanged in the group)
+  if (ctx.message) {
+    const isCommand = ctx.message.text?.startsWith("/");
+    const isReplyToBot = ctx.message.reply_to_message?.from?.id === ctx.me?.id;
+    if (isCommand || isReplyToBot) {
+      return true;
+    }
   }
 
   return false;
