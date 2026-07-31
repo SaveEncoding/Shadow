@@ -2,17 +2,15 @@ import { InlineKeyboard } from "grammy";
 
 export function homeInlineKeyboard() {
 
-const keyboard = new InlineKeyboard()
-  .text('⏪ اول', 'nav:0')
-  .text('◀️ قبلی', `nav:${1}`)
-  .text('▶️ بعدی', `nav:${2}`)
-  .text('⏩ آخر', `nav:${3}`)
+  const keyboard = new InlineKeyboard()
+  .text('📊 پنل مدیریت', 'panel')
+  .text('➕ افزودن کانال', 'add_channel')
   .row()
-  .text('📥 دانلود', `dl:${4}`)
-  .text('🔍 جستجوی تصویر', `rs:${5}`)
-  .text('⭐ علاقه‌مندی', `fav:${6}`)
+  .text('📋 کانال‌های من', 'my_channels')
+  .text('⚙️ تنظیمات', 'settings')
   .row()
-  .text(`7`, 'status');
-return keyboard
+  .text('📈 آمار', 'stats')
+  .text('❓ راهنما', 'help') 
 
+return keyboard
 }
