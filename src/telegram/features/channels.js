@@ -1,9 +1,9 @@
 import { addChannel, getChannels } from "../db/channels.js";
 
 /**
- * اگه پیام یه پست فوروواردشده از یه کانال باشه، اطلاعات همون کانال رو برمی‌گردونه؛
- * در غیر این صورت null. یه تابع خالص و مستقل از grammY/D1 که راحت تست می‌شه.
- */
+  * If the message is a forwarded post from a channel, it returns that channel's information;
+  * otherwise, it returns `null`. A pure function independent of grammY/D1 that is easy to test.
+  */
 export function getForwardedChannel(message) {
   const origin = message?.forward_origin;
   if (origin?.type !== "channel") {
@@ -12,15 +12,47 @@ export function getForwardedChannel(message) {
   return origin.chat;
 }
 
-/** آیا وضعیت عضویت داده‌شده، مالکیت/ادمین بودن روی کانال رو نشون می‌ده؟ */
+/** Does the assigned membership status indicate channel ownership or admin rights? */
 export function isChannelOwner(memberStatus) {
   return memberStatus === "administrator" || memberStatus === "creator";
 }
 
 /**
- * ثبت‌نام کانال از طریق فوروارد کردن یه پست از اون کانال، پس از تأیید اینکه
- * کاربر واقعاً ادمین/مالک همون کانال هست.
+ * When the getChatMember call fails (not because the user is not an admin, but because
+ * we couldn't check their status at all), it describes the error based on the Telegram error message.
  */
+export function describeChannelAccessError(err) {
+  const description = (err?.description ?? "").toLowerCase();
+
+  if (description.includes("chat not found")) {
+    return "❌ این کانال شناسایی نشد. لطفاً پست رو دوباره از همون کانال فوروارد کنید.";
+  }
+
+  if (description.includes("not a member") || description.includes("member list is inaccessible")) {
+    return (
+      "🤖 بات هنوز به این کانال اضافه نشده.\n\n" +
+      "لطفاً اول بات رو به‌عنوان ادمین به کانال اضافه کنید، بعد همون پست رو دوباره فوروارد کنید."
+    );
+  }
+
+  return "⚠️ خطا در بررسی وضعیت کانال. لطفاً کمی بعد دوباره تلاش کنید.";
+}
+
+/**
+ * When `getChatMember` succeeds but the user is not an admin or owner, it displays a more specific message based on their status
+ * (e.g., a regular member versus someone who is not a channel member at all).
+ */
+export function describeNonOwnerStatus(memberStatus) {
+  if (memberStatus === "left" || memberStatus === "kicked") {
+    return "❌ شما عضو این کانال نیستید.";
+  }
+  return "❌ فقط ادمین‌ها یا سازنده‌ی کانال می‌تونن اون رو ثبت کنن.";
+}
+
+/**
+  * Registering a channel by forwarding a post from that channel, after verifying that  
+  * the user is indeed the admin/owner of that channel.
+  */
 export function channelsFeature(bot, env) {
   bot.callbackQuery("add_channel", async (ctx) => {
     await ctx.answerCallbackQuery();
@@ -46,8 +78,7 @@ export function channelsFeature(bot, env) {
     return ctx.reply(text);
   });
 
-  // این handler باید قبل از echo توی FEATURES ثبت بشه؛ برای پیام‌هایی که فوروارد
-  // کانال نیستن next() صدا زده می‌شه تا echo هم بتونه پردازششون کنه.
+  // This handler must be registered in `FEATURES` before `echo`; for messages that are not channel forwards, `next()` is called so that `echo` can process them as well.
   bot.on("message", async (ctx, next) => {
     const channel = getForwardedChannel(ctx.message);
     if (!channel) {
@@ -59,13 +90,11 @@ export function channelsFeature(bot, env) {
       member = await ctx.api.getChatMember(channel.id, ctx.from.id);
     } catch (err) {
       console.error("[channelsFeature] getChatMember failed:", err);
-      return ctx.reply(
-        "برای ثبت این کانال، بات باید از قبل به‌عنوان ادمین به اون کانال اضافه شده باشه."
-      );
+      return ctx.reply(describeChannelAccessError(err));
     }
 
     if (!isChannelOwner(member.status)) {
-      return ctx.reply("فقط ادمین‌های خود کانال می‌تونن اون رو ثبت کنن.");
+      return ctx.reply(describeNonOwnerStatus(member.status));
     }
 
     await addChannel(env.my_database, ctx.from.id, {
