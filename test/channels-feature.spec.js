@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	getForwardedChannel,
+	getChannelToRegister,
 	isChannelOwner,
 	describeChannelAccessError,
 	describeNonOwnerStatus,
@@ -31,6 +32,29 @@ describe('getForwardedChannel', () => {
 	it('returns null for a null/undefined message', () => {
 		expect(getForwardedChannel(null)).toBeNull();
 		expect(getForwardedChannel(undefined)).toBeNull();
+	});
+});
+
+describe('getChannelToRegister', () => {
+	const forwardedChannelMessage = {
+		forward_origin: { type: 'channel', chat: { id: -100999, title: 'My Channel', username: 'mychan' } },
+	};
+
+	it('recognizes a channel forward inside a private chat', () => {
+		expect(getChannelToRegister('private', forwardedChannelMessage)).toEqual({
+			id: -100999,
+			title: 'My Channel',
+			username: 'mychan',
+		});
+	});
+
+	it('regression: ignores a channel forward that shows up in a group (e.g. a linked discussion group)', () => {
+		expect(getChannelToRegister('group', forwardedChannelMessage)).toBeNull();
+		expect(getChannelToRegister('supergroup', forwardedChannelMessage)).toBeNull();
+	});
+
+	it('ignores a plain (non-forwarded) message even in a private chat', () => {
+		expect(getChannelToRegister('private', { text: 'hi' })).toBeNull();
 	});
 });
 

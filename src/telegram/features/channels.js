@@ -18,6 +18,19 @@ export function isChannelOwner(memberStatus) {
 }
 
 /**
+ * Only when the chat is private AND the message is actually a forward from a channel
+ * does it return that channel's info. In any group (including a discussion group linked
+ * to a channel, which Telegram auto-forwards channel posts into), this always returns
+ * null, because channel registration must only happen through a direct chat with the bot.
+ */
+export function getChannelToRegister(chatType, message) {
+  if (chatType !== "private") {
+    return null;
+  }
+  return getForwardedChannel(message);
+}
+
+/**
  * When the getChatMember call fails (not because the user is not an admin, but because
  * we couldn't check their status at all), it describes the error based on the Telegram error message.
  */
@@ -78,9 +91,9 @@ export function channelsFeature(bot, env) {
     return ctx.reply(text);
   });
 
-  // This handler must be registered in `FEATURES` before `echo`; for messages that are not channel forwards, `next()` is called so that `echo` can process them as well.
+  // This handler must be registered in `FEATURES` before `echo`; for messages that are not channel forwards (in a private chat), `next()` is called so that `echo` can process them as well.
   bot.on("message", async (ctx, next) => {
-    const channel = getForwardedChannel(ctx.message);
+    const channel = getChannelToRegister(ctx.chat?.type, ctx.message);
     if (!channel) {
       return next();
     }
