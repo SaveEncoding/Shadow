@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // We use vi.hoisted to avoid issues caused by vi.mock being hoisted to the top of the file.
-const { mockWebhookHandler, createBotMock, startCommandMock, echoMock, reportErrorToAdminMock } = vi.hoisted(() => ({
-	mockWebhookHandler: vi.fn(),
-	createBotMock: vi.fn(() => ({ __fakeBot: true })),
-	startCommandMock: vi.fn(),
-	echoMock: vi.fn(),
-	reportErrorToAdminMock: vi.fn(),
-}));
+const { mockWebhookHandler, createBotMock, startCommandMock, channelsFeatureMock, echoMock, reportErrorToAdminMock } =
+	vi.hoisted(() => ({
+		mockWebhookHandler: vi.fn(),
+		createBotMock: vi.fn(() => ({ __fakeBot: true })),
+		startCommandMock: vi.fn(),
+		channelsFeatureMock: vi.fn(),
+		echoMock: vi.fn(),
+		reportErrorToAdminMock: vi.fn(),
+	}));
 
 vi.mock('grammy', () => ({
 	webhookCallback: vi.fn(() => mockWebhookHandler),
@@ -17,6 +19,9 @@ vi.mock('../src/telegram/bot.js', () => ({
 }));
 vi.mock('../src/telegram/commands/start.js', () => ({
 	startCommand: startCommandMock,
+}));
+vi.mock('../src/telegram/features/channels.js', () => ({
+	channelsFeature: channelsFeatureMock,
 }));
 vi.mock('../src/telegram/services/echoFun.js', () => ({
 	echo: echoMock,
@@ -51,6 +56,7 @@ describe('handleTelegramUpdate', () => {
 		expect(response.status).toBe(200);
 		expect(createBotMock).toHaveBeenCalledWith(fakeEnv);
 		expect(startCommandMock).toHaveBeenCalled();
+		expect(channelsFeatureMock).toHaveBeenCalled();
 		expect(echoMock).toHaveBeenCalled();
 		expect(mockWebhookHandler).toHaveBeenCalledTimes(1);
 	});
@@ -63,9 +69,10 @@ describe('handleTelegramUpdate', () => {
 		await handleTelegramUpdate(makeUpdateRequest({ update_id: 2 }), fakeEnv);
 		await handleTelegramUpdate(makeUpdateRequest({ update_id: 3 }), fakeEnv);
 
-		// createBot/startCommand/echo باید فقط یک‌بار در هر isolate اجرا بشن، نه یک‌بار به‌ازای هر ریکوئست
+		// createBot/startCommand/channelsFeature/echo باید فقط یک‌بار در هر isolate اجرا بشن، نه یک‌بار به‌ازای هر ریکوئست
 		expect(createBotMock).toHaveBeenCalledTimes(1);
 		expect(startCommandMock).toHaveBeenCalledTimes(1);
+		expect(channelsFeatureMock).toHaveBeenCalledTimes(1);
 		expect(echoMock).toHaveBeenCalledTimes(1);
 		expect(mockWebhookHandler).toHaveBeenCalledTimes(3);
 	});

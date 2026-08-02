@@ -2,6 +2,7 @@ import { createBot } from "./bot.js";
 import { webhookCallback } from "grammy";
 import { reportErrorToAdmin } from "./utils/Error.js";
 import { startCommand } from "./commands/start.js";
+import { channelsFeature } from "./features/channels.js";
 import { echo } from "./services/echoFun.js";
 
 // It is created only once per isolate and reused across requests,
@@ -10,8 +11,10 @@ let handlerPromise = null;
 
 // Any new feature simply needs to be added here.
 // Required signature for each entry: (bot, env) => void | Promise<void>
+// Order matters for "message" handlers that don't call next(): echo must stay last.
 const FEATURES = [
   (bot, env) => startCommand(bot, env),
+  (bot, env) => channelsFeature(bot, env),
   (bot, env) => echo(bot),
 ];
 

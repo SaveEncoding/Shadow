@@ -27,3 +27,19 @@ CREATE TABLE IF NOT EXISTS user_logs (
   created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
+
+-- Channels registered by users (via forwarding a post from their channel)
+CREATE TABLE IF NOT EXISTS channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,       -- telegram id of the user who registered this channel
+  channel_id INTEGER NOT NULL,    -- telegram id of the channel itself
+  title TEXT NOT NULL,
+  username TEXT,                  -- channels can be private and have no username
+  created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+  updated_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+  UNIQUE(user_id, channel_id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_channels_user_id ON channels(user_id);
+CREATE INDEX IF NOT EXISTS idx_channels_channel_id ON channels(channel_id);
