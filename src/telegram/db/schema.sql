@@ -28,18 +28,33 @@ CREATE TABLE IF NOT EXISTS user_logs (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
--- Channels registered by users (via forwarding a post from their channel)
+-- Channels registered by users (via forwarding a post from their channel).
+-- One row per channel — not per admin — so title/username/owner stay single-sourced.
 CREATE TABLE IF NOT EXISTS channels (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,       -- telegram id of the user who registered this channel
-  channel_id INTEGER NOT NULL,    -- telegram id of the channel itself
+  channel_id INTEGER NOT NULL UNIQUE,   -- telegram id of the channel itself
   title TEXT NOT NULL,
-  username TEXT,                  -- channels can be private and have no username
+  username TEXT,                        -- channels can be private and have no username
+  owner_id INTEGER,                     -- the channel's real creator; NULL until we observe a "creator"-status admin
+  registered_by INTEGER NOT NULL,       -- the first user who registered this channel via the bot
   created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
   updated_at TEXT DEFAULT (CURRENT_TIMESTAMP),
-  UNIQUE(user_id, channel_id),
+  FOREIGN KEY (registered_by) REFERENCES users(id),
+  FOREIGN KEY (owner_id) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_channels_channel_id ON channels(channel_id);
+CREATE INDEX IF NOT EXISTS idx_channels_registered_by ON channels(registered_by);
+
+-- Which bot users can see/manage which channel (many-to-many).
+-- The registrant is included here too (see registered_by on `channels` to know who was first).
+CREATE TABLE IF NOT EXISTS channel_admins (
+  channel_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  added_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+  PRIMARY KEY (channel_id, user_id),
+  FOREIGN KEY (channel_id) REFERENCES channels(channel_id),
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_channels_user_id ON channels(user_id);
-CREATE INDEX IF NOT EXISTS idx_channels_channel_id ON channels(channel_id);
+CREATE INDEX IF NOT EXISTS idx_channel_admins_user_id ON channel_admins(user_id);

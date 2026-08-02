@@ -1,4 +1,4 @@
-import { addChannel, getChannels } from "../db/channels.js";
+import { registerChannel, getChannels } from "../db/channels.js";
 
 /**
   * If the message is a forwarded post from a channel, it returns that channel's information;
@@ -86,7 +86,15 @@ export function channelsFeature(bot, env) {
     let text = "📋 کانال‌های شما:\n\n";
     for (const channel of channels) {
       text += `• ${channel.title}`;
-      text += channel.username ? ` (@${channel.username})\n` : "\n";
+      text += channel.username ? ` (@${channel.username})` : "";
+
+      if (channel.owner_id === ctx.from.id) {
+        text += " — مالک";
+      } else if (channel.registered_by === ctx.from.id) {
+        text += " — ثبت‌کننده";
+      }
+
+      text += "\n";
     }
     return ctx.reply(text);
   });
@@ -110,12 +118,24 @@ export function channelsFeature(bot, env) {
       return ctx.reply(describeNonOwnerStatus(member.status));
     }
 
-    await addChannel(env.my_database, ctx.from.id, {
-      id: channel.id,
-      title: channel.title,
-      username: channel.username ?? null,
-    });
+    const isOwner = member.status === "creator";
+    const { isNewChannel } = await registerChannel(
+      env.my_database,
+      ctx.from.id,
+      {
+        id: channel.id,
+        title: channel.title,
+        username: channel.username ?? null,
+      },
+      { isOwner }
+    );
 
-    return ctx.reply(`✅ کانال «${channel.title}» با موفقیت ثبت شد.`);
+    if (isNewChannel) {
+      return ctx.reply(`✅ کانال «${channel.title}» با موفقیت ثبت شد.`);
+    }
+
+    return ctx.reply(
+      `✅ این کانال قبلاً توسط یکی دیگه از ادمین‌ها ثبت شده بود؛ شما هم به لیست ادمین‌های «${channel.title}» اضافه شدید.`
+    );
   });
 }
