@@ -1,13 +1,19 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
-import { registerChannel, getChannels, removeChannelAdmin } from '../src/telegram/db/channels.js';
+import {
+	registerChannel,
+	getChannels,
+	removeChannelAdmin,
+	getChannelsNeedingAdminSync,
+	syncChannelAdmins,
+} from '../src/telegram/db/channels.js';
 
 beforeAll(async () => {
 	await env.my_database.exec(
 		'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, first_name TEXT NOT NULL, last_name TEXT, language_code TEXT, is_admin BOOLEAN DEFAULT FALSE, is_vip BOOLEAN DEFAULT FALSE, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));'
 	);
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, username TEXT, owner_id INTEGER, registered_by INTEGER NOT NULL, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (registered_by) REFERENCES users(id), FOREIGN KEY (owner_id) REFERENCES users(id));'
+		'CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, username TEXT, owner_id INTEGER, registered_by INTEGER NOT NULL, admins_synced_at TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (registered_by) REFERENCES users(id), FOREIGN KEY (owner_id) REFERENCES users(id));'
 	);
 	await env.my_database.exec(
 		'CREATE TABLE IF NOT EXISTS channel_admins (channel_id INTEGER NOT NULL, user_id INTEGER NOT NULL, added_at TEXT DEFAULT (CURRENT_TIMESTAMP), PRIMARY KEY (channel_id, user_id), FOREIGN KEY (channel_id) REFERENCES channels(channel_id), FOREIGN KEY (user_id) REFERENCES users(id));'
@@ -136,5 +142,89 @@ describe('removeChannelAdmin', () => {
 
 		expect(await getChannels(env.my_database, 2)).toEqual([]);
 		expect(await getChannels(env.my_database, 1)).toHaveLength(1);
+	});
+});
+
+describe('getChannelsNeedingAdminSync', () => {
+	it('never-synced channels come before already-synced ones', async () => {
+		await registerChannel(env.my_database, 1, { id: -300001, title: 'Never Synced', username: null });
+		await syncChannelAdmins(env.my_database, -300001, [1]); // یه‌بار sync‌ش می‌کنیم
+		await registerChannel(env.my_database, 1, { id: -300002, title: 'Still Never Synced', username: null });
+
+		const batch = await getChannelsNeedingAdminSync(env.my_database, 10);
+		const neverSyncedIndex = batch.findIndex((c) => c.channel_id === -300002);
+		const alreadySyncedIndex = batch.findIndex((c) => c.channel_id === -300001);
+
+		expect(neverSyncedIndex).toBeGreaterThanOrEqual(0);
+		expect(alreadySyncedIndex).toBeGreaterThanOrEqual(0);
+		expect(neverSyncedIndex).toBeLessThan(alreadySyncedIndex);
+	});
+
+	it('respects the batch size limit', async () => {
+		for (let i = 0; i < 5; i++) {
+			await registerChannel(env.my_database, 1, { id: -310000 - i, title: `Batch ${i}`, username: null });
+		}
+
+		const batch = await getChannelsNeedingAdminSync(env.my_database, 3);
+		expect(batch).toHaveLength(3);
+	});
+});
+
+describe('syncChannelAdmins', () => {
+	it('adds admins who are known bot users and not yet linked', async () => {
+		await registerChannel(env.my_database, 1, { id: -400001, title: 'Sync Target', username: null });
+
+		const result = await syncChannelAdmins(env.my_database, -400001, [1, 2, 3]);
+
+		expect(result.added).toBe(2); // فقط ۲ و ۳ جدید بودن؛ ۱ از قبل بود (ثبت‌کننده)
+		const channels = await getChannels(env.my_database, 2);
+		expect(channels.some((c) => c.channel_id === -400001)).toBe(true);
+	});
+
+	it('skips telegram admins who have never started the bot (not in users table)', async () => {
+		await registerChannel(env.my_database, 1, { id: -400002, title: 'Unknown Admin', username: null });
+
+		// 9999 توی جدول users نیست
+		const result = await syncChannelAdmins(env.my_database, -400002, [1, 9999]);
+
+		expect(result.added).toBe(0);
+		expect(await getChannels(env.my_database, 9999)).toEqual([]);
+	});
+
+	it('removes admins who are no longer in the current admin list', async () => {
+		await registerChannel(env.my_database, 1, { id: -400003, title: 'Demotion Test', username: null });
+		await registerChannel(env.my_database, 2, { id: -400003, title: 'Demotion Test', username: null });
+
+		// این‌بار فقط کاربر ۱ توی لیست ادمین‌های واقعیه؛ یعنی ۲ باید حذف بشه
+		const result = await syncChannelAdmins(env.my_database, -400003, [1]);
+
+		expect(result.removed).toBe(1);
+		expect(await getChannels(env.my_database, 2)).toEqual([]);
+		expect(await getChannels(env.my_database, 1)).toHaveLength(1);
+	});
+
+	it('always advances admins_synced_at, even when nothing changed', async () => {
+		await registerChannel(env.my_database, 1, { id: -400004, title: 'No Change', username: null });
+
+		const before = await env.my_database
+			.prepare('SELECT admins_synced_at FROM channels WHERE channel_id = ?')
+			.bind(-400004)
+			.first();
+		expect(before.admins_synced_at).toBeNull();
+
+		const result = await syncChannelAdmins(env.my_database, -400004, [1]);
+
+		expect(result).toEqual({ added: 0, removed: 0 });
+		const after = await env.my_database
+			.prepare('SELECT admins_synced_at FROM channels WHERE channel_id = ?')
+			.bind(-400004)
+			.first();
+		expect(after.admins_synced_at).not.toBeNull();
+	});
+
+	it('handles an empty admin list without erroring', async () => {
+		await registerChannel(env.my_database, 1, { id: -400005, title: 'Empty List', username: null });
+		const result = await syncChannelAdmins(env.my_database, -400005, []);
+		expect(result).toEqual({ added: 0, removed: 0 });
 	});
 });

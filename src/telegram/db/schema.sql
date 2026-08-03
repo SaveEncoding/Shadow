@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS channels (
   username TEXT,                        -- channels can be private and have no username
   owner_id INTEGER,                     -- the channel's real creator; NULL until we observe a "creator"-status admin
   registered_by INTEGER NOT NULL,       -- the first user who registered this channel via the bot
+  admins_synced_at TEXT,                -- last time channel_admins was refreshed via getChatAdministrators; NULL = never
   created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
   updated_at TEXT DEFAULT (CURRENT_TIMESTAMP),
   FOREIGN KEY (registered_by) REFERENCES users(id),
@@ -45,6 +46,7 @@ CREATE TABLE IF NOT EXISTS channels (
 
 CREATE INDEX IF NOT EXISTS idx_channels_channel_id ON channels(channel_id);
 CREATE INDEX IF NOT EXISTS idx_channels_registered_by ON channels(registered_by);
+CREATE INDEX IF NOT EXISTS idx_channels_admins_synced_at ON channels(admins_synced_at);
 
 -- Which bot users can see/manage which channel (many-to-many).
 -- The registrant is included here too (see registered_by on `channels` to know who was first).
