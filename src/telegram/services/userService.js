@@ -7,7 +7,10 @@ export class UserService {
   }
 
   /**
-   * User registration or update upon first interaction
+   * User registration or update upon first interaction.
+   * Single D1 round-trip via INSERT ... ON CONFLICT ... RETURNING *.
+   * New-user detection uses created_at === updated_at (both set on insert;
+   * only updated_at changes on subsequent upserts).
    */
   async registerOrUpdate(user) {
     if (!user || !user.id) return null;
@@ -15,7 +18,7 @@ export class UserService {
     const { id, username, first_name, last_name, language_code } = user;
 
     try {
-      const result = await this.db
+      const row = await this.db
         .prepare(`
           INSERT INTO users (id, username, first_name, last_name, language_code, updated_at)
           VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -25,6 +28,7 @@ export class UserService {
             last_name = excluded.last_name,
             language_code = excluded.language_code,
             updated_at = CURRENT_TIMESTAMP
+          RETURNING *
         `)
         .bind(
           id,
@@ -33,14 +37,14 @@ export class UserService {
           last_name || null,
           language_code || null
         )
-        .run();
+        .first();
 
-      // New User Registration Log
-      if (result.meta.changes > 0 && !await this.isUserExists(id)) {
+      // New user: created_at and updated_at were set together on INSERT
+      if (row && row.created_at === row.updated_at) {
         await this.logActivity(id, "register", "New user registered");
       }
 
-      return await this.getUser(id);
+      return row;
     } catch (err) {
       console.error("Error registering user:", err);
       throw err;
