@@ -64,7 +64,10 @@ export async function registerChannel(db, userId, channel, { isOwner = false } =
 }
 
 /**
-  *  All channels to which the user has admin access (whether they were the one who registered them or were added later).
+  * All channels to which the user has admin access (whether they were the one who registered them or were added later).
+  * 
+  * @param {D1Database} db
+  * @param {number} userId
   */
 export async function getChannels(db, userId) {
   const result = await db
@@ -81,7 +84,12 @@ export async function getChannels(db, userId) {
   return result.results;
 }
 
-/** Revoking a user's access to a channel (the channel itself and its other admins remain unaffected). */
+/**
+  * Revoking a user's access to a channel (the channel itself and its other admins remain unaffected).
+  * 
+  * @param {D1Database} db
+  * @param {number} userId
+  */
 export async function removeChannelAdmin(db, channelId, userId) {
   return db
     .prepare("DELETE FROM channel_admins WHERE channel_id = ? AND user_id = ?")
@@ -93,6 +101,7 @@ export async function removeChannelAdmin(db, channelId, userId) {
  * It returns a limited batch of channels, ordered by the oldest sync (with channels that have never been synced coming first).
  * It is designed to ensure that each cron execution takes a limited, predictable amount of time, even with an arbitrarily large number of channels;
  * full coverage is achieved across multiple executions in a round-robin fashion.
+ * 
  */
 export async function getChannelsNeedingAdminSync(db, limit = 200) {
   const result = await db
@@ -109,14 +118,15 @@ export async function getChannelsNeedingAdminSync(db, limit = 200) {
 }
 
 /**
- * It synchronizes the list of registered channel admins with the latest actual list retrieved from Telegram
- * (via the `getChatAdministrators` output): new admins are added, and
- * admins who have been removed are deleted. Only users who have previously started the bot
- * (and exist in the `users` table) can be linked; otherwise, database constraints prevent it.
- * If nothing has actually changed, no `INSERT` or `DELETE` operations are executed.
- *
- * @returns {Promise<{added: number, removed: number}>}
- */
+  * It synchronizes the list of registered channel admins with the latest actual list retrieved from Telegram
+  * (via the `getChatAdministrators` output): new admins are added, and
+  * admins who have been removed are deleted. Only users who have previously started the bot
+  * (and exist in the `users` table) can be linked; otherwise, database constraints prevent it.
+  * If nothing has actually changed, no `INSERT` or `DELETE` operations are executed.
+  *
+  * @param {D1Database} db
+  * @returns {Promise<{added: number, removed: number}>}
+  */
 export async function syncChannelAdmins(db, channelId, currentAdminUserIds) {
   if (currentAdminUserIds.length === 0) {
     await db
