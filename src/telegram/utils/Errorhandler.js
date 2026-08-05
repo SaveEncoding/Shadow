@@ -1,4 +1,5 @@
 import { reportError } from "./Error.js";
+import { executionCtxStorage } from "../bot.js";
 
 const DEFAULT_USER_MESSAGE =
   "⚠️ مشکلی پیش اومد، لطفاً چند لحظه دیگه دوباره تلاش کن.";
@@ -26,28 +27,42 @@ export async function handleGrammyError(botError, env) {
 
   console.error(`[${context}]`, error);
 
-  // UserFacingError sets reportToAdmin = false; CriticalError / plain Error report by default.
-  const shouldReport = error?.reportToAdmin !== false;
-  if (shouldReport) {
-    try {
-      await reportError(env, context, error, userId);
-    } catch (reportErr) {
-      console.error("Failed to report error to log chat:", reportErr);
-    }
-  }
-
-  // Friendly reply to the user (private chat or the chat where the update happened).
-  const userMsg = error?.userMessage || DEFAULT_USER_MESSAGE;
-  if (ctx?.chat?.id) {
-    try {
-      if (ctx.callbackQuery) {
-        await ctx.answerCallbackQuery({ text: userMsg.slice(0, 200), show_alert: true });
-      } else {
-        await ctx.reply(userMsg);
+  // Reporting to the log chat and replying to the user are both outbound Telegram
+  // API calls — neither needs to finish before we return control to grammY/the
+  // webhook. Run them in the background via waitUntil, same as the D1 write in
+  // bot.js's registration middleware, instead of making Telegram wait on them.
+  const background = async () => {
+    // UserFacingError sets reportToAdmin = false; CriticalError / plain Error report by default.
+    const shouldReport = error?.reportToAdmin !== false;
+    if (shouldReport) {
+      try {
+        await reportError(env, context, error, userId);
+      } catch (reportErr) {
+        console.error("Failed to report error to log chat:", reportErr);
       }
-    } catch (replyErr) {
-      console.error("Failed to notify user of error:", replyErr);
     }
+
+    // Friendly reply to the user (private chat or the chat where the update happened).
+    const userMsg = error?.userMessage || DEFAULT_USER_MESSAGE;
+    if (ctx?.chat?.id) {
+      try {
+        if (ctx.callbackQuery) {
+          await ctx.answerCallbackQuery({ text: userMsg.slice(0, 200), show_alert: true });
+        } else {
+          await ctx.reply(userMsg);
+        }
+      } catch (replyErr) {
+        console.error("Failed to notify user of error:", replyErr);
+      }
+    }
+  };
+
+  const execCtx = executionCtxStorage.getStore();
+  if (execCtx?.waitUntil) {
+    execCtx.waitUntil(background());
+  } else {
+    // No ExecutionContext in scope (e.g. called outside a request) — fall back to awaiting.
+    await background();
   }
 }
 
