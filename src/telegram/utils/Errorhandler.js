@@ -15,7 +15,9 @@ const DEFAULT_USER_MESSAGE =
  */
 export async function handleGrammyError(botError, env) {
   const ctx = botError.ctx;
-  const error = botError.error;
+  // grammY types BotError#error as `unknown`; our own UserFacingError/CriticalError
+  // classes attach reportToAdmin/userMessage, which TS can't know about statically.
+  const error = /** @type {any} */ (botError.error);
   const userId = ctx?.from?.id ?? null;
   const updateType = ctx?.update
     ? Object.keys(ctx.update).find((k) => k !== "update_id") ?? "unknown"
@@ -53,6 +55,7 @@ export async function handleGrammyError(botError, env) {
  * Optional wrapper for non-grammy async work (cron, one-off tasks).
  * Prefer handleGrammyError for bot updates.
  *
+ * @template T
  * @param {() => Promise<T>} fn
  * @param {object} env
  * @param {string} context
