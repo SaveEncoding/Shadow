@@ -1,6 +1,15 @@
 import { Bot } from "grammy";
 import { conversations } from "@grammyjs/conversations";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { UserService } from "./services/userService.js";
+
+/** Per-request Cloudflare ExecutionContext (for waitUntil). */
+export const executionCtxStorage = new AsyncLocalStorage();
+
+// In-memory throttle: avoid writing to D1 on every message from the same user.
+// Best-effort only (isolate may be recycled; multiple isolates can run in parallel).
+const lastSeen = new Map();
+const THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
 
 export function createBot(env) {
   if (!env.TELEGRAM_TOKEN) {
@@ -14,15 +23,24 @@ export function createBot(env) {
 
   bot.use(async (ctx, next) => {
     const from = ctx.from;
-    const isDirectInteraction = isDirectUserInteraction(ctx);
 
-    if (isDirectInteraction) {
-      try {
-        await userService.registerOrUpdate(from);
-      } catch (err) {
-        console.error("Failed to register user:", err);
+    if (isDirectUserInteraction(ctx) && from?.id) {
+      const now = Date.now();
+      if (!lastSeen.has(from.id) || now - lastSeen.get(from.id) > THROTTLE_MS) {
+        lastSeen.set(from.id, now);
+
+        // Fire-and-forget: do not block the webhook response on the D1 write.
+        const promise = userService
+          .registerOrUpdate(from)
+          .catch((err) => console.error("Failed to register user:", err));
+
+        const execCtx = executionCtxStorage.getStore();
+        if (execCtx?.waitUntil) {
+          execCtx.waitUntil(promise);
+        }
       }
     }
+
     return next();
   });
 

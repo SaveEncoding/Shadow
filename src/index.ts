@@ -15,7 +15,7 @@ export default {
 
       // Telegram
       if (url.pathname === "/telegram" && request.method === "POST") {
-        return await handleTelegramUpdate(request, env);
+        return await handleTelegramUpdate(request, env, ctx);
       }
 
       // Website
@@ -39,4 +39,3 @@ export default {
     ctx.waitUntil(runScheduledCleanup(env));
   }
 };
-

@@ -1,4 +1,4 @@
-import { createBot } from "./bot.js";
+import { createBot, executionCtxStorage } from "./bot.js";
 import { webhookCallback } from "grammy";
 import { reportErrorToAdmin } from "./utils/Error.js";
 import { startCommand } from "./commands/start.js";
@@ -42,30 +42,42 @@ function getHandler(env) {
   return handlerPromise;
 }
 
-export async function handleTelegramUpdate(request, env) {
+/**
+ * @param {Request} request
+ * @param {object} env
+ * @param {ExecutionContext} [executionCtx] - Cloudflare ExecutionContext for waitUntil
+ */
+export async function handleTelegramUpdate(request, env, executionCtx) {
   // Important: Cloning the request must be done before the body is read by the handler.
   // If called after the handler executes, request.clone() will throw a "Body has already been used" error,
   // because the body has already been consumed.
   const requestForErrorReporting = request.clone();
 
-  try {
-    const handler = await getHandler(env);
-    return await handler(request);
-
-  } catch (err) {
-    console.error("Telegram handler error:", err);
-
-    // Attempting to report an error
+  const run = async () => {
     try {
-      const update = await requestForErrorReporting.json();
-      const userId = update.message?.from?.id || update.callback_query?.from?.id;
-      if (userId) {
-        await reportErrorToAdmin(env, "handleTelegramUpdate", err, userId);
-      }
-    } catch (e) {
-      console.error("Failed to report error:", e);
-    }
+      const handler = await getHandler(env);
+      return await handler(request);
+    } catch (err) {
+      console.error("Telegram handler error:", err);
 
-    return new Response("OK", { status: 200 });
+      // Attempting to report an error
+      try {
+        const update = await requestForErrorReporting.json();
+        const userId = update.message?.from?.id || update.callback_query?.from?.id;
+        if (userId) {
+          await reportErrorToAdmin(env, "handleTelegramUpdate", err, userId);
+        }
+      } catch (e) {
+        console.error("Failed to report error:", e);
+      }
+
+      return new Response("OK", { status: 200 });
+    }
+  };
+
+  // Bind ExecutionContext so bot middleware can call waitUntil (fire-and-forget D1 writes).
+  if (executionCtx) {
+    return await executionCtxStorage.run(executionCtx, run);
   }
+  return await run();
 }
