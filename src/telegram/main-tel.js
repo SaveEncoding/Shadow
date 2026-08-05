@@ -3,7 +3,7 @@ import { webhookCallback } from "grammy";
 import { reportErrorToAdmin } from "./utils/Error.js";
 import { startCommand } from "./commands/start.js";
 import { channelsFeature } from "./features/channels.js";
-import { echo } from "./services/echoFun.js";
+import { echo } from "./features/echoFun.js";
 import { setErrorLogCommand } from "./commands/setErrorLog.js";
 
 // It is created only once per isolate and reused across requests,
