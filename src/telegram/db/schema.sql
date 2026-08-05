@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin);
 CREATE INDEX IF NOT EXISTS idx_users_is_vip ON users(is_vip);
+-- Speeds up deleteInactiveUsers: WHERE updated_at < ... (and non-VIP filter)
+CREATE INDEX IF NOT EXISTS idx_users_updated_at ON users(updated_at);
 
 -- User activity log table (optional but recommended)
 CREATE TABLE IF NOT EXISTS user_logs (
