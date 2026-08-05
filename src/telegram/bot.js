@@ -2,6 +2,7 @@ import { Bot } from "grammy";
 import { conversations } from "@grammyjs/conversations";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { UserService } from "./services/userService.js";
+import { handleGrammyError } from "./utils/Errorhandler.js";
 
 /** Per-request Cloudflare ExecutionContext (for waitUntil). */
 export const executionCtxStorage = new AsyncLocalStorage();
@@ -43,6 +44,9 @@ export function createBot(env) {
 
     return next();
   });
+
+  // Central error handler: covers every command / callback / message handler on this bot.
+  bot.catch((err) => handleGrammyError(err, env));
 
   return bot;
 };

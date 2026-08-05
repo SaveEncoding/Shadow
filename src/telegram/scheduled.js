@@ -1,7 +1,7 @@
 import { UserService } from "./services/userService.js";
 import { sendMessage } from "./services/telegramService.js";
-import { reportErrorToAdmin } from "./utils/Error.js";
-import { ADMINS } from "./config.js";
+import { reportError } from "./utils/Error.js";
+import { getErrorLogChatId } from "./db/settings.js";
 
 const INACTIVE_DAYS = 30;
 
@@ -18,16 +18,17 @@ export async function runScheduledCleanup(env) {
 
     if (deletedCount > 0) {
       const summary = `🧹 پاکسازی خودکار انجام شد.\n${deletedCount} کاربر غیرفعال (بیش از ${INACTIVE_DAYS} روز، غیر VIP) حذف شد.`;
-      for (const adminId of ADMINS) {
+      const logChatId = await getErrorLogChatId(env.my_database);
+      if (logChatId !== null) {
         try {
-          await sendMessage(env, adminId, summary);
+          await sendMessage(env, logChatId, summary);
         } catch (err) {
-          console.error(`[cleanup] Failed to notify admin ${adminId}:`, err);
+          console.error(`[cleanup] Failed to notify log chat ${logChatId}:`, err);
         }
       }
     }
   } catch (err) {
     console.error("[cleanup] Scheduled cleanup failed:", err);
-    await reportErrorToAdmin(env, "runScheduledCleanup", err);
+    await reportError(env, "runScheduledCleanup", err);
   }
 }

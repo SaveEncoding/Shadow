@@ -30,6 +30,13 @@ CREATE TABLE IF NOT EXISTS user_logs (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
+-- Bot runtime settings (key-value). Used e.g. for error_log_chat_id.
+CREATE TABLE IF NOT EXISTS bot_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+);
+
 -- Channels registered by users (via forwarding a post from their channel).
 -- One row per channel — not per admin — so title/username/owner stay single-sourced.
 CREATE TABLE IF NOT EXISTS channels (

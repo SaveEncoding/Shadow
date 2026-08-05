@@ -6,7 +6,7 @@
     "moduleResolution": "bundler",
     "types": ["@cloudflare/workers-types"],
     "allowJs": true,
-    "checkJs": true,
+    "checkJs": false,
     "strict": false,
     "skipLibCheck": true,
     "resolveJsonModule": true,

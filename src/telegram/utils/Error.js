@@ -1,23 +1,24 @@
-import { ADMINS } from "../config.js";
+import { getErrorLogChatId } from "../db/settings.js";
 
 const TELEGRAM_MAX_LENGTH = 4000; // Slightly below the actual limit of 4096, to be safe.
 const COOLDOWN_SECONDS = 300; // 5 minutes - only active if env.ERROR_KV is defined
 
 /**
- * Report error to bot admins
- * @param {Object} env - Environment variables (including TELEGRAM_TOKEN and optional ERROR_KV)
- * @param {string} context - Location of the error
+ * Report an error to the configured private log group (bot_settings.error_log_chat_id).
+ * Falls back to console only when the log chat is not configured yet.
+ *
+ * @param {Object} env - Environment (TELEGRAM_TOKEN, my_database, optional ERROR_KV)
+ * @param {string} context - Where the error happened
  * @param {Error|Object} error - Error object
- * @param {number|string|null} userId - User ID (optional)
+ * @param {number|string|null} userId - Telegram user id (optional)
  */
-export async function reportErrorToAdmin(env, context, error, userId = null) {
+export async function reportError(env, context, error, userId = null) {
   if (!env.TELEGRAM_TOKEN) {
     console.error("TELEGRAM_TOKEN not found for error reporting");
     return;
   }
 
-  // If KV is defined, we set a cooldown for each context.
-  // ...so that admins are not spammed in the event of consecutive errors (e.g., an external service outage).
+  // Cooldown per context so a broken dependency does not spam the log group.
   if (env.ERROR_KV) {
     const onCooldown = await isOnCooldown(env.ERROR_KV, context);
     if (onCooldown) {
@@ -29,27 +30,43 @@ export async function reportErrorToAdmin(env, context, error, userId = null) {
 
   const errorMessage = formatErrorMessage(context, error, userId);
 
-  for (const adminId of ADMINS) {
-    try {
-      await sendErrorToAdmin(env.TELEGRAM_TOKEN, adminId, errorMessage);
-    } catch (sendErr) {
-      console.error(`Failed to send error report to admin ${adminId}:`, sendErr);
+  let chatId = null;
+  try {
+    if (env.my_database) {
+      chatId = await getErrorLogChatId(env.my_database);
     }
+  } catch (dbErr) {
+    console.error("Failed to read error_log_chat_id from D1:", dbErr);
+  }
+
+  if (chatId === null) {
+    console.error(
+      `[${context}] error_log_chat_id is not set in bot_settings — error not sent to Telegram:`,
+      error
+    );
+    return;
+  }
+
+  try {
+    await sendErrorToChat(env.TELEGRAM_TOKEN, chatId, errorMessage);
+  } catch (sendErr) {
+    console.error(`Failed to send error report to log chat ${chatId}:`, sendErr);
   }
 }
 
-/** Checking the cooldown for a specific context */
+/** @deprecated Use reportError — kept as alias for existing call sites */
+export const reportErrorToAdmin = reportError;
+
 async function isOnCooldown(kv, context) {
   try {
     const value = await kv.get(`error_cooldown:${context}`);
     return value !== null;
   } catch (e) {
     console.error("KV read failed:", e);
-    return false; // If there is an issue with the KV, it is better to report the error than to let it go unnoticed.
+    return false;
   }
 }
 
-/** Registering a cooldown for a specific context */
 async function setCooldown(kv, context) {
   try {
     await kv.put(`error_cooldown:${context}`, "1", {
@@ -60,9 +77,6 @@ async function setCooldown(kv, context) {
   }
 }
 
-/**
- * Escape special HTML characters to prevent errors in Telegram when using `parse_mode: "HTML"`.
- */
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, "&amp;")
@@ -70,9 +84,6 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;");
 }
 
-/**
- * Format the error message in a readable way
- */
 function formatErrorMessage(context, error, userId) {
   const now = new Date().toLocaleString("fa-IR");
   const errText =
@@ -84,6 +95,10 @@ function formatErrorMessage(context, error, userId) {
 
   if (userId !== null && userId !== undefined) {
     msg += `👤 <b>کاربر:</b> <code>${escapeHtml(userId)}</code>\n`;
+  }
+
+  if (error?.name) {
+    msg += `🏷 <b>نوع:</b> <code>${escapeHtml(error.name)}</code>\n`;
   }
 
   msg += `\n🔴 <b>خطا:</b>\n`;
@@ -101,31 +116,24 @@ function formatErrorMessage(context, error, userId) {
   return msg;
 }
 
-/**
- * Send a message to an admin
- */
-async function sendErrorToAdmin(token, adminId, text) {
+async function sendErrorToChat(token, chatId, text) {
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
   const payload = {
-    chat_id: adminId,
+    chat_id: chatId,
     text: text,
     parse_mode: "HTML",
     disable_web_page_preview: true,
   };
 
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Telegram API error (${response.status}):`, errorText);
-    }
-  } catch (err) {
-    console.error("Failed to send error message:", err);
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Telegram API error (${response.status}): ${errorText}`);
   }
 }

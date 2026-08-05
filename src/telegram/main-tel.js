@@ -4,6 +4,7 @@ import { reportErrorToAdmin } from "./utils/Error.js";
 import { startCommand } from "./commands/start.js";
 import { channelsFeature } from "./features/channels.js";
 import { echo } from "./services/echoFun.js";
+import { setErrorLogCommand } from "./commands/setErrorLog.js";
 
 // It is created only once per isolate and reused across requests,
 // instead of each webhook creating a new Bot from scratch and re-registering the handlers.
@@ -14,6 +15,7 @@ let handlerPromise = null;
 // Order matters for "message" handlers that don't call next(): echo must stay last.
 const FEATURES = [
   (bot, env) => startCommand(bot, env),
+  (bot, env) => setErrorLogCommand(bot, env),
   (bot, env) => channelsFeature(bot, env),
   (bot, env) => echo(bot),
 ];
