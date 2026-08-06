@@ -16,15 +16,18 @@ export async function runScheduledCleanup(env) {
     const { deletedCount, deletedIds } = await userService.deleteInactiveUsers(INACTIVE_DAYS);
     console.log(`[cleanup] Removed ${deletedCount} inactive user(s):`, deletedIds);
 
-    if (deletedCount > 0) {
-      const summary = `🧹 پاکسازی خودکار انجام شد.\n${deletedCount} کاربر غیرفعال (بیش از ${INACTIVE_DAYS} روز، غیر VIP) حذف شد.`;
-      const logChatId = await getErrorLogChatId(env.my_database);
-      if (logChatId !== null) {
-        try {
-          await sendMessage(env, logChatId, summary);
-        } catch (err) {
-          console.error(`[cleanup] Failed to notify log chat ${logChatId}:`, err);
-        }
+    // Always report the run's outcome to the log chat (not just when something was
+    // deleted), so it can be tracked periodically even on a no-op run.
+    const summary =
+      deletedCount > 0
+        ? `🧹 پاکسازی خودکار انجام شد.\n${deletedCount} کاربر غیرفعال (بیش از ${INACTIVE_DAYS} روز، غیر VIP) حذف شد.`
+        : `🧹 پاکسازی خودکار انجام شد.\nهیچ کاربر غیرفعالی برای حذف پیدا نشد.`;
+    const logChatId = await getErrorLogChatId(env.my_database);
+    if (logChatId !== null) {
+      try {
+        await sendMessage(env, logChatId, summary);
+      } catch (err) {
+        console.error(`[cleanup] Failed to notify log chat ${logChatId}:`, err);
       }
     }
   } catch (err) {
