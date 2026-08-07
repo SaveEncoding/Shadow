@@ -85,8 +85,19 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;");
 }
 
+function formatTimestamp(date) {
+  // en-GB gives DD/MM/YYYY, HH:mm:ss with plain Latin digits (safe in any
+  // terminal), and timeZone: "Asia/Tehran" converts from the Worker's
+  // underlying UTC clock to the correct local wall time (UTC+3:30),
+  // instead of the previous fa-IR call which silently stayed in UTC.
+  return date.toLocaleString("en-GB", {
+    timeZone: "Asia/Tehran",
+    hour12: false,
+  });
+}
+
 function formatErrorMessage(context, error, userId) {
-  const now = new Date().toLocaleString("fa-IR");
+  const now = formatTimestamp(new Date());
   const errText =
     error instanceof Error ? error.message : JSON.stringify(error);
 
