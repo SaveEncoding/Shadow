@@ -48,13 +48,19 @@ export async function refreshChannelAdmins(env) {
     `${channels.length} کانال بررسی شد: +${totalAdded} ادمین اضافه، -${totalRemoved} ادمین حذف` +
     (failed > 0 ? `، ${failed} کانال با خطا مواجه شد` : ``) +
     `.`;
+  let logChatId = null;
   try {
-    const logChatId = await getErrorLogChatId(env.my_database);
+    logChatId = await getErrorLogChatId(env.my_database);
     if (logChatId !== null) {
       await sendMessage(env, logChatId, summary);
     }
   } catch (err) {
-    console.error("[refreshChannelAdmins] Failed to notify log chat:", err);
+    const reason =
+      err?.description || err?.message || err?.name || String(err) || "unknown error";
+    console.error(
+      `[refreshChannelAdmins] Failed to notify log chat ${logChatId}: ${reason} (error_code=${err?.error_code ?? "n/a"})`,
+      err?.stack
+    );
   }
 
   return { synced: channels.length, added: totalAdded, removed: totalRemoved, failed };

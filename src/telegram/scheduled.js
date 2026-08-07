@@ -27,7 +27,12 @@ export async function runScheduledCleanup(env) {
       try {
         await sendMessage(env, logChatId, summary);
       } catch (err) {
-        console.error(`[cleanup] Failed to notify log chat ${logChatId}:`, err);
+        const reason =
+          err?.description || err?.message || err?.name || String(err) || "unknown error";
+        console.error(
+          `[cleanup] Failed to notify log chat ${logChatId}: ${reason} (error_code=${err?.error_code ?? "n/a"})`,
+          err?.stack
+        );
       }
     }
   } catch (err) {
