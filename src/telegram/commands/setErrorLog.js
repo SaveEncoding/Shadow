@@ -1,16 +1,22 @@
-import { ADMINS } from "../config.js";
+import { Role } from "../constants/roles.js";
+import { UserService } from "../services/userService.js";
 import { setErrorLogChatId, getErrorLogChatId } from "../db/settings.js";
 
 /**
  * /seterrorlog — bind the current group as the private error-log chat.
- * Must be run inside a group/supergroup by a bootstrap admin (config.ADMINS).
+ * Must be run inside a group/supergroup by EXEC_ADMIN+.
  *
  * /geterrorlog — show the currently configured log chat id (admins only).
  */
 export function setErrorLogCommand(bot, env) {
+  const userService = new UserService(env.my_database);
+
   bot.command("seterrorlog", async (ctx) => {
     const fromId = ctx.from?.id;
-    if (!fromId || !ADMINS.includes(fromId)) {
+    if (!fromId) return;
+
+    const role = await userService.getEffectiveRole(fromId, env);
+    if (role < Role.EXEC_ADMIN) {
       return ctx.reply("⛔️ فقط ادمین بات می‌تواند گپ لاگ خطا را تنظیم کند.");
     }
 
@@ -30,7 +36,10 @@ export function setErrorLogCommand(bot, env) {
 
   bot.command("geterrorlog", async (ctx) => {
     const fromId = ctx.from?.id;
-    if (!fromId || !ADMINS.includes(fromId)) {
+    if (!fromId) return;
+
+    const role = await userService.getEffectiveRole(fromId, env);
+    if (role < Role.EXEC_ADMIN) {
       return ctx.reply("⛔️ فقط ادمین بات.");
     }
 

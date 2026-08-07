@@ -1,3 +1,6 @@
+import { Role, isValidRole } from "../constants/roles.js";
+import { resolveFounderId } from "../config.js";
+
 /**
  * User Management Service in D1
  */
@@ -73,28 +76,105 @@ export class UserService {
       .run();
   }
 
+  /**
+   * Effective role: FOUNDER_TELEGRAM_ID / legacy ADMINS always win over DB.
+   * @param {number|string} userId
+   * @param {object} [env]
+   */
+  async getEffectiveRole(userId, env = null) {
+    const founderId = resolveFounderId(env);
+    if (founderId != null && Number(userId) === Number(founderId)) {
+      return Role.FOUNDER;
+    }
+
+    const user = await this.getUser(userId);
+    if (!user) return Role.NORMAL;
+
+    // Prefer role column; fall back to legacy booleans if role missing/0
+    let role = Number(user.role ?? 0);
+    if (user.is_admin && role < Role.EXEC_ADMIN) role = Role.EXEC_ADMIN;
+    if (user.is_vip && role < Role.VIP) role = Role.VIP;
+    return role;
+  }
+
+  /**
+   * Assign role with privilege checks.
+   * - Cannot assign FOUNDER via API
+   * - Actor must be EXEC_ADMIN+
+   * - newRole must be strictly below actor's effective role (founder may assign up to DEVELOPER)
+   */
+  async setRole(actorId, targetId, newRole, env = null) {
+    if (!isValidRole(newRole)) {
+      throw new Error("سطح نقش نامعتبر است.");
+    }
+    if (newRole >= Role.FOUNDER) {
+      throw new Error("نقش بنیان‌گذار فقط از طریق متغیر محیطی قابل تنظیم است.");
+    }
+
+    const actorRole = await this.getEffectiveRole(actorId, env);
+    if (actorRole < Role.EXEC_ADMIN) {
+      throw new Error("اجازه تغییر نقش را ندارید.");
+    }
+    if (newRole >= actorRole && actorRole < Role.FOUNDER) {
+      throw new Error("نمی‌توانید نقشی برابر یا بالاتر از خودتان بدهید.");
+    }
+
+    const targetRole = await this.getEffectiveRole(targetId, env);
+    if (targetRole >= Role.FOUNDER) {
+      throw new Error("نقش بنیان‌گذار قابل تغییر از پنل نیست.");
+    }
+    if (targetRole >= actorRole && actorRole < Role.FOUNDER) {
+      throw new Error("نمی‌توانید نقش کسی هم‌سطح یا بالاتر از خودتان را تغییر دهید.");
+    }
+
+    // Keep legacy flags in sync for older queries/tests
+    const isVip = newRole >= Role.VIP ? 1 : 0;
+    const isAdmin = newRole >= Role.EXEC_ADMIN ? 1 : 0;
+
+    await this.db
+      .prepare(
+        `UPDATE users SET role = ?, is_vip = ?, is_admin = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+      )
+      .bind(newRole, isVip, isAdmin, targetId)
+      .run();
+  }
+
+  /** @deprecated prefer setRole — kept for compatibility */
   async setAsBotAdmin(userId) {
     await this.db
-      .prepare("UPDATE users SET is_admin = TRUE WHERE id = ?")
-      .bind(userId)
+      .prepare(
+        `UPDATE users SET is_admin = TRUE, role = CASE WHEN role < ? THEN ? ELSE role END, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+      )
+      .bind(Role.EXEC_ADMIN, Role.EXEC_ADMIN, userId)
       .run();
   }
 
   /**
    * Marking/unmarking a user as VIP.
    * VIP users are exempt from the automatic cleanup of inactive users.
+   * @deprecated prefer setRole
    */
   async setAsVip(userId, isVip = true) {
-    await this.db
-      .prepare("UPDATE users SET is_vip = ? WHERE id = ?")
-      .bind(isVip ? 1 : 0, userId)
-      .run();
+    if (isVip) {
+      await this.db
+        .prepare(
+          `UPDATE users SET is_vip = 1, role = CASE WHEN role < ? THEN ? ELSE role END, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        )
+        .bind(Role.VIP, Role.VIP, userId)
+        .run();
+    } else {
+      await this.db
+        .prepare(
+          `UPDATE users SET is_vip = 0, role = CASE WHEN role = ? THEN 0 ELSE role END, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        )
+        .bind(Role.VIP, userId)
+        .run();
+    }
   }
 
   /**
-   * Deletes users who have had no interaction for more than `inactiveDays` days, excluding VIP users.
-   * Used to optimize D1 storage space (typically executed via a cron trigger).
-   * The user's logs are also deleted to prevent "orphan" rows (records without an associated user) from remaining in `user_logs`.
+   * Deletes users who have had no interaction for more than `inactiveDays` days,
+   * excluding VIP and higher (role >= VIP).
    *
    * @returns {Promise<{deletedCount: number, deletedIds: number[]}>}
    */
@@ -102,10 +182,11 @@ export class UserService {
     const { results } = await this.db
       .prepare(`
         SELECT id FROM users
-        WHERE (is_vip IS NULL OR is_vip = 0)
+        WHERE COALESCE(role, 0) < ?
+          AND (is_vip IS NULL OR is_vip = 0)
           AND updated_at < datetime('now', ?)
       `)
-      .bind(`-${inactiveDays} days`)
+      .bind(Role.VIP, `-${inactiveDays} days`)
       .all();
 
     const idsToDelete = results.map((row) => row.id);
@@ -122,5 +203,42 @@ export class UserService {
     ]);
 
     return { deletedCount: idsToDelete.length, deletedIds: idsToDelete };
+  }
+
+  /** Count users per role level (0–4). */
+  async getRoleStats() {
+    const { results } = await this.db
+      .prepare(
+        `SELECT COALESCE(role, 0) AS role, COUNT(*) AS cnt FROM users GROUP BY COALESCE(role, 0)`
+      )
+      .all();
+
+    const stats = {
+      [Role.NORMAL]: 0,
+      [Role.VIP]: 0,
+      [Role.EXEC_ADMIN]: 0,
+      [Role.DEVELOPER]: 0,
+      [Role.FOUNDER]: 0,
+    };
+    for (const row of results || []) {
+      const r = Number(row.role);
+      if (r in stats) stats[r] = Number(row.cnt);
+    }
+    return stats;
+  }
+
+  /** Users with role >= minRole, ordered by role desc. */
+  async listUsersWithMinRole(minRole = Role.VIP) {
+    const { results } = await this.db
+      .prepare(
+        `SELECT id, username, first_name, last_name, role, is_vip, is_admin
+         FROM users
+         WHERE COALESCE(role, 0) >= ? OR is_vip = 1 OR is_admin = 1
+         ORDER BY COALESCE(role, 0) DESC, id ASC
+         LIMIT 100`
+      )
+      .bind(minRole)
+      .all();
+    return results || [];
   }
 }

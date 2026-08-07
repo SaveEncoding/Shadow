@@ -7,8 +7,9 @@ CREATE TABLE IF NOT EXISTS users (
   first_name TEXT NOT NULL,
   last_name TEXT,
   language_code TEXT,                        -- For example: fa, en
-  is_admin BOOLEAN DEFAULT FALSE,            -- ادمین بات (نه ادمین کانال)
-  is_vip BOOLEAN DEFAULT FALSE,              -- VIP User: Exempt from the automatic cleanup of inactive users.
+  is_admin BOOLEAN DEFAULT FALSE,            -- legacy; prefer role >= EXEC_ADMIN
+  is_vip BOOLEAN DEFAULT FALSE,              -- legacy; prefer role >= VIP
+  role INTEGER NOT NULL DEFAULT 0,           -- 0 NORMAL, 1 VIP, 2 EXEC_ADMIN, 3 DEVELOPER, 4 FOUNDER
   created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
   updated_at TEXT DEFAULT (CURRENT_TIMESTAMP)
 );
@@ -17,6 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin);
 CREATE INDEX IF NOT EXISTS idx_users_is_vip ON users(is_vip);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 -- Speeds up deleteInactiveUsers: WHERE updated_at < ... (and non-VIP filter)
 CREATE INDEX IF NOT EXISTS idx_users_updated_at ON users(updated_at);
 
