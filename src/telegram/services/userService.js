@@ -156,17 +156,19 @@ export class UserService {
    * @deprecated prefer setRole
    */
   async setAsVip(userId, isVip = true) {
+    // Do not touch updated_at — VIP flag is not user activity; otherwise
+    // un-VIP + cleanup would skip the user because they look "fresh".
     if (isVip) {
       await this.db
         .prepare(
-          `UPDATE users SET is_vip = 1, role = CASE WHEN role < ? THEN ? ELSE role END, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+          `UPDATE users SET is_vip = 1, role = CASE WHEN COALESCE(role, 0) < ? THEN ? ELSE role END WHERE id = ?`
         )
         .bind(Role.VIP, Role.VIP, userId)
         .run();
     } else {
       await this.db
         .prepare(
-          `UPDATE users SET is_vip = 0, role = CASE WHEN role = ? THEN 0 ELSE role END, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+          `UPDATE users SET is_vip = 0, role = CASE WHEN COALESCE(role, 0) = ? THEN 0 ELSE role END WHERE id = ?`
         )
         .bind(Role.VIP, userId)
         .run();
