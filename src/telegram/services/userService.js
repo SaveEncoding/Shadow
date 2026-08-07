@@ -90,10 +90,7 @@ export class UserService {
     const user = await this.getUser(userId);
     if (!user) return Role.NORMAL;
 
-    // Prefer role column; fall back to legacy is_vip only
-    let role = Number(user.role ?? 0);
-    if (user.is_vip && role < Role.VIP) role = Role.VIP;
-    return role;
+    return Number(user.role ?? 0);
   }
 
   /**
@@ -126,14 +123,13 @@ export class UserService {
       throw new Error("نمی‌توانید نقش کسی هم‌سطح یا بالاتر از خودتان را تغییر دهید.");
     }
 
-    // Keep legacy is_vip in sync until that column is also removed
-    const isVip = newRole >= Role.VIP ? 1 : 0;
-
+    // Role changes are admin actions, not end-user activity — still update
+    // updated_at so the row reflects the privilege change timestamp.
     await this.db
       .prepare(
-        `UPDATE users SET role = ?, is_vip = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        `UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
       )
-      .bind(newRole, isVip, targetId)
+      .bind(newRole, targetId)
       .run();
   }
 
@@ -151,26 +147,26 @@ export class UserService {
   }
 
   /**
-   * Marking/unmarking a user as VIP.
-   * VIP users are exempt from the automatic cleanup of inactive users.
+   * Convenience: set role to VIP or NORMAL.
+   * Does not touch updated_at (not user activity) so cleanup still sees true inactivity.
+   * Prefer setRole(actorId, userId, Role.VIP|NORMAL, env) when actor checks matter.
    * @deprecated prefer setRole
    */
   async setAsVip(userId, isVip = true) {
-    // Do not touch updated_at — VIP flag is not user activity; otherwise
-    // un-VIP + cleanup would skip the user because they look "fresh".
     if (isVip) {
       await this.db
         .prepare(
-          `UPDATE users SET is_vip = 1, role = CASE WHEN COALESCE(role, 0) < ? THEN ? ELSE role END WHERE id = ?`
+          `UPDATE users SET role = CASE WHEN COALESCE(role, 0) < ? THEN ? ELSE role END WHERE id = ?`
         )
         .bind(Role.VIP, Role.VIP, userId)
         .run();
     } else {
+      // Only demote pure VIP → NORMAL; higher roles stay untouched
       await this.db
         .prepare(
-          `UPDATE users SET is_vip = 0, role = CASE WHEN COALESCE(role, 0) = ? THEN 0 ELSE role END WHERE id = ?`
+          `UPDATE users SET role = 0 WHERE id = ? AND COALESCE(role, 0) = ?`
         )
-        .bind(Role.VIP, userId)
+        .bind(userId, Role.VIP)
         .run();
     }
   }
@@ -186,7 +182,6 @@ export class UserService {
       .prepare(`
         SELECT id FROM users
         WHERE COALESCE(role, 0) < ?
-          AND (is_vip IS NULL OR is_vip = 0)
           AND updated_at < datetime('now', ?)
       `)
       .bind(Role.VIP, `-${inactiveDays} days`)
@@ -234,9 +229,9 @@ export class UserService {
   async listUsersWithMinRole(minRole = Role.VIP) {
     const { results } = await this.db
       .prepare(
-        `SELECT id, username, first_name, last_name, role, is_vip
+        `SELECT id, username, first_name, last_name, role
          FROM users
-         WHERE COALESCE(role, 0) >= ? OR is_vip = 1
+         WHERE COALESCE(role, 0) >= ?
          ORDER BY COALESCE(role, 0) DESC, id ASC
          LIMIT 100`
       )

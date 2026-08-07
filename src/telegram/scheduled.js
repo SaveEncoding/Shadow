@@ -6,7 +6,7 @@ import { getErrorLogChatId } from "./db/settings.js";
 const INACTIVE_DAYS = 30;
 
 /**
-  * Automatic cleanup of inactive users (older than INACTIVE_DAYS), excluding VIP users.
+  * Automatic cleanup of inactive users (older than INACTIVE_DAYS), excluding users with role >= VIP.
   * Invoked via Cron Trigger (wrangler.jsonc -> triggers.crons).
   */
 export async function runScheduledCleanup(env) {
@@ -20,7 +20,7 @@ export async function runScheduledCleanup(env) {
     // deleted), so it can be tracked periodically even on a no-op run.
     const summary =
       deletedCount > 0
-        ? `🧹 پاکسازی خودکار انجام شد.\n${deletedCount} کاربر غیرفعال (بیش از ${INACTIVE_DAYS} روز، غیر VIP) حذف شد.`
+        ? `🧹 پاکسازی خودکار انجام شد.\n${deletedCount} کاربر غیرفعال (بیش از ${INACTIVE_DAYS} روز، role < VIP) حذف شد.`
         : `🧹 پاکسازی خودکار انجام شد.\nهیچ کاربر غیرفعالی برای حذف پیدا نشد.`;
     const logChatId = await getErrorLogChatId(env.my_database);
     if (logChatId !== null) {

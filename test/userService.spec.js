@@ -5,34 +5,32 @@ import { Role } from '../src/telegram/constants/roles.js';
 import { ADMINS } from '../src/telegram/config.js';
 
 beforeAll(async () => {
-	// D1 test DB starts empty; statements must be single-line for exec().
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, first_name TEXT NOT NULL, last_name TEXT, language_code TEXT, is_vip BOOLEAN DEFAULT FALSE, role INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));'
+		'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, first_name TEXT NOT NULL, last_name TEXT, language_code TEXT, role INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));'
 	);
 	await env.my_database.exec(
 		'CREATE TABLE IF NOT EXISTS user_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, action TEXT NOT NULL, details TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (user_id) REFERENCES users(id));'
 	);
 });
 
-async function insertUser(id, { daysAgo = 0, isVip = false, role = null } = {}) {
-	const resolvedRole = role != null ? role : isVip ? Role.VIP : Role.NORMAL;
+async function insertUser(id, { daysAgo = 0, role = Role.NORMAL } = {}) {
 	await env.my_database
 		.prepare(
 			`
-      INSERT INTO users (id, first_name, is_vip, role, updated_at)
-      VALUES (?, ?, ?, ?, datetime('now', ?))
+      INSERT INTO users (id, first_name, role, updated_at)
+      VALUES (?, ?, ?, datetime('now', ?))
     `
 		)
-		.bind(id, `user-${id}`, isVip || resolvedRole >= Role.VIP ? 1 : 0, resolvedRole, `-${daysAgo} days`)
+		.bind(id, `user-${id}`, role, `-${daysAgo} days`)
 		.run();
 }
 
 describe('UserService.deleteInactiveUsers', () => {
-	it('deletes non-VIP users inactive for longer than the threshold, and keeps the rest', async () => {
+	it('deletes inactive NORMAL users and keeps active / role>=VIP', async () => {
 		const userService = new UserService(env.my_database);
 		await insertUser(1, { daysAgo: 40 });
 		await insertUser(2, { daysAgo: 5 });
-		await insertUser(3, { daysAgo: 90, isVip: true });
+		await insertUser(3, { daysAgo: 90, role: Role.VIP });
 
 		const result = await userService.deleteInactiveUsers(30);
 
@@ -43,9 +41,9 @@ describe('UserService.deleteInactiveUsers', () => {
 		expect(await userService.getUser(3)).toBeTruthy();
 	});
 
-	it('keeps users with role >= VIP even without is_vip flag', async () => {
+	it('keeps inactive EXEC_ADMIN and higher', async () => {
 		const userService = new UserService(env.my_database);
-		await insertUser(4, { daysAgo: 90, role: Role.EXEC_ADMIN, isVip: false });
+		await insertUser(4, { daysAgo: 90, role: Role.EXEC_ADMIN });
 
 		const result = await userService.deleteInactiveUsers(30);
 		expect(result.deletedIds).not.toContain(4);
@@ -77,31 +75,35 @@ describe('UserService.deleteInactiveUsers', () => {
 	});
 });
 
-describe('UserService.setAsVip', () => {
-	it('marks a user as VIP (role + flag) so they survive cleanup', async () => {
+describe('UserService.setAsVip (role-only helper)', () => {
+	it('raises role to VIP so the user survives cleanup', async () => {
 		const userService = new UserService(env.my_database);
-		await insertUser(30, { daysAgo: 60 });
+		await insertUser(30, { daysAgo: 60, role: Role.NORMAL });
 
 		await userService.setAsVip(30, true);
-		const user = await userService.getUser(30);
-		expect(user.is_vip).toBeTruthy();
-		expect(Number(user.role)).toBeGreaterThanOrEqual(Role.VIP);
+		expect(Number((await userService.getUser(30)).role)).toBe(Role.VIP);
 
 		await userService.deleteInactiveUsers(30);
 		expect(await userService.getUser(30)).toBeTruthy();
 	});
 
-	it('un-marking VIP makes the user eligible for cleanup again without refreshing activity', async () => {
+	it('demotes pure VIP to NORMAL without refreshing updated_at', async () => {
 		const userService = new UserService(env.my_database);
-		await insertUser(31, { daysAgo: 60, isVip: true });
+		await insertUser(31, { daysAgo: 60, role: Role.VIP });
 
 		await userService.setAsVip(31, false);
-		const user = await userService.getUser(31);
-		expect(Number(user.is_vip)).toBe(0);
-		expect(Number(user.role)).toBe(Role.NORMAL);
+		expect(Number((await userService.getUser(31)).role)).toBe(Role.NORMAL);
 
 		await userService.deleteInactiveUsers(30);
 		expect(await userService.getUser(31)).toBeFalsy();
+	});
+
+	it('does not demote EXEC_ADMIN when setAsVip(false)', async () => {
+		const userService = new UserService(env.my_database);
+		await insertUser(32, { daysAgo: 60, role: Role.EXEC_ADMIN });
+
+		await userService.setAsVip(32, false);
+		expect(Number((await userService.getUser(32)).role)).toBe(Role.EXEC_ADMIN);
 	});
 });
 
@@ -130,20 +132,6 @@ describe('UserService.getEffectiveRole', () => {
 			FOUNDER_TELEGRAM_ID: '999999',
 		});
 		expect(role).toBe(Role.DEVELOPER);
-	});
-
-	it('treats legacy is_vip as at least VIP when role is 0', async () => {
-		const userService = new UserService(env.my_database);
-		await env.my_database
-			.prepare(
-				`INSERT INTO users (id, first_name, is_vip, role) VALUES (?, 'legacy', 1, 0)`
-			)
-			.bind(102)
-			.run();
-		const role = await userService.getEffectiveRole(102, {
-			FOUNDER_TELEGRAM_ID: '999999',
-		});
-		expect(role).toBe(Role.VIP);
 	});
 });
 
@@ -199,7 +187,6 @@ describe('UserService.setRole', () => {
 describe('UserService.getRoleStats / listUsersWithMinRole', () => {
 	it('aggregates counts per role level', async () => {
 		const userService = new UserService(env.my_database);
-		// use high ids to avoid collisions with earlier tests
 		await insertUser(300, { role: Role.NORMAL });
 		await insertUser(301, { role: Role.VIP });
 		await insertUser(302, { role: Role.VIP });

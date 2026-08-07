@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS users (
   first_name TEXT NOT NULL,
   last_name TEXT,
   language_code TEXT,                        -- For example: fa, en
-  is_vip BOOLEAN DEFAULT FALSE,              -- legacy; prefer role >= VIP (kept temporarily)
   role INTEGER NOT NULL DEFAULT 0,           -- 0 NORMAL, 1 VIP, 2 EXEC_ADMIN, 3 DEVELOPER, 4 FOUNDER
   created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
   updated_at TEXT DEFAULT (CURRENT_TIMESTAMP)
@@ -15,9 +14,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Index for fast searches
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-CREATE INDEX IF NOT EXISTS idx_users_is_vip ON users(is_vip);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
--- Speeds up deleteInactiveUsers: WHERE updated_at < ... (and non-VIP filter)
+-- Speeds up deleteInactiveUsers: WHERE updated_at < ... AND role < VIP
 CREATE INDEX IF NOT EXISTS idx_users_updated_at ON users(updated_at);
 
 -- User activity log table (optional but recommended)

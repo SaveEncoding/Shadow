@@ -69,7 +69,7 @@ npm test
 - [x] `FEATURES` structure in `main-tel.js` to add new features without cluttering the main file
 - [x] Main menu with inline buttons (`homeInlineKeyboard`)
 - [x] Automatic registration of users who interact directly with the bot (private chat, command or reply to the bot in the group) in D1
-- [x] Automatic cleaning of inactive users (more than 30 days without interaction), except VIP users — with daily Cron Trigger + notification to admins
+- [x] Automatic cleaning of inactive users (more than 30 days without interaction), except users with role >= VIP — with daily Cron Trigger + notification to admins
 - [x] **Add channel** feature: forward a post from the channel → verify admin/ownership User on the same channel (`getChatMember`) → Register in D1
 - [x] Detailed and separate error messages for each case (channel not recognized / bot not yet admin of the channel / user not admin)
 - [x] Bug fix: auto-forwarded posts from a channel to its connected chat group are no longer mistakenly considered as attempts to register the channel (this feature is only enabled in private chat with the bot)
@@ -79,7 +79,7 @@ npm test
 - [ ] Use Gemini
 - [ ] Connect the rest Menu buttons: "Admin Panel", "Settings", "Statistics", "Help" — now nothing happens if the user clicks them (no response, not even the loading state of Telegram closes) because none of them have a callback handler
 - [ ] UI for managing registered channels from within "My Channels" (now just a raw text list; no delete channel button)
-- [ ] A way (admin command or button) to make users VIP — now `UserService.setAsVip` can only be called from code and has no UI
+- [x] Hierarchical roles (`role`) replace `is_admin` / `is_vip`; founder panel + `/setrole` for privilege management
 - [ ] Store statistics from each purge run (number of users removed over time) in a small table, instead of just logging, so it can be tracked
 - [ ] Rate limit on the ability to add channels, so that someone can't overload the forwards with too many requests Increase `getChatMember`
 
