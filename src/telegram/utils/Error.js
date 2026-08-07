@@ -1,3 +1,4 @@
+import { Api } from "grammy";
 import { getErrorLogChatId } from "../db/settings.js";
 
 const TELEGRAM_MAX_LENGTH = 4000; // Slightly below the actual limit of 4096, to be safe.
@@ -117,23 +118,10 @@ function formatErrorMessage(context, error, userId) {
 }
 
 async function sendErrorToChat(token, chatId, text) {
-  const url = `https://api.telegram.org/bot${token}/sendMessage`;
+  const api = new Api(token);
 
-  const payload = {
-    chat_id: chatId,
-    text: text,
+  await api.sendMessage(chatId, text, {
     parse_mode: "HTML",
-    disable_web_page_preview: true,
-  };
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    link_preview_options: { is_disabled: true },
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Telegram API error (${response.status}): ${errorText}`);
-  }
 }

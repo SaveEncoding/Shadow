@@ -1,5 +1,10 @@
-const API = token =>
-  `https://api.telegram.org/bot${token}`;
+import { Api } from "grammy";
+
+/**
+ * Both helpers below go through grammy's Api client instead of a hand-rolled
+ * fetch, so every outbound Telegram call in the project shares the same
+ * request/error handling, retry, and typing behavior grammy provides.
+ */
 
 export async function sendMessage(
   env,
@@ -7,7 +12,6 @@ export async function sendMessage(
   text,
   replyMarkup = null
 ) {
-
   if (!env.TELEGRAM_TOKEN) {
     throw new Error("TELEGRAM_TOKEN is not set");
   }
@@ -16,29 +20,12 @@ export async function sendMessage(
     throw new Error("chatId is required");
   }
 
-  const response = await fetch(
-    `${API(env.TELEGRAM_TOKEN)}/sendMessage`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: "HTML",
-        reply_markup: replyMarkup
-      })
-    }
-  );
+  const api = new Api(env.TELEGRAM_TOKEN);
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Telegram API Error: ${error.description}`);
-  }
-
-  return response.json();
-
+  return api.sendMessage(chatId, text, {
+    parse_mode: "HTML",
+    reply_markup: replyMarkup ?? undefined,
+  });
 }
 
 export async function answerCallbackQuery(
@@ -51,25 +38,10 @@ export async function answerCallbackQuery(
     throw new Error("TELEGRAM_TOKEN is not set");
   }
 
-  const response = await fetch(
-    `${API(env.TELEGRAM_TOKEN)}/answerCallbackQuery`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        callback_query_id: callbackQueryId,
-        text,
-        show_alert: showAlert
-      })
-    }
-  );
+  const api = new Api(env.TELEGRAM_TOKEN);
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Telegram API Error: ${error.description}`);
-  }
-
-  return response.json();
+  return api.answerCallbackQuery(callbackQueryId, {
+    text,
+    show_alert: showAlert,
+  });
 }
