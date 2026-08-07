@@ -7,7 +7,7 @@ beforeAll(async () => {
 	// Note: env.my_database.exec() separates statements by newlines,
 	// so each CREATE TABLE statement must be written on a single line.
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, first_name TEXT NOT NULL, last_name TEXT, language_code TEXT, is_admin BOOLEAN DEFAULT FALSE, is_vip BOOLEAN DEFAULT FALSE, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));'
+		'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, first_name TEXT NOT NULL, last_name TEXT, language_code TEXT, is_vip BOOLEAN DEFAULT FALSE, role INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));'
 	);
 	await env.my_database.exec(
 		'CREATE TABLE IF NOT EXISTS user_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, action TEXT NOT NULL, details TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (user_id) REFERENCES users(id));'
@@ -15,12 +15,13 @@ beforeAll(async () => {
 });
 
 async function insertUser(id, { daysAgo = 0, isVip = false } = {}) {
+	const role = isVip ? 1 : 0; // Role.VIP
 	await env.my_database
 		.prepare(`
-      INSERT INTO users (id, first_name, is_vip, updated_at)
-      VALUES (?, ?, ?, datetime('now', ?))
+      INSERT INTO users (id, first_name, is_vip, role, updated_at)
+      VALUES (?, ?, ?, ?, datetime('now', ?))
     `)
-		.bind(id, `user-${id}`, isVip ? 1 : 0, `-${daysAgo} days`)
+		.bind(id, `user-${id}`, isVip ? 1 : 0, role, `-${daysAgo} days`)
 		.run();
 }
 

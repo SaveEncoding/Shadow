@@ -90,9 +90,8 @@ export class UserService {
     const user = await this.getUser(userId);
     if (!user) return Role.NORMAL;
 
-    // Prefer role column; fall back to legacy booleans if role missing/0
+    // Prefer role column; fall back to legacy is_vip only
     let role = Number(user.role ?? 0);
-    if (user.is_admin && role < Role.EXEC_ADMIN) role = Role.EXEC_ADMIN;
     if (user.is_vip && role < Role.VIP) role = Role.VIP;
     return role;
   }
@@ -127,23 +126,25 @@ export class UserService {
       throw new Error("نمی‌توانید نقش کسی هم‌سطح یا بالاتر از خودتان را تغییر دهید.");
     }
 
-    // Keep legacy flags in sync for older queries/tests
+    // Keep legacy is_vip in sync until that column is also removed
     const isVip = newRole >= Role.VIP ? 1 : 0;
-    const isAdmin = newRole >= Role.EXEC_ADMIN ? 1 : 0;
 
     await this.db
       .prepare(
-        `UPDATE users SET role = ?, is_vip = ?, is_admin = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        `UPDATE users SET role = ?, is_vip = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
       )
-      .bind(newRole, isVip, isAdmin, targetId)
+      .bind(newRole, isVip, targetId)
       .run();
   }
 
-  /** @deprecated prefer setRole — kept for compatibility */
+  /**
+   * Promote user to EXEC_ADMIN via role (replaces legacy is_admin flag).
+   * @deprecated prefer setRole(actorId, userId, Role.EXEC_ADMIN, env)
+   */
   async setAsBotAdmin(userId) {
     await this.db
       .prepare(
-        `UPDATE users SET is_admin = TRUE, role = CASE WHEN role < ? THEN ? ELSE role END, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        `UPDATE users SET role = CASE WHEN COALESCE(role, 0) < ? THEN ? ELSE role END, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
       )
       .bind(Role.EXEC_ADMIN, Role.EXEC_ADMIN, userId)
       .run();
@@ -231,9 +232,9 @@ export class UserService {
   async listUsersWithMinRole(minRole = Role.VIP) {
     const { results } = await this.db
       .prepare(
-        `SELECT id, username, first_name, last_name, role, is_vip, is_admin
+        `SELECT id, username, first_name, last_name, role, is_vip
          FROM users
-         WHERE COALESCE(role, 0) >= ? OR is_vip = 1 OR is_admin = 1
+         WHERE COALESCE(role, 0) >= ? OR is_vip = 1
          ORDER BY COALESCE(role, 0) DESC, id ASC
          LIMIT 100`
       )
