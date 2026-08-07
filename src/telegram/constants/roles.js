@@ -13,7 +13,7 @@ export const Role = {
 /** @type {Record<number, string>} */
 export const RoleLabel = {
   [Role.NORMAL]: "کاربر عادی",
-  [Role.VIP]: "VIP",
+  [Role.VIP]: "کاربر ویژه",
   [Role.EXEC_ADMIN]: "ادمین اجرایی",
   [Role.DEVELOPER]: "توسعه‌دهنده",
   [Role.FOUNDER]: "بنیان‌گذار",
