@@ -20,7 +20,7 @@ export async function runScheduledCleanup(env) {
     // deleted), so it can be tracked periodically even on a no-op run.
     const summary =
       deletedCount > 0
-        ? `🧹 پاکسازی خودکار انجام شد.\n${deletedCount} کاربر غیرفعال (بیش از ${INACTIVE_DAYS} روز، role < VIP) حذف شد.`
+        ? `🧹 پاکسازی خودکار انجام شد.\n${deletedCount} کاربر غیرفعال (بیش از ${INACTIVE_DAYS} روز، role = 0) حذف شد.`
         : `🧹 پاکسازی خودکار انجام شد.\nهیچ کاربر غیرفعالی برای حذف پیدا نشد.`;
     const logChatId = await getErrorLogChatId(env.my_database);
     if (logChatId !== null) {
