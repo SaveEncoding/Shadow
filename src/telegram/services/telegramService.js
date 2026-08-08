@@ -109,3 +109,56 @@ export async function answerCallbackQuery(
     show_alert: showAlert,
   });
 }
+
+/**
+ * Edit a channel (or chat) text message while preserving MessageEntity formatting.
+ * Do NOT pass parse_mode together with entities.
+ *
+ * @param {object} env
+ * @param {number|string} chatId
+ * @param {number} messageId
+ * @param {string} text
+ * @param {Array<object>} [entities]
+ */
+export async function editMessageTextWithEntities(
+  env,
+  chatId,
+  messageId,
+  text,
+  entities = []
+) {
+  if (!env.TELEGRAM_TOKEN) {
+    throw new Error("TELEGRAM_TOKEN is not set");
+  }
+  const api = new Api(env.TELEGRAM_TOKEN);
+  return api.editMessageText(chatId, messageId, text, {
+    entities: entities?.length ? entities : undefined,
+  });
+}
+
+/**
+ * Edit caption of a media message while preserving caption_entities.
+ *
+ * @param {object} env
+ * @param {number|string} chatId
+ * @param {number} messageId
+ * @param {string} caption
+ * @param {Array<object>} [captionEntities]
+ */
+export async function editMessageCaptionWithEntities(
+  env,
+  chatId,
+  messageId,
+  caption,
+  captionEntities = []
+) {
+  if (!env.TELEGRAM_TOKEN) {
+    throw new Error("TELEGRAM_TOKEN is not set");
+  }
+  const api = new Api(env.TELEGRAM_TOKEN);
+  return api.editMessageCaption(chatId, messageId, {
+    caption,
+    caption_entities: captionEntities?.length ? captionEntities : undefined,
+  });
+}
+

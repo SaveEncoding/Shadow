@@ -1,4 +1,5 @@
 import { registerChannel, getChannels } from "../db/channels.js";
+import { maybeOfferSuffixApply } from "./channelSuffix.js";
 
 /**
   * If the message is a forwarded post from a channel, it returns that channel's information;
@@ -131,11 +132,14 @@ export function channelsFeature(bot, env) {
     );
 
     if (isNewChannel) {
-      return ctx.reply(`✅ کانال «${channel.title}» با موفقیت ثبت شد.`);
+      await ctx.reply(`✅ کانال «${channel.title}» با موفقیت ثبت شد.`);
+    } else {
+      await ctx.reply(
+        `✅ این کانال قبلاً توسط یکی دیگه از ادمین‌ها ثبت شده بود؛ شما هم به لیست ادمین‌های «${channel.title}» اضافه شدید.`
+      );
     }
 
-    return ctx.reply(
-      `✅ این کانال قبلاً توسط یکی دیگه از ادمین‌ها ثبت شده بود؛ شما هم به لیست ادمین‌های «${channel.title}» اضافه شدید.`
-    );
+    // If an official suffix is configured, offer one-tap apply on this forwarded post.
+    await maybeOfferSuffixApply(ctx, env, channel);
   });
 }

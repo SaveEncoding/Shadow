@@ -6,6 +6,7 @@ import { channelsFeature } from "./features/channels.js";
 import { echo } from "./features/echoFun.js";
 import { setErrorLogCommand } from "./commands/setErrorLog.js";
 import { adminPanelFeature } from "./features/adminPanel.js";
+import { channelSuffixFeature } from "./features/channelSuffix.js";
 
 // It is created only once per isolate and reused across requests,
 // instead of each webhook creating a new Bot from scratch and re-registering the handlers.
@@ -18,6 +19,7 @@ const FEATURES = [
   (bot, env) => startCommand(bot, env),
   (bot, env) => setErrorLogCommand(bot, env),
   (bot, env) => adminPanelFeature(bot, env),
+  (bot, env) => channelSuffixFeature(bot, env),
   (bot, env) => channelsFeature(bot, env),
   (bot, env) => echo(bot),
 ];

@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS channels (
   owner_id INTEGER,                     -- the channel's real creator; NULL until we observe a "creator"-status admin
   registered_by INTEGER NOT NULL,       -- the first user who registered this channel via the bot
   admins_synced_at TEXT,                -- last time channel_admins was refreshed via getChatAdministrators; NULL = never
+  official_suffix TEXT,                 -- plain-text footer appended to channel posts (entities preserved on original body)
   created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
   updated_at TEXT DEFAULT (CURRENT_TIMESTAMP),
   FOREIGN KEY (registered_by) REFERENCES users(id),

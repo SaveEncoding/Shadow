@@ -7,6 +7,7 @@ const {
 	startCommandMock,
 	setErrorLogCommandMock,
 	adminPanelFeatureMock,
+	channelSuffixFeatureMock,
 	channelsFeatureMock,
 	echoMock,
 	reportErrorToAdminMock,
@@ -16,6 +17,7 @@ const {
 	startCommandMock: vi.fn(),
 	setErrorLogCommandMock: vi.fn(),
 	adminPanelFeatureMock: vi.fn(),
+	channelSuffixFeatureMock: vi.fn(),
 	channelsFeatureMock: vi.fn(),
 	echoMock: vi.fn(),
 	reportErrorToAdminMock: vi.fn(),
@@ -36,6 +38,9 @@ vi.mock('../src/telegram/commands/setErrorLog.js', () => ({
 }));
 vi.mock('../src/telegram/features/adminPanel.js', () => ({
 	adminPanelFeature: adminPanelFeatureMock,
+}));
+vi.mock('../src/telegram/features/channelSuffix.js', () => ({
+	channelSuffixFeature: channelSuffixFeatureMock,
 }));
 vi.mock('../src/telegram/features/channels.js', () => ({
 	channelsFeature: channelsFeatureMock,
@@ -79,6 +84,7 @@ describe('handleTelegramUpdate', () => {
 		expect(startCommandMock).toHaveBeenCalled();
 		expect(setErrorLogCommandMock).toHaveBeenCalled();
 		expect(adminPanelFeatureMock).toHaveBeenCalled();
+		expect(channelSuffixFeatureMock).toHaveBeenCalled();
 		expect(channelsFeatureMock).toHaveBeenCalled();
 		expect(echoMock).toHaveBeenCalled();
 		expect(mockWebhookHandler).toHaveBeenCalledTimes(1);
@@ -96,6 +102,7 @@ describe('handleTelegramUpdate', () => {
 		expect(startCommandMock).toHaveBeenCalledTimes(1);
 		expect(setErrorLogCommandMock).toHaveBeenCalledTimes(1);
 		expect(adminPanelFeatureMock).toHaveBeenCalledTimes(1);
+		expect(channelSuffixFeatureMock).toHaveBeenCalledTimes(1);
 		expect(channelsFeatureMock).toHaveBeenCalledTimes(1);
 		expect(echoMock).toHaveBeenCalledTimes(1);
 		expect(mockWebhookHandler).toHaveBeenCalledTimes(3);

@@ -171,3 +171,64 @@ export async function syncChannelAdmins(db, channelId, currentAdminUserIds) {
 
   return { added: toAdd.length, removed: toRemove.length };
 }
+
+/**
+ * @param {D1Database} db
+ * @param {number} channelId - Telegram channel id
+ */
+export async function getChannelByTelegramId(db, channelId) {
+  return db
+    .prepare("SELECT * FROM channels WHERE channel_id = ?")
+    .bind(channelId)
+    .first();
+}
+
+/**
+ * @param {D1Database} db
+ * @param {number} channelId
+ * @param {number} userId
+ */
+export async function isUserChannelAdmin(db, channelId, userId) {
+  const row = await db
+    .prepare(
+      "SELECT 1 AS ok FROM channel_admins WHERE channel_id = ? AND user_id = ?"
+    )
+    .bind(channelId, userId)
+    .first();
+  return !!row;
+}
+
+/**
+ * @param {D1Database} db
+ * @param {number} channelId
+ * @returns {Promise<string|null>}
+ */
+export async function getOfficialSuffix(db, channelId) {
+  const row = await db
+    .prepare("SELECT official_suffix FROM channels WHERE channel_id = ?")
+    .bind(channelId)
+    .first();
+  if (!row || row.official_suffix == null || row.official_suffix === "") {
+    return null;
+  }
+  return String(row.official_suffix);
+}
+
+/**
+ * @param {D1Database} db
+ * @param {number} channelId
+ * @param {string|null} suffix - null/empty clears the suffix
+ */
+export async function setOfficialSuffix(db, channelId, suffix) {
+  const value =
+    suffix == null || String(suffix).trim() === "" ? null : String(suffix);
+  return db
+    .prepare(
+      `UPDATE channels
+       SET official_suffix = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE channel_id = ?`
+    )
+    .bind(value, channelId)
+    .run();
+}
+

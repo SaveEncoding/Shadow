@@ -6,6 +6,10 @@ import {
 	removeChannelAdmin,
 	getChannelsNeedingAdminSync,
 	syncChannelAdmins,
+	getOfficialSuffix,
+	setOfficialSuffix,
+	isUserChannelAdmin,
+	getChannelByTelegramId,
 } from '../src/telegram/db/channels.js';
 
 beforeAll(async () => {
@@ -13,7 +17,7 @@ beforeAll(async () => {
 		'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, first_name TEXT NOT NULL, last_name TEXT, language_code TEXT, role INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));'
 	);
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, username TEXT, owner_id INTEGER, registered_by INTEGER NOT NULL, admins_synced_at TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (registered_by) REFERENCES users(id), FOREIGN KEY (owner_id) REFERENCES users(id));'
+		'CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, username TEXT, owner_id INTEGER, registered_by INTEGER NOT NULL, admins_synced_at TEXT, official_suffix TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (registered_by) REFERENCES users(id), FOREIGN KEY (owner_id) REFERENCES users(id));'
 	);
 	await env.my_database.exec(
 		'CREATE TABLE IF NOT EXISTS channel_admins (channel_id INTEGER NOT NULL, user_id INTEGER NOT NULL, added_at TEXT DEFAULT (CURRENT_TIMESTAMP), PRIMARY KEY (channel_id, user_id), FOREIGN KEY (channel_id) REFERENCES channels(channel_id), FOREIGN KEY (user_id) REFERENCES users(id));'
@@ -226,5 +230,34 @@ describe('syncChannelAdmins', () => {
 		await registerChannel(env.my_database, 1, { id: -400005, title: 'Empty List', username: null });
 		const result = await syncChannelAdmins(env.my_database, -400005, []);
 		expect(result).toEqual({ added: 0, removed: 0 });
+	});
+});
+
+describe('official_suffix', () => {
+	it('stores and reads suffix; clear with null', async () => {
+		await registerChannel(env.my_database, 1, {
+			id: -100999,
+			title: 'Suffix Chan',
+			username: null,
+		});
+		expect(await getOfficialSuffix(env.my_database, -100999)).toBeNull();
+
+		await setOfficialSuffix(env.my_database, -100999, '📢 @SuffixChan');
+		expect(await getOfficialSuffix(env.my_database, -100999)).toBe('📢 @SuffixChan');
+
+		await setOfficialSuffix(env.my_database, -100999, null);
+		expect(await getOfficialSuffix(env.my_database, -100999)).toBeNull();
+	});
+
+	it('isUserChannelAdmin reflects channel_admins membership', async () => {
+		await registerChannel(env.my_database, 2, {
+			id: -100998,
+			title: 'Admin Chan',
+			username: 'adch',
+		});
+		expect(await isUserChannelAdmin(env.my_database, -100998, 2)).toBe(true);
+		expect(await isUserChannelAdmin(env.my_database, -100998, 3)).toBe(false);
+		const row = await getChannelByTelegramId(env.my_database, -100998);
+		expect(row.title).toBe('Admin Chan');
 	});
 });
