@@ -32,7 +32,7 @@ export function escapeHtml(str) {
  * @param {object} env
  * @param {number|string} chatId
  * @param {string} text
- * @param {{ threadId?: number|string|null, replyMarkup?: object|null }} [options]
+ * @param {{ threadId?: number|null, replyMarkup?: object|null }} [options]
  *   threadId - message_thread_id of a forum topic. Pass this whenever the
  *   target chat may be topic-split, or Telegram silently drops the message
  *   into "General" instead of the topic it was actually configured from.
