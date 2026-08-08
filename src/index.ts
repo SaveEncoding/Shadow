@@ -5,8 +5,8 @@ import { runScheduledCleanup } from "./telegram/scheduled.js";
 import { refreshChannelAdmins } from "./telegram/channelAdminSync.js";
 import { Env } from "./types.js";
 
-const DAILY_CLEANUP_CRON = "0 3 * * *";
-const CHANNEL_ADMIN_SYNC_CRON = "0 */6 * * *";
+const DAILY_CLEANUP_CRON = "30 23 * * *";
+const CHANNEL_ADMIN_SYNC_CRON = "30 2,8,14,20 * * *";
 
 export default {
   async fetch(request, env: Env, ctx) {
