@@ -77,7 +77,7 @@ export class UserService {
   }
 
   /**
-   * Effective role: FOUNDER_TELEGRAM_ID / legacy ADMINS always win over DB.
+   * Effective role: FOUNDER_TELEGRAM_ID (env) always wins over DB.
    * @param {number|string} userId
    * @param {object} [env]
    */

@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import { UserService } from '../src/telegram/services/userService.js';
 import { Role } from '../src/telegram/constants/roles.js';
-import { ADMINS } from '../src/telegram/config.js';
 
 beforeAll(async () => {
 	await env.my_database.exec(
@@ -117,12 +116,11 @@ describe('UserService.getEffectiveRole', () => {
 		expect(role).toBe(Role.FOUNDER);
 	});
 
-	it('falls back to legacy ADMINS[0] as founder when env secret is missing', async () => {
+	it('does not fall back to any hardcoded founder id when env secret is missing', async () => {
 		const userService = new UserService(env.my_database);
-		const founderId = ADMINS[0];
-		await insertUser(founderId, { role: Role.NORMAL });
-		const role = await userService.getEffectiveRole(founderId, {});
-		expect(role).toBe(Role.FOUNDER);
+		await insertUser(102, { role: Role.NORMAL });
+		const role = await userService.getEffectiveRole(102, {});
+		expect(role).toBe(Role.NORMAL);
 	});
 
 	it('reads role from DB for ordinary users', async () => {

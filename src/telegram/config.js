@@ -1,11 +1,7 @@
 /**
- * Bootstrap admin list (legacy). Prefer FOUNDER_TELEGRAM_ID secret/env.
- * Kept so existing deploys without the new secret still recognize the founder.
- */
-export const ADMINS = [6585308690];
-
-/**
- * Resolve founder telegram id: env secret first, then ADMINS[0].
+ * Resolve founder telegram id from the Worker env secret.
+ * There is no code-level fallback on purpose — the founder identity
+ * lives only in the `FOUNDER_TELEGRAM_ID` secret/env var per deployment.
  * @param {object|null|undefined} env
  * @returns {number|null}
  */
@@ -14,11 +10,5 @@ export function resolveFounderId(env) {
     const n = Number(env.FOUNDER_TELEGRAM_ID);
     if (Number.isFinite(n)) return n;
   }
-  if (ADMINS.length > 0) return ADMINS[0];
   return null;
-}
-
-/** @deprecated use resolveFounderId + role checks */
-export function isBootstrapAdmin(userId) {
-  return ADMINS.includes(Number(userId));
 }
