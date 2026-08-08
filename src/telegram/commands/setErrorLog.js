@@ -1,6 +1,7 @@
 import { Role } from "../constants/roles.js";
 import { UserService } from "../services/userService.js";
 import { setErrorLogChatId, getErrorLogChatId } from "../db/settings.js";
+import { escapeHtml } from "../services/telegramService.js";
 
 /**
  * /seterrorlog — bind the current group as the private error-log chat.
@@ -53,11 +54,4 @@ export function setErrorLogCommand(bot, env) {
       parse_mode: "HTML",
     });
   });
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
 }

@@ -1,5 +1,6 @@
 import { Api } from "grammy";
 import { getErrorLogChatId } from "../db/settings.js";
+import { escapeHtml } from "../services/telegramService.js";
 
 const TELEGRAM_MAX_LENGTH = 4000; // Slightly below the actual limit of 4096, to be safe.
 const COOLDOWN_SECONDS = 300; // 5 minutes - only active if env.ERROR_KV is defined
@@ -76,13 +77,6 @@ async function setCooldown(kv, context) {
   } catch (e) {
     console.error("KV write failed:", e);
   }
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
 }
 
 function formatTimestamp(date) {
