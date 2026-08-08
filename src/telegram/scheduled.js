@@ -1,7 +1,7 @@
 import { UserService } from "./services/userService.js";
 import { sendMessage } from "./services/telegramService.js";
 import { reportError } from "./utils/Error.js";
-import { getErrorLogChatId } from "./db/settings.js";
+import { getErrorLogTarget } from "./db/settings.js";
 
 const INACTIVE_DAYS = 30;
 
@@ -22,10 +22,10 @@ export async function runScheduledCleanup(env) {
       deletedCount > 0
         ? `🧹 پاکسازی خودکار انجام شد.\n${deletedCount} کاربر غیرفعال (بیش از ${INACTIVE_DAYS} روز، role = 0) حذف شد.`
         : `🧹 پاکسازی خودکار انجام شد.\nهیچ کاربر غیرفعالی برای حذف پیدا نشد.`;
-    const logChatId = await getErrorLogChatId(env.my_database);
+    const { chatId: logChatId, threadId: logThreadId } = await getErrorLogTarget(env.my_database);
     if (logChatId !== null) {
       try {
-        await sendMessage(env, logChatId, summary);
+        await sendMessage(env, logChatId, summary, { threadId: logThreadId });
       } catch (err) {
         const reason =
           err?.description || err?.message || err?.name || String(err) || "unknown error";

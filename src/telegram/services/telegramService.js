@@ -28,11 +28,20 @@ export function escapeHtml(str) {
     .replace(/>/g, "&gt;");
 }
 
+/**
+ * @param {object} env
+ * @param {number|string} chatId
+ * @param {string} text
+ * @param {{ threadId?: number|string|null, replyMarkup?: object|null }} [options]
+ *   threadId - message_thread_id of a forum topic. Pass this whenever the
+ *   target chat may be topic-split, or Telegram silently drops the message
+ *   into "General" instead of the topic it was actually configured from.
+ */
 export async function sendMessage(
   env,
   chatId,
   text,
-  replyMarkup = null
+  { threadId = null, replyMarkup = null } = {}
 ) {
   if (!env.TELEGRAM_TOKEN) {
     throw new Error("TELEGRAM_TOKEN is not set");
@@ -46,6 +55,7 @@ export async function sendMessage(
 
   return api.sendMessage(chatId, escapeHtml(text), {
     parse_mode: "HTML",
+    message_thread_id: threadId ?? undefined,
     reply_markup: replyMarkup ?? undefined,
   });
 }

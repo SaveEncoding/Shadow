@@ -1,7 +1,7 @@
 import { Api } from "grammy";
 import { getChannelsNeedingAdminSync, syncChannelAdmins } from "./db/channels.js";
 import { sendMessage } from "./services/telegramService.js";
-import { getErrorLogChatId } from "./db/settings.js";
+import { getErrorLogTarget } from "./db/settings.js";
 
 // Each execution synchronizes at most this many channels, ensuring that—even with a very large number of channels—
 // the execution time of each cron job remains limited and predictable. Full coverage is achieved over the course of several
@@ -50,9 +50,10 @@ export async function refreshChannelAdmins(env) {
     `.`;
   let logChatId = null;
   try {
-    logChatId = await getErrorLogChatId(env.my_database);
+    const target = await getErrorLogTarget(env.my_database);
+    logChatId = target.chatId;
     if (logChatId !== null) {
-      await sendMessage(env, logChatId, summary);
+      await sendMessage(env, logChatId, summary, { threadId: target.threadId });
     }
   } catch (err) {
     const reason =

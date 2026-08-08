@@ -1,5 +1,5 @@
 import { Api } from "grammy";
-import { getErrorLogChatId } from "../db/settings.js";
+import { getErrorLogTarget } from "../db/settings.js";
 import { escapeHtml } from "../services/telegramService.js";
 
 const TELEGRAM_MAX_LENGTH = 4000; // Slightly below the actual limit of 4096, to be safe.
@@ -33,9 +33,10 @@ export async function reportError(env, context, error, userId = null) {
   const errorMessage = formatErrorMessage(context, error, userId);
 
   let chatId = null;
+  let threadId = null;
   try {
     if (env.my_database) {
-      chatId = await getErrorLogChatId(env.my_database);
+      ({ chatId, threadId } = await getErrorLogTarget(env.my_database));
     }
   } catch (dbErr) {
     console.error("Failed to read error_log_chat_id from D1:", dbErr);
@@ -50,7 +51,7 @@ export async function reportError(env, context, error, userId = null) {
   }
 
   try {
-    await sendErrorToChat(env.TELEGRAM_TOKEN, chatId, errorMessage);
+    await sendErrorToChat(env.TELEGRAM_TOKEN, chatId, errorMessage, threadId);
   } catch (sendErr) {
     console.error(`Failed to send error report to log chat ${chatId}:`, sendErr);
   }
@@ -122,11 +123,12 @@ function formatErrorMessage(context, error, userId) {
   return msg;
 }
 
-async function sendErrorToChat(token, chatId, text) {
+async function sendErrorToChat(token, chatId, text, threadId = null) {
   const api = new Api(token);
 
   await api.sendMessage(chatId, text, {
     parse_mode: "HTML",
+    message_thread_id: threadId ?? undefined,
     link_preview_options: { is_disabled: true },
   });
 }

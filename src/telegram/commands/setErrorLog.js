@@ -1,6 +1,6 @@
 import { Role } from "../constants/roles.js";
 import { UserService } from "../services/userService.js";
-import { setErrorLogChatId, getErrorLogChatId } from "../db/settings.js";
+import { setErrorLogChatId, getErrorLogTarget } from "../db/settings.js";
 import { escapeHtml } from "../services/telegramService.js";
 
 /**
@@ -28,9 +28,23 @@ export function setErrorLogCommand(bot, env) {
       );
     }
 
-    await setErrorLogChatId(env.my_database, chat.id);
+    // اگر گپ به موضوعات (Topics) تقسیم شده و دستور داخل یکی از آن موضوعات
+    // زده شود، is_topic_message ست می‌شود و باید همان موضوع دقیق ذخیره شود؛
+    // وگرنه پیام‌های لاگ همیشه به موضوع «عمومی» می‌روند، نه جایی که تنظیم شده.
+    const threadId = ctx.message?.is_topic_message
+      ? ctx.message.message_thread_id
+      : null;
+
+    await setErrorLogChatId(env.my_database, chat.id, threadId);
+
+    const topicNote = threadId
+      ? `\n🧵 موضوع: <code>${threadId}</code> (پیام‌های لاگ دقیقاً همین موضوع ارسال می‌شوند)`
+      : chat.is_forum
+        ? `\n⚠️ این گروه موضوع‌بندی شده ولی دستور داخل موضوع «عمومی» زده شد؛ پیام‌های لاگ به همان‌جا می‌روند.`
+        : "";
+
     await ctx.reply(
-      `✅ گپ لاگ خطا ثبت شد.\n<code>${chat.id}</code>\n${chat.title ? escapeHtml(chat.title) : ""}`,
+      `✅ گپ لاگ خطا ثبت شد.\n<code>${chat.id}</code>\n${chat.title ? escapeHtml(chat.title) : ""}${topicNote}`,
       { parse_mode: "HTML" }
     );
   });
@@ -44,13 +58,16 @@ export function setErrorLogCommand(bot, env) {
       return ctx.reply("⛔️ فقط ادمین بات.");
     }
 
-    const chatId = await getErrorLogChatId(env.my_database);
+    const { chatId, threadId } = await getErrorLogTarget(env.my_database);
     if (chatId === null) {
       return ctx.reply(
         "⚠️ هنوز گپ لاگ تنظیم نشده. داخل گپ مورد نظر /seterrorlog را بزن."
       );
     }
-    return ctx.reply(`📋 گپ لاگ فعلی: <code>${chatId}</code>`, {
+    const threadLine = threadId
+      ? `\n🧵 موضوع: <code>${threadId}</code>`
+      : "";
+    return ctx.reply(`📋 گپ لاگ فعلی: <code>${chatId}</code>${threadLine}`, {
       parse_mode: "HTML",
     });
   });
