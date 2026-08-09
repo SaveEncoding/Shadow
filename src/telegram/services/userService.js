@@ -175,6 +175,10 @@ export class UserService {
    * Deletes users who have had no interaction for more than `inactiveDays` days,
    * excluding VIP and higher (role >= VIP).
    *
+   * Users who still "own" channel rows are never deleted (registered_by is NOT NULL,
+   * owner_id is FK): that would raise SQLITE_CONSTRAINT_FOREIGNKEY. Pure
+   * channel_admins membership is cleared first, then logs, then the user row.
+   *
    * @returns {Promise<{deletedCount: number, deletedIds: number[]}>}
    */
   async deleteInactiveUsers(inactiveDays = 30) {
@@ -183,6 +187,8 @@ export class UserService {
         SELECT id FROM users
         WHERE COALESCE(role, 0) < ?
           AND updated_at < datetime('now', ?)
+          AND id NOT IN (SELECT registered_by FROM channels)
+          AND id NOT IN (SELECT owner_id FROM channels WHERE owner_id IS NOT NULL)
       `)
       .bind(Role.VIP, `-${inactiveDays} days`)
       .all();
@@ -195,9 +201,17 @@ export class UserService {
 
     const placeholders = idsToDelete.map(() => "?").join(", ");
 
+    // Order matters: dependents first, then users (FK-safe).
     await this.db.batch([
-      this.db.prepare(`DELETE FROM user_logs WHERE user_id IN (${placeholders})`).bind(...idsToDelete),
-      this.db.prepare(`DELETE FROM users WHERE id IN (${placeholders})`).bind(...idsToDelete),
+      this.db
+        .prepare(`DELETE FROM channel_admins WHERE user_id IN (${placeholders})`)
+        .bind(...idsToDelete),
+      this.db
+        .prepare(`DELETE FROM user_logs WHERE user_id IN (${placeholders})`)
+        .bind(...idsToDelete),
+      this.db
+        .prepare(`DELETE FROM users WHERE id IN (${placeholders})`)
+        .bind(...idsToDelete),
     ]);
 
     return { deletedCount: idsToDelete.length, deletedIds: idsToDelete };

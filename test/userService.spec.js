@@ -10,6 +10,13 @@ beforeAll(async () => {
 	await env.my_database.exec(
 		'CREATE TABLE IF NOT EXISTS user_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, action TEXT NOT NULL, details TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (user_id) REFERENCES users(id));'
 	);
+	// Channel tables so deleteInactiveUsers FK handling can be exercised.
+	await env.my_database.exec(
+		'CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, username TEXT, owner_id INTEGER, registered_by INTEGER NOT NULL, admins_synced_at TEXT, official_suffix TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (registered_by) REFERENCES users(id), FOREIGN KEY (owner_id) REFERENCES users(id));'
+	);
+	await env.my_database.exec(
+		'CREATE TABLE IF NOT EXISTS channel_admins (channel_id INTEGER NOT NULL, user_id INTEGER NOT NULL, added_at TEXT DEFAULT (CURRENT_TIMESTAMP), PRIMARY KEY (channel_id, user_id), FOREIGN KEY (channel_id) REFERENCES channels(channel_id), FOREIGN KEY (user_id) REFERENCES users(id));'
+	);
 });
 
 async function insertUser(id, { daysAgo = 0, role = Role.NORMAL } = {}) {
@@ -199,5 +206,60 @@ describe('UserService.getRoleStats / listUsersWithMinRole', () => {
 		await insertUser(310, { role: Role.EXEC_ADMIN });
 		const rows = await userService.listUsersWithMinRole(Role.VIP);
 		expect(rows.some((r) => Number(r.id) === 310)).toBe(true);
+	});
+});
+
+describe('UserService.deleteInactiveUsers FK safety', () => {
+	it('removes inactive users who only appear in channel_admins (no FK error)', async () => {
+		const userService = new UserService(env.my_database);
+		// Registrant stays active so the channel row is valid; inactive admin is cleaned.
+		await insertUser(500, { daysAgo: 1, role: Role.NORMAL });
+		await insertUser(501, { daysAgo: 60, role: Role.NORMAL });
+
+		await env.my_database
+			.prepare(
+				`INSERT INTO channels (channel_id, title, registered_by) VALUES (?, ?, ?)`
+			)
+			.bind(-100501, 'FK Chan', 500)
+			.run();
+		await env.my_database
+			.prepare(
+				`INSERT INTO channel_admins (channel_id, user_id) VALUES (?, ?), (?, ?)`
+			)
+			.bind(-100501, 500, -100501, 501)
+			.run();
+
+		const result = await userService.deleteInactiveUsers(30);
+		expect(result.deletedIds).toContain(501);
+		expect(await userService.getUser(501)).toBeFalsy();
+		expect(await userService.getUser(500)).toBeTruthy();
+
+		const { results: admins } = await env.my_database
+			.prepare('SELECT user_id FROM channel_admins WHERE channel_id = ?')
+			.bind(-100501)
+			.all();
+		expect(admins.map((r) => r.user_id)).toEqual([500]);
+	});
+
+	it('does not delete inactive users who are still channels.registered_by', async () => {
+		const userService = new UserService(env.my_database);
+		await insertUser(510, { daysAgo: 90, role: Role.NORMAL });
+
+		await env.my_database
+			.prepare(
+				`INSERT INTO channels (channel_id, title, registered_by) VALUES (?, ?, ?)`
+			)
+			.bind(-100510, 'Owned Chan', 510)
+			.run();
+		await env.my_database
+			.prepare(
+				`INSERT INTO channel_admins (channel_id, user_id) VALUES (?, ?)`
+			)
+			.bind(-100510, 510)
+			.run();
+
+		const result = await userService.deleteInactiveUsers(30);
+		expect(result.deletedIds).not.toContain(510);
+		expect(await userService.getUser(510)).toBeTruthy();
 	});
 });
