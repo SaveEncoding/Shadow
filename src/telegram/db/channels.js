@@ -232,3 +232,37 @@ export async function setOfficialSuffix(db, channelId, suffix) {
     .run();
 }
 
+/**
+ * @param {D1Database} db
+ * @param {number} channelId
+ * @returns {Promise<string|null>}
+ */
+export async function getSuffixSkipMarker(db, channelId) {
+  const row = await db
+    .prepare("SELECT suffix_skip_marker FROM channels WHERE channel_id = ?")
+    .bind(channelId)
+    .first();
+  if (!row || row.suffix_skip_marker == null || row.suffix_skip_marker === "") {
+    return null;
+  }
+  return String(row.suffix_skip_marker);
+}
+
+/**
+ * @param {D1Database} db
+ * @param {number} channelId
+ * @param {string|null} marker
+ */
+export async function setSuffixSkipMarker(db, channelId, marker) {
+  const value =
+    marker == null || String(marker).trim() === "" ? null : String(marker);
+  return db
+    .prepare(
+      `UPDATE channels
+       SET suffix_skip_marker = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE channel_id = ?`
+    )
+    .bind(value, channelId)
+    .run();
+}
+

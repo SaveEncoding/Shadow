@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	appendSuffixPreservingEntities,
 	extractEditableContent,
+	shouldSkipAutoSuffix,
 	TEXT_MAX_LENGTH,
 	CAPTION_MAX_LENGTH,
 } from '../src/telegram/utils/messageSuffix.js';
@@ -89,5 +90,26 @@ describe('extractEditableContent', () => {
 	it('returns null kind when neither text nor caption', () => {
 		const c = extractEditableContent({ sticker: {} });
 		expect(c.kind).toBeNull();
+	});
+});
+
+describe('shouldSkipAutoSuffix', () => {
+	it('returns false when marker is empty or null', () => {
+		expect(shouldSkipAutoSuffix('hello #nosuffix', null)).toBe(false);
+		expect(shouldSkipAutoSuffix('hello', '')).toBe(false);
+	});
+
+	it('returns true when marker substring is present', () => {
+		expect(shouldSkipAutoSuffix('خبر فوری #nosuffix', '#nosuffix')).toBe(true);
+		expect(shouldSkipAutoSuffix('🚫 بدون امضا', '🚫')).toBe(true);
+	});
+
+	it('returns false when marker is absent', () => {
+		expect(shouldSkipAutoSuffix('خبر عادی', '#nosuffix')).toBe(false);
+	});
+
+	it('is case-sensitive (admins control exact characters)', () => {
+		expect(shouldSkipAutoSuffix('NoSuffix', 'nosuffix')).toBe(false);
+		expect(shouldSkipAutoSuffix('nosuffix', 'nosuffix')).toBe(true);
 	});
 });

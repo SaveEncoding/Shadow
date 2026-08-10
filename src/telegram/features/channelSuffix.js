@@ -4,11 +4,14 @@ import {
   isUserChannelAdmin,
   getOfficialSuffix,
   setOfficialSuffix,
+  getSuffixSkipMarker,
+  setSuffixSkipMarker,
   getChannels,
 } from "../db/channels.js";
 import {
   appendSuffixPreservingEntities,
   extractEditableContent,
+  shouldSkipAutoSuffix,
 } from "../utils/messageSuffix.js";
 import {
   editMessageTextWithEntities,
@@ -16,8 +19,10 @@ import {
 } from "../services/telegramService.js";
 
 /**
- * Official channel suffix: set via /setsuffix, apply by forwarding a post
- * (button) or callback apply_suffix:<channelId>:<messageId>.
+ * Official channel suffix:
+ * - Manual: /setsuffix, forward + button
+ * - Automatic: every new channel_post (if channel is registered + has suffix)
+ * - Opt-out: if post text/caption contains the admin-defined skip marker
  *
  * Formatting of the original body is preserved via Telegram entities
  * (not HTML round-trip).
@@ -35,7 +40,6 @@ export function channelSuffixFeature(bot, env) {
     const raw = (ctx.message?.text || "").split("\n");
     const firstLine = raw[0] || "";
     const parts = firstLine.trim().split(/\s+/);
-    // parts[0]=/setsuffix parts[1]=channel_id parts[2+]=optional same-line suffix or "clear"
     const channelId = parts[1] ? Number(parts[1]) : NaN;
     if (!Number.isFinite(channelId)) {
       const list = await getChannels(env.my_database, fromId);
@@ -47,7 +51,8 @@ export function channelSuffixFeature(bot, env) {
           { parse_mode: "HTML" }
         );
       }
-      let hint = "فرمت: <code>/setsuffix &lt;channel_id&gt;</code> و متن پسوند در خط بعد.\n\nکانال‌های شما:\n";
+      let hint =
+        "فرمت: <code>/setsuffix &lt;channel_id&gt;</code> و متن پسوند در خط بعد.\n\nکانال‌های شما:\n";
       for (const ch of list) {
         hint += `• <b>${escapeHtml(ch.title)}</b> — <code>${ch.channel_id}</code>\n`;
       }
@@ -83,7 +88,9 @@ export function channelSuffixFeature(bot, env) {
     await setOfficialSuffix(env.my_database, channelId, payload);
     return ctx.reply(
       `✅ پسوند رسمی برای <code>${channelId}</code> ذخیره شد.\n\n` +
-        `برای اعمال: یک پست از همان کانال را برای بات فوروارد کنید و دکمه «افزودن پسوند» را بزنید.`,
+        `از این به بعد روی <b>هر پست جدید</b> کانال به‌صورت خودکار اعمال می‌شود ` +
+        `(مگر متن شامل مارکر رد باشد — <code>/setsuffixskip</code>).\n` +
+        `همچنین می‌توانید پست را فوروارد کنید و دکمه دستی را بزنید.`,
       { parse_mode: "HTML" }
     );
   });
@@ -103,17 +110,84 @@ export function channelSuffixFeature(bot, env) {
       return ctx.reply("⛔️ دسترسی ندارید.");
     }
     const current = await getOfficialSuffix(env.my_database, channelId);
+    const marker = await getSuffixSkipMarker(env.my_database, channelId);
+    let msg = current
+      ? `پسوند <code>${channelId}</code>:\n${escapeHtml(current)}`
+      : `پسوندی تنظیم نشده.`;
+    msg += marker
+      ? `\n\nمارکر رد خودکار: <code>${escapeHtml(marker)}</code>`
+      : `\n\nمارکر رد خودکار: تنظیم نشده (همه پست‌ها ادیت می‌شوند).`;
+    return ctx.reply(msg, { parse_mode: "HTML" });
+  });
+
+  // /setsuffixskip <channel_id> <marker...>
+  // /setsuffixskip <channel_id> clear
+  bot.command("setsuffixskip", async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId || ctx.chat?.type !== "private") {
+      return ctx.reply("این دستور را در چت خصوصی با بات بزنید.");
+    }
+
+    const raw = (ctx.message?.text || "").split("\n");
+    const firstLine = raw[0] || "";
+    const parts = firstLine.trim().split(/\s+/);
+    const channelId = parts[1] ? Number(parts[1]) : NaN;
+    if (!Number.isFinite(channelId)) {
+      return ctx.reply(
+        "فرمت:\n<code>/setsuffixskip &lt;channel_id&gt; &lt;مارکر&gt;</code>\n" +
+          "یا <code>/setsuffixskip &lt;channel_id&gt; clear</code>\n\n" +
+          "اگر مارکر در متن/کپشن پست باشد، پسوند خودکار اضافه <b>نمی‌شود</b>.\n" +
+          "مثال مارکر: <code>#nosuffix</code> یا <code>🚫</code>",
+        { parse_mode: "HTML" }
+      );
+    }
+
+    const allowed = await isUserChannelAdmin(env.my_database, channelId, fromId);
+    if (!allowed) {
+      return ctx.reply("⛔️ این کانال برای شما ثبت نشده یا ادمین آن نیستید.");
+    }
+
+    const sameLineRest = parts.slice(2).join(" ").trim();
+    const multiLineRest = raw.slice(1).join("\n").trim();
+    const payload = multiLineRest || sameLineRest;
+
+    if (!payload) {
+      const current = await getSuffixSkipMarker(env.my_database, channelId);
+      return ctx.reply(
+        current
+          ? `مارکر فعلی: <code>${escapeHtml(current)}</code>\nبرای تغییر دوباره دستور را با مارکر جدید بفرستید.`
+          : `مارکری تنظیم نشده. مثال:\n<code>/setsuffixskip ${channelId} #nosuffix</code>`,
+        { parse_mode: "HTML" }
+      );
+    }
+
+    if (payload.toLowerCase() === "clear") {
+      await setSuffixSkipMarker(env.my_database, channelId, null);
+      return ctx.reply(`✅ مارکر رد برای <code>${channelId}</code> پاک شد.`, {
+        parse_mode: "HTML",
+      });
+    }
+
+    await setSuffixSkipMarker(env.my_database, channelId, payload);
     return ctx.reply(
-      current
-        ? `پسوند <code>${channelId}</code>:\n${escapeHtml(current)}`
-        : `پسوندی تنظیم نشده.`,
+      `✅ مارکر رد ذخیره شد: <code>${escapeHtml(payload)}</code>\n` +
+        `هر پستی که این عبارت را در متن یا کپشن داشته باشد، پسوند خودکار نمی‌گیرد.`,
       { parse_mode: "HTML" }
     );
   });
 
-  // Apply suffix to an original channel message
+  // --- Automatic: new posts in registered channels ---
+  // Only channel_post (not edited_channel_post) to avoid loops after our own edit.
+  bot.on("channel_post", async (ctx) => {
+    try {
+      await autoApplySuffixToChannelPost(ctx, env);
+    } catch (err) {
+      console.error("[channelSuffix] autoApply failed:", err);
+    }
+  });
+
+  // Apply suffix to an original channel message (manual button)
   // callback data: asfx:<channelId>:<messageId>:<kind>
-  // kind = t (text) | c (caption) — content was snapshotted in the forward
   bot.callbackQuery(/^asfx:(-?\d+):(\d+):(t|c)$/, async (ctx) => {
     const fromId = ctx.from?.id;
     if (!fromId) return;
@@ -138,8 +212,6 @@ export function channelSuffixFeature(bot, env) {
       });
     }
 
-    // Prefer content stored on the button message's reply_to (the forward).
-    // Fallback: cannot re-fetch channel message body via Bot API without storing it.
     const source = ctx.callbackQuery.message?.reply_to_message;
     const content = extractEditableContent(source);
     if (!content.kind) {
@@ -205,6 +277,69 @@ export function channelSuffixFeature(bot, env) {
 }
 
 /**
+ * Auto-append official_suffix on a fresh channel_post when:
+ * - channel is registered in D1
+ * - official_suffix is set
+ * - post has text or caption
+ * - skip marker is absent from the body
+ */
+export async function autoApplySuffixToChannelPost(ctx, env) {
+  const post = ctx.channelPost;
+  if (!post) return { applied: false, reason: "no_post" };
+
+  const channelId = post.chat?.id;
+  if (channelId == null) return { applied: false, reason: "no_chat" };
+
+  // Only registered channels (avoids editing random channels the bot admins)
+  const channel = await getChannelByTelegramId(env.my_database, channelId);
+  if (!channel) return { applied: false, reason: "not_registered" };
+
+  const suffix = channel.official_suffix;
+  if (suffix == null || suffix === "") {
+    return { applied: false, reason: "no_suffix" };
+  }
+
+  const content = extractEditableContent(post);
+  if (!content.kind) return { applied: false, reason: "no_text" };
+
+  const marker = channel.suffix_skip_marker ?? null;
+  if (shouldSkipAutoSuffix(content.text, marker)) {
+    return { applied: false, reason: "skip_marker" };
+  }
+
+  const result = appendSuffixPreservingEntities(
+    content.text,
+    content.entities,
+    String(suffix),
+    { maxLen: content.maxLen }
+  );
+
+  if (result.skipped) {
+    return { applied: false, reason: result.skipped };
+  }
+
+  if (content.kind === "caption") {
+    await editMessageCaptionWithEntities(
+      env,
+      channelId,
+      post.message_id,
+      result.text,
+      result.entities
+    );
+  } else {
+    await editMessageTextWithEntities(
+      env,
+      channelId,
+      post.message_id,
+      result.text,
+      result.entities
+    );
+  }
+
+  return { applied: true, reason: null };
+}
+
+/**
  * After a successful channel-forward registration path, offer "apply suffix"
  * when the channel already has an official_suffix and the message is editable.
  *
@@ -234,7 +369,10 @@ export async function maybeOfferSuffixApply(ctx, env, channel) {
   await ctx.reply(
     `پسوند رسمی برای «${channel.title}» تنظیم شده.\n` +
       `اگر می‌خواهید به همین پست در کانال اضافه شود:`,
-    { reply_markup: kb, reply_parameters: { message_id: ctx.message.message_id } }
+    {
+      reply_markup: kb,
+      reply_parameters: { message_id: ctx.message.message_id },
+    }
   );
   return true;
 }

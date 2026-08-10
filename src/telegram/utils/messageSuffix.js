@@ -81,3 +81,17 @@ export function extractEditableContent(message) {
   }
   return { kind: null, text: "", entities: [], maxLen: TEXT_MAX_LENGTH };
 }
+
+/**
+ * True when channel admins opted this post out of auto-suffix via a marker substring.
+ * Matching is plain substring (case-sensitive) so admins control exact characters.
+ *
+ * @param {string|null|undefined} text
+ * @param {string|null|undefined} marker
+ */
+export function shouldSkipAutoSuffix(text, marker) {
+  if (marker == null || marker === "") return false;
+  const body = text ?? "";
+  return body.includes(String(marker));
+}
+

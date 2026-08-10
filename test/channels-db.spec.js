@@ -8,6 +8,8 @@ import {
 	syncChannelAdmins,
 	getOfficialSuffix,
 	setOfficialSuffix,
+	getSuffixSkipMarker,
+	setSuffixSkipMarker,
 	isUserChannelAdmin,
 	getChannelByTelegramId,
 } from '../src/telegram/db/channels.js';
@@ -17,7 +19,7 @@ beforeAll(async () => {
 		'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, first_name TEXT NOT NULL, last_name TEXT, language_code TEXT, role INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));'
 	);
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, username TEXT, owner_id INTEGER, registered_by INTEGER NOT NULL, admins_synced_at TEXT, official_suffix TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (registered_by) REFERENCES users(id), FOREIGN KEY (owner_id) REFERENCES users(id));'
+		'CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, username TEXT, owner_id INTEGER, registered_by INTEGER NOT NULL, admins_synced_at TEXT, official_suffix TEXT, suffix_skip_marker TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (registered_by) REFERENCES users(id), FOREIGN KEY (owner_id) REFERENCES users(id));'
 	);
 	await env.my_database.exec(
 		'CREATE TABLE IF NOT EXISTS channel_admins (channel_id INTEGER NOT NULL, user_id INTEGER NOT NULL, added_at TEXT DEFAULT (CURRENT_TIMESTAMP), PRIMARY KEY (channel_id, user_id), FOREIGN KEY (channel_id) REFERENCES channels(channel_id), FOREIGN KEY (user_id) REFERENCES users(id));'
@@ -259,5 +261,20 @@ describe('official_suffix', () => {
 		expect(await isUserChannelAdmin(env.my_database, -100998, 3)).toBe(false);
 		const row = await getChannelByTelegramId(env.my_database, -100998);
 		expect(row.title).toBe('Admin Chan');
+	});
+});
+
+describe('suffix_skip_marker helpers', () => {
+	it('stores and clears skip marker', async () => {
+		await registerChannel(env.my_database, 1, {
+			id: -100997,
+			title: 'Skip Chan',
+			username: null,
+		});
+		expect(await getSuffixSkipMarker(env.my_database, -100997)).toBeNull();
+		await setSuffixSkipMarker(env.my_database, -100997, '#nosuffix');
+		expect(await getSuffixSkipMarker(env.my_database, -100997)).toBe('#nosuffix');
+		await setSuffixSkipMarker(env.my_database, -100997, null);
+		expect(await getSuffixSkipMarker(env.my_database, -100997)).toBeNull();
 	});
 });
