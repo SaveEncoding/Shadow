@@ -3,6 +3,9 @@ import {
 	appendSuffixPreservingEntities,
 	shouldSkipAutoSuffix,
 	extractEditableContent,
+	attachBotStamp,
+	hasValidBotStamp,
+	stripBotStamp,
 } from '../src/telegram/utils/messageSuffix.js';
 
 /**
@@ -10,10 +13,13 @@ import {
  */
 function decideAutoSuffix({ text, entities, suffix, marker, maxLen = 4096 }) {
 	if (!suffix) return { apply: false, reason: 'no_suffix' };
-	if (shouldSkipAutoSuffix(text, marker)) return { apply: false, reason: 'skip_marker' };
-	const result = appendSuffixPreservingEntities(text, entities, suffix, { maxLen });
+	if (hasValidBotStamp(text)) return { apply: false, reason: 'bot_stamped' };
+	const body = stripBotStamp(text).text;
+	if (shouldSkipAutoSuffix(body, marker)) return { apply: false, reason: 'skip_marker' };
+	const result = appendSuffixPreservingEntities(body, entities, suffix, { maxLen });
 	if (result.skipped) return { apply: false, reason: result.skipped };
-	return { apply: true, reason: null, result };
+	const stamped = attachBotStamp(result.text);
+	return { apply: true, reason: null, result, stamped };
 }
 
 describe('auto suffix decision tree', () => {
@@ -27,6 +33,7 @@ describe('auto suffix decision tree', () => {
 		expect(d.apply).toBe(true);
 		expect(d.result.text).toContain('— @chan');
 		expect(d.result.entities[0].offset).toBe(0);
+		expect(hasValidBotStamp(d.stamped)).toBe(true);
 	});
 
 	it('skips when marker present in body', () => {
@@ -48,6 +55,46 @@ describe('auto suffix decision tree', () => {
 			marker: null,
 		});
 		expect(d.reason).toBe('no_suffix');
+	});
+
+	it('skips edited_channel_post echo when stamp is valid', () => {
+		const once = decideAutoSuffix({
+			text: 'پست اولیه',
+			entities: [],
+			suffix: '— @chan',
+			marker: null,
+		});
+		expect(once.apply).toBe(true);
+
+		const echo = decideAutoSuffix({
+			text: once.stamped,
+			entities: [],
+			suffix: '— @chan',
+			marker: null,
+		});
+		expect(echo.apply).toBe(false);
+		expect(echo.reason).toBe('bot_stamped');
+	});
+
+	it('re-applies after admin changes the body (stamp invalid)', () => {
+		const once = decideAutoSuffix({
+			text: 'پست اولیه',
+			entities: [],
+			suffix: '— @chan',
+			marker: null,
+		});
+		const stampTail = once.stamped.slice(stripBotStamp(once.stamped).text.length);
+		const adminText = 'پست ادیت‌شده توسط ادمین' + stampTail;
+
+		const again = decideAutoSuffix({
+			text: adminText,
+			entities: [],
+			suffix: '— @chan',
+			marker: null,
+		});
+		expect(again.apply).toBe(true);
+		expect(again.result.text).toContain('پست ادیت‌شده توسط ادمین');
+		expect(again.result.text).toContain('— @chan');
 	});
 
 	it('extracts caption from channel_post-like objects', () => {

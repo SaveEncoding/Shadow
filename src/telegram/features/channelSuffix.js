@@ -12,6 +12,9 @@ import {
   appendSuffixPreservingEntities,
   extractEditableContent,
   shouldSkipAutoSuffix,
+  hasValidBotStamp,
+  attachBotStamp,
+  stripBotStamp,
 } from "../utils/messageSuffix.js";
 import {
   editMessageTextWithEntities,
@@ -21,8 +24,11 @@ import {
 /**
  * Official channel suffix:
  * - Manual: /setsuffix, forward + button
- * - Automatic: every new channel_post (if channel is registered + has suffix)
+ * - Automatic: every new channel_post and edited_channel_post
  * - Opt-out: if post text/caption contains the admin-defined skip marker
+ * - Anti-loop: after the bot edits, an invisible content stamp is appended;
+ *   edited_channel_post with a valid stamp is ignored. If an admin edits the
+ *   post the stamp no longer matches and the bot may re-apply the suffix.
  *
  * Formatting of the original body is preserved via Telegram entities
  * (not HTML round-trip).
@@ -176,9 +182,9 @@ export function channelSuffixFeature(bot, env) {
     );
   });
 
-  // --- Automatic: new posts in registered channels ---
-  // Only channel_post (not edited_channel_post) to avoid loops after our own edit.
-  bot.on("channel_post", async (ctx) => {
+  // --- Automatic: new + edited posts in registered channels ---
+  // Loop prevention is content-stamp based (not by ignoring edited_channel_post).
+  bot.on(["channel_post", "edited_channel_post"], async (ctx) => {
     try {
       await autoApplySuffixToChannelPost(ctx, env);
     } catch (err) {
@@ -242,12 +248,13 @@ export function channelSuffixFeature(bot, env) {
     }
 
     try {
+      const stampedText = attachBotStamp(result.text);
       if (kind === "c" || content.kind === "caption") {
         await editMessageCaptionWithEntities(
           env,
           channelId,
           messageId,
-          result.text,
+          stampedText,
           result.entities
         );
       } else {
@@ -255,7 +262,7 @@ export function channelSuffixFeature(bot, env) {
           env,
           channelId,
           messageId,
-          result.text,
+          stampedText,
           result.entities
         );
       }
@@ -277,14 +284,19 @@ export function channelSuffixFeature(bot, env) {
 }
 
 /**
- * Auto-append official_suffix on a fresh channel_post when:
+ * Auto-append official_suffix on channel_post / edited_channel_post when:
  * - channel is registered in D1
  * - official_suffix is set
  * - post has text or caption
  * - skip marker is absent from the body
+ * - message does not already carry a valid bot content-stamp
+ *
+ * After a successful edit the text is stamped so the resulting
+ * edited_channel_post is recognized as our own and skipped. An admin edit
+ * that changes the body invalidates the stamp and allows re-application.
  */
 export async function autoApplySuffixToChannelPost(ctx, env) {
-  const post = ctx.channelPost;
+  const post = ctx.channelPost ?? ctx.editedChannelPost;
   if (!post) return { applied: false, reason: "no_post" };
 
   const channelId = post.chat?.id;
@@ -302,28 +314,63 @@ export async function autoApplySuffixToChannelPost(ctx, env) {
   const content = extractEditableContent(post);
   if (!content.kind) return { applied: false, reason: "no_text" };
 
+  // Our previous edit left a valid stamp → this edited_channel_post is the echo.
+  if (hasValidBotStamp(content.text)) {
+    return { applied: false, reason: "bot_stamped" };
+  }
+
+  // Drop a broken/leftover stamp before further processing.
+  const { text: bodyText } = stripBotStamp(content.text);
+
   const marker = channel.suffix_skip_marker ?? null;
-  if (shouldSkipAutoSuffix(content.text, marker)) {
+  if (shouldSkipAutoSuffix(bodyText, marker)) {
     return { applied: false, reason: "skip_marker" };
   }
 
   const result = appendSuffixPreservingEntities(
-    content.text,
+    bodyText,
     content.entities,
     String(suffix),
     { maxLen: content.maxLen }
   );
 
   if (result.skipped) {
+    // Suffix already there (e.g. admin kept it) → still stamp so future
+    // edited_channel_post events from unrelated metadata don't re-enter.
+    if (result.skipped === "already_present") {
+      const stamped = attachBotStamp(result.text);
+      if (stamped !== content.text) {
+        if (content.kind === "caption") {
+          await editMessageCaptionWithEntities(
+            env,
+            channelId,
+            post.message_id,
+            stamped,
+            result.entities
+          );
+        } else {
+          await editMessageTextWithEntities(
+            env,
+            channelId,
+            post.message_id,
+            stamped,
+            result.entities
+          );
+        }
+        return { applied: true, reason: "stamped_existing" };
+      }
+    }
     return { applied: false, reason: result.skipped };
   }
+
+  const stampedText = attachBotStamp(result.text);
 
   if (content.kind === "caption") {
     await editMessageCaptionWithEntities(
       env,
       channelId,
       post.message_id,
-      result.text,
+      stampedText,
       result.entities
     );
   } else {
@@ -331,7 +378,7 @@ export async function autoApplySuffixToChannelPost(ctx, env) {
       env,
       channelId,
       post.message_id,
-      result.text,
+      stampedText,
       result.entities
     );
   }

@@ -3,6 +3,10 @@ import {
 	appendSuffixPreservingEntities,
 	extractEditableContent,
 	shouldSkipAutoSuffix,
+	attachBotStamp,
+	stripBotStamp,
+	hasValidBotStamp,
+	hashContent,
 	TEXT_MAX_LENGTH,
 	CAPTION_MAX_LENGTH,
 } from '../src/telegram/utils/messageSuffix.js';
@@ -24,7 +28,6 @@ describe('appendSuffixPreservingEntities', () => {
 			'FOOT',
 			{ suffixEntities: [{ type: 'bold', offset: 0, length: 4 }] }
 		);
-		// "Hi" + "\n\n" = 4, then FOOT
 		expect(result.entities[0].offset).toBe(4);
 		expect(result.entities[0].length).toBe(4);
 	});
@@ -36,12 +39,20 @@ describe('appendSuffixPreservingEntities', () => {
 		expect(result.text).toBe(text);
 	});
 
+	it('strips leftover stamp before checking already_present', () => {
+		const body = 'Body\n\n/official';
+		const stamped = attachBotStamp(body);
+		const result = appendSuffixPreservingEntities(stamped, [], '/official');
+		expect(result.skipped).toBe('already_present');
+		expect(result.text).toBe(body);
+	});
+
 	it('skips empty suffix', () => {
 		const result = appendSuffixPreservingEntities('Body', [], '');
 		expect(result.skipped).toBe('empty_suffix');
 	});
 
-	it('skips when result would exceed maxLen', () => {
+	it('skips when result would exceed maxLen (including stamp budget)', () => {
 		const result = appendSuffixPreservingEntities(
 			'x'.repeat(100),
 			[],
@@ -61,6 +72,46 @@ describe('appendSuffixPreservingEntities', () => {
 		const copy = [...entities];
 		appendSuffixPreservingEntities('abc', entities, 'Z');
 		expect(entities).toEqual(copy);
+	});
+});
+
+describe('bot content stamp', () => {
+	it('attach + strip round-trips with valid=true', () => {
+		const body = 'خبر روز\n\n— @chan';
+		const stamped = attachBotStamp(body);
+		expect(stamped.startsWith(body)).toBe(true);
+		expect(stamped.length).toBeGreaterThan(body.length);
+		expect(hasValidBotStamp(stamped)).toBe(true);
+
+		const stripped = stripBotStamp(stamped);
+		expect(stripped.text).toBe(body);
+		expect(stripped.hadStamp).toBe(true);
+		expect(stripped.valid).toBe(true);
+	});
+
+	it('invalidates when body is changed (admin edit)', () => {
+		const stamped = attachBotStamp('original body\n\n— @chan');
+		// Admin rewrites the visible body but leaves trailing invisible junk partially
+		const adminEdited = 'NEW body by admin\n\n— @chan' + stamped.slice(stamped.indexOf('\u2060'));
+		// Stamp payload still encodes hash of old body → invalid
+		expect(hasValidBotStamp(adminEdited)).toBe(false);
+
+		const fullyReplaced = 'completely new text without stamp';
+		expect(hasValidBotStamp(fullyReplaced)).toBe(false);
+	});
+
+	it('invalidates when only the middle of the body changes', () => {
+		const body = 'AAA\n\n— @chan';
+		const stamped = attachBotStamp(body);
+		const stampOnly = stamped.slice(body.length);
+		const tampered = 'BBB\n\n— @chan' + stampOnly;
+		expect(hasValidBotStamp(tampered)).toBe(false);
+		expect(stripBotStamp(tampered).text).toBe('BBB\n\n— @chan');
+	});
+
+	it('hashContent is stable', () => {
+		expect(hashContent('abc')).toBe(hashContent('abc'));
+		expect(hashContent('abc')).not.toBe(hashContent('abd'));
 	});
 });
 
@@ -111,5 +162,10 @@ describe('shouldSkipAutoSuffix', () => {
 	it('is case-sensitive (admins control exact characters)', () => {
 		expect(shouldSkipAutoSuffix('NoSuffix', 'nosuffix')).toBe(false);
 		expect(shouldSkipAutoSuffix('nosuffix', 'nosuffix')).toBe(true);
+	});
+
+	it('ignores invisible stamp when matching marker', () => {
+		const stamped = attachBotStamp('خبر #nosuffix');
+		expect(shouldSkipAutoSuffix(stamped, '#nosuffix')).toBe(true);
 	});
 });
