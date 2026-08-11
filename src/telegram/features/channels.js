@@ -1,4 +1,4 @@
-import { registerChannel, getChannels } from "../db/channels.js";
+import { registerChannel } from "../db/channels.js";
 import { maybeOfferSuffixApply } from "./channelSuffix.js";
 
 /**
@@ -68,37 +68,7 @@ export function describeNonOwnerStatus(memberStatus) {
   * the user is indeed the admin/owner of that channel.
   */
 export function channelsFeature(bot, env) {
-  bot.callbackQuery("add_channel", async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await ctx.reply(
-      "📤 یک پست از کانال خودتون رو برای من فوروارد کنید.\n\n" +
-        "توجه: بات باید از قبل به‌عنوان ادمین به اون کانال اضافه شده باشه."
-    );
-  });
-
-  bot.callbackQuery("my_channels", async (ctx) => {
-    await ctx.answerCallbackQuery();
-    const channels = await getChannels(env.my_database, ctx.from.id);
-
-    if (!channels.length) {
-      return ctx.reply("هیچ کانالی ثبت نشده است.");
-    }
-
-    let text = "📋 کانال‌های شما:\n\n";
-    for (const channel of channels) {
-      text += `• ${channel.title}`;
-      text += channel.username ? ` (@${channel.username})` : "";
-
-      if (channel.owner_id === ctx.from.id) {
-        text += " — مالک";
-      } else if (channel.registered_by === ctx.from.id) {
-        text += " — ثبت‌کننده";
-      }
-
-      text += "\n";
-    }
-    return ctx.reply(text);
-  });
+    // add_channel / my_channels callbacks → features/menu.js
 
   // This handler must be registered in `FEATURES` before `echo`; for messages that are not channel forwards (in a private chat), `next()` is called so that `echo` can process them as well.
   bot.on("message", async (ctx, next) => {

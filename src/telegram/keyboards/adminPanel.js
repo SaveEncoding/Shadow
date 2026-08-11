@@ -12,7 +12,7 @@ export function adminPanelKeyboard(viewerRole) {
     kb.row().text("👥 مدیریت نقش‌ها", "admin:roles");
   }
 
-  kb.row().text("🏠 منوی اصلی", "home");
+  kb.row().text("🏠 منوی اصلی", "m:h");
   return kb;
 }
 

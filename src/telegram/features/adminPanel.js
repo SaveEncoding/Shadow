@@ -2,7 +2,8 @@ import { InlineKeyboard } from "grammy";
 import { Role, RoleLabel, ASSIGNABLE_ROLES, roleLabel, isValidRole } from "../constants/roles.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { UserService } from "../services/userService.js";
-import { adminPanelKeyboard, rolePickerKeyboard, userRoleActionsKeyboard } from "../keyboards/adminPanel.js";
+import { rolePickerKeyboard, userRoleActionsKeyboard } from "../keyboards/adminPanel.js";
+import { renderScreen } from "../ui/render.js";
 
 /**
  * Admin / founder control panel.
@@ -14,73 +15,34 @@ export function adminPanelFeature(bot, env) {
   const needAdmin = requireRole(Role.EXEC_ADMIN, env);
   const needFounder = requireRole(Role.FOUNDER, env);
 
-  // --- Menu entry points (were silent no-ops in TODO) ---
-
-  bot.callbackQuery("panel", needAdmin, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    const role = ctx.userRole ?? Role.NORMAL;
-    await ctx.reply(
-      `📊 <b>پنل مدیریت</b>\nسطح شما: <b>${roleLabel(role)}</b>`,
-      { parse_mode: "HTML", reply_markup: adminPanelKeyboard(role) }
-    );
-  });
-
-  bot.callbackQuery("stats", needAdmin, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    const stats = await userService.getRoleStats();
-    const lines = Object.entries(RoleLabel)
-      .map(([lvl, label]) => `• ${label}: <b>${stats[Number(lvl)] ?? 0}</b>`)
-      .join("\n");
-    const total = Object.values(stats).reduce((a, b) => a + b, 0);
-    await ctx.reply(
-      `📈 <b>آمار کاربران</b>\n\n${lines}\n\nجمع: <b>${total}</b>`,
-      { parse_mode: "HTML" }
-    );
-  });
-
-  bot.callbackQuery("settings", needAdmin, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await ctx.reply(
-      "⚙️ <b>تنظیمات</b>\n\n" +
-        "• برای تنظیم گپ لاگ خطا داخل گروه مورد نظر بزنید:\n<code>/seterrorlog</code>\n" +
-        "• مشاهده گپ لاگ فعلی:\n<code>/geterrorlog</code>",
-      { parse_mode: "HTML" }
-    );
-  });
-
-  bot.callbackQuery("help", async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await ctx.reply(
-      "❓ <b>راهنما</b>\n\n" +
-        "• <b>افزودن کانال</b>: یک پست از کانال را برای بات فوروارد کنید.\n" +
-        "• <b>کانال‌های من</b>: لیست کانال‌های ثبت‌شده.\n" +
-        "• <b>پنل مدیریت</b>: فقط برای ادمین‌ها.",
-      { parse_mode: "HTML" }
-    );
-  });
+  // Menu entry points (panel/stats/settings/help) live in features/menu.js
 
   // --- Role management (founder-centric) ---
 
   bot.callbackQuery("admin:roles", needFounder, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await ctx.reply(
+    await renderScreen(
+      ctx,
       "👥 <b>مدیریت نقش‌ها</b>\n\n" +
-        "شناسه عددی تلگرام کاربر را بفرستید، یا از دکمه زیر برای ارتقای آخرین کاربر ثبت‌شده استفاده کنید.\n\n" +
+        "شناسه عددی تلگرام کاربر را بفرستید.\n\n" +
         "فرمت: <code>/setrole &lt;telegram_id&gt; &lt;level&gt;</code>\n" +
         "سطح‌ها: 0 عادی · 1 ویژه · 2 ادمین · 3 توسعه‌دهنده\n" +
         "(سطح بنیان‌گذار فقط از طریق env قابل تنظیم است.)",
-      {
-        parse_mode: "HTML",
-        reply_markup: new InlineKeyboard().text("📋 لیست ادمین‌ها/VIP", "admin:list_privileged"),
-      }
+      new InlineKeyboard()
+        .text("📋 لیست ادمین‌ها/VIP", "admin:list_privileged")
+        .row()
+        .text("« پنل مدیریت", "m:ad")
+        .text("🏠 منوی اصلی", "m:h")
     );
   });
 
   bot.callbackQuery("admin:list_privileged", needAdmin, async (ctx) => {
-    await ctx.answerCallbackQuery();
     const rows = await userService.listUsersWithMinRole(Role.VIP);
     if (!rows.length) {
-      return ctx.reply("هنوز کاربر VIP یا بالاتری ثبت نشده.");
+      return renderScreen(
+        ctx,
+        "هنوز کاربر VIP یا بالاتری ثبت نشده.",
+        new InlineKeyboard().text("« بازگشت", "m:ad").text("🏠 منوی اصلی", "m:h")
+      );
     }
     const text = rows
       .map((u) => {
@@ -89,9 +51,11 @@ export function adminPanelFeature(bot, env) {
         return `• <code>${u.id}</code> ${name} (${un}) — <b>${roleLabel(u.role)}</b>`;
       })
       .join("\n");
-    await ctx.reply(`📋 <b>کاربران دارای نقش ویژه</b>\n\n${text}`, {
-      parse_mode: "HTML",
-    });
+    await renderScreen(
+      ctx,
+      `📋 <b>کاربران دارای نقش ویژه</b>\n\n${text}`,
+      new InlineKeyboard().text("« بازگشت", "m:ad").text("🏠 منوی اصلی", "m:h")
+    );
   });
 
   bot.callbackQuery(/^admin:setrole:(\d+):(\d+)$/, needFounder, async (ctx) => {

@@ -6,6 +6,7 @@ const {
 	createBotMock,
 	startCommandMock,
 	setErrorLogCommandMock,
+	menuFeatureMock,
 	adminPanelFeatureMock,
 	channelSuffixFeatureMock,
 	channelsFeatureMock,
@@ -16,6 +17,7 @@ const {
 	createBotMock: vi.fn(() => ({ __fakeBot: true })),
 	startCommandMock: vi.fn(),
 	setErrorLogCommandMock: vi.fn(),
+	menuFeatureMock: vi.fn(),
 	adminPanelFeatureMock: vi.fn(),
 	channelSuffixFeatureMock: vi.fn(),
 	channelsFeatureMock: vi.fn(),
@@ -37,7 +39,8 @@ vi.mock('../src/telegram/commands/setErrorLog.js', () => ({
 	setErrorLogCommand: setErrorLogCommandMock,
 }));
 vi.mock('../src/telegram/features/adminPanel.js', () => ({
-	adminPanelFeature: adminPanelFeatureMock,
+	adminPanelFeature: menuFeatureMock,
+	adminPanelFeatureMock,
 }));
 vi.mock('../src/telegram/features/channelSuffix.js', () => ({
 	channelSuffixFeature: channelSuffixFeatureMock,
@@ -83,6 +86,7 @@ describe('handleTelegramUpdate', () => {
 		expect(createBotMock).toHaveBeenCalledWith(fakeEnv);
 		expect(startCommandMock).toHaveBeenCalled();
 		expect(setErrorLogCommandMock).toHaveBeenCalled();
+		expect(menuFeatureMock).toHaveBeenCalled();
 		expect(adminPanelFeatureMock).toHaveBeenCalled();
 		expect(channelSuffixFeatureMock).toHaveBeenCalled();
 		expect(channelsFeatureMock).toHaveBeenCalled();
@@ -101,6 +105,7 @@ describe('handleTelegramUpdate', () => {
 		expect(createBotMock).toHaveBeenCalledTimes(1);
 		expect(startCommandMock).toHaveBeenCalledTimes(1);
 		expect(setErrorLogCommandMock).toHaveBeenCalledTimes(1);
+		expect(menuFeatureMock).toHaveBeenCalledTimes(1);
 		expect(adminPanelFeatureMock).toHaveBeenCalledTimes(1);
 		expect(channelSuffixFeatureMock).toHaveBeenCalledTimes(1);
 		expect(channelsFeatureMock).toHaveBeenCalledTimes(1);

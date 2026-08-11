@@ -1,19 +1,27 @@
-import { homeInlineKeyboard } from "../keyboards/home.js";
+import { UserService } from "../services/userService.js";
+import { Role } from "../constants/roles.js";
+import { homeText, homeKeyboard } from "../ui/screens.js";
 
 /**
  * Registers the /start command on the bot.
- * Call once per bot instance, e.g. from main-tel.js's feature list.
+ * Sends a single home-screen message (navigation continues via editMessage).
  */
 export function startCommand(bot, env) {
-  try {
-    bot.command("start", async (ctx) => {
-      await ctx.reply("👋 <b>بات Shadow</b> فعال شد.\n\nمدیریت کانال‌های تلگرام", {
-        parse_mode: "HTML",
-        reply_markup: homeInlineKeyboard()
-      });
+  bot.command("start", async (ctx) => {
+    let role = Role.NORMAL;
+    try {
+      if (ctx.from?.id) {
+        const userService = new UserService(env.my_database);
+        role = await userService.getEffectiveRole(ctx.from.id, env);
+      }
+    } catch (err) {
+      console.error("[startCommand] role lookup failed:", err);
+    }
+
+    await ctx.reply(homeText(role), {
+      parse_mode: "HTML",
+      reply_markup: homeKeyboard(role),
+      link_preview_options: { is_disabled: true },
     });
-  } catch (err) {
-    console.error("[startCommand] Error:", err);
-    throw err;
-  }
+  });
 }
