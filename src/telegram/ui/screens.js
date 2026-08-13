@@ -137,12 +137,19 @@ export function channelSuffixHelpText(ch) {
   return (
     `✍️ <b>پسوند رسمی</b> — ${escapeHtml(ch.title)}\n\n` +
     `وضعیت فعلی:\n${current}\n\n` +
-    `برای تنظیم، در همین چت بفرستید:\n` +
-    `<code>/setsuffix ${ch.channel_id}</code>\n` +
-    `متن پسوند در خط بعد\n\n` +
-    `پاک کردن:\n<code>/setsuffix ${ch.channel_id} clear</code>\n\n` +
+    `با دکمه‌های زیر تنظیم کنید؛ بعد از «تنظیم پسوند» متن را در چت بفرستید.\n\n` +
     `پس از ذخیره، روی پست‌های جدید/ادیت‌شدهٔ کانال به‌صورت خودکار اعمال می‌شود.`
   );
+}
+
+/** @param {number|string} channelId */
+export function channelSuffixKeyboard(channelId) {
+  return new InlineKeyboard()
+    .text("✏️ تنظیم پسوند", `m:cs:set:${channelId}`)
+    .text("🗑 پاک کردن", `m:cs:clr:${channelId}`)
+    .row()
+    .text("« بازگشت به کانال", `m:c:${channelId}`)
+    .text("🏠 منوی اصلی", "m:h");
 }
 
 export function channelSkipHelpText(ch) {
@@ -152,15 +159,66 @@ export function channelSkipHelpText(ch) {
   return (
     `⏭ <b>مارکر رد خودکار</b> — ${escapeHtml(ch.title)}\n\n` +
     `وضعیت: ${current}\n\n` +
-    `اگر این عبارت در متن/کپشن پست باشد، پسوند خودکار اضافه نمی‌شود.\n\n` +
-    `تنظیم:\n<code>/setsuffixskip ${ch.channel_id} #nosuffix</code>\n` +
-    `پاک کردن:\n<code>/setsuffixskip ${ch.channel_id} clear</code>`
+    `اگر این عبارت در متن/کپشن پست باشد، پسوند خودکار اضافه <b>نمی‌شود</b>.\n\n` +
+    `با دکمه «تنظیم مارکر» عبارت را در چت بفرستید (مثلاً <code>#nosuffix</code>).`
   );
+}
+
+/** @param {number|string} channelId */
+export function channelSkipKeyboard(channelId) {
+  return new InlineKeyboard()
+    .text("✏️ تنظیم مارکر", `m:sk:set:${channelId}`)
+    .text("🗑 پاک کردن", `m:sk:clr:${channelId}`)
+    .row()
+    .text("« بازگشت به کانال", `m:c:${channelId}`)
+    .text("🏠 منوی اصلی", "m:h");
 }
 
 export function backToChannelKeyboard(channelId) {
   return new InlineKeyboard()
     .text("« بازگشت به کانال", `m:c:${channelId}`)
+    .text("🏠 منوی اصلی", "m:h");
+}
+
+/** Waiting for the user to type the new suffix/marker. */
+export function awaitInputText(kind, channelTitle) {
+  const label = kind === "suffix" ? "پسوند رسمی" : "مارکر رد";
+  return (
+    `✏️ <b>در انتظار ${label}</b>\n` +
+    `کانال: <b>${escapeHtml(channelTitle)}</b>\n\n` +
+    `متن مورد نظر را در یک پیام بفرستید.\n` +
+    `<i>برای انصراف از دکمه زیر استفاده کنید (۵ دقیقه مهلت).</i>`
+  );
+}
+
+/** @param {number|string} channelId @param {'suffix'|'skip'} kind */
+export function awaitInputKeyboard(channelId, kind) {
+  const cancel = kind === "suffix" ? `m:cs:x:${channelId}` : `m:sk:x:${channelId}`;
+  const back = kind === "suffix" ? `m:cs:${channelId}` : `m:sk:${channelId}`;
+  return new InlineKeyboard()
+    .text("❌ انصراف", cancel)
+    .row()
+    .text("« بازگشت", back)
+    .text("🏠 منوی اصلی", "m:h");
+}
+
+export function confirmClearText(kind, channelTitle) {
+  const label = kind === "suffix" ? "پسوند رسمی" : "مارکر رد";
+  return (
+    `⚠️ <b>پاک کردن ${label}</b>\n` +
+    `کانال: <b>${escapeHtml(channelTitle)}</b>\n\n` +
+    `مطمئن هستید؟`
+  );
+}
+
+/** @param {number|string} channelId @param {'suffix'|'skip'} kind */
+export function confirmClearKeyboard(channelId, kind) {
+  const yes = kind === "suffix" ? `m:cs:clr2:${channelId}` : `m:sk:clr2:${channelId}`;
+  const no = kind === "suffix" ? `m:cs:${channelId}` : `m:sk:${channelId}`;
+  return new InlineKeyboard()
+    .text("✅ بله، پاک شود", yes)
+    .text("خیر", no)
+    .row()
     .text("🏠 منوی اصلی", "m:h");
 }
 
@@ -218,7 +276,7 @@ export function helpText() {
     `از «کانال‌های من» → کانال → پسوند رسمی، یا دستور <code>/setsuffix</code>\n\n` +
     `<b>پنل مدیریت</b>\n` +
     `برای ادمین‌های ربات: مدیریت نقش‌ها و آمار کاربران\n\n` +
-    `دستورات: /start · /whoami · /setsuffix · /getsuffix · /setsuffixskip`
+    `دستورات اختیاری: /start · /whoami · /setsuffix · /setsuffixskip`
   );
 }
 
