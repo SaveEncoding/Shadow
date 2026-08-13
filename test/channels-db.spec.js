@@ -19,7 +19,7 @@ beforeAll(async () => {
 		'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, first_name TEXT NOT NULL, last_name TEXT, language_code TEXT, role INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));'
 	);
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, username TEXT, owner_id INTEGER, registered_by INTEGER NOT NULL, admins_synced_at TEXT, official_suffix TEXT, suffix_skip_marker TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (registered_by) REFERENCES users(id), FOREIGN KEY (owner_id) REFERENCES users(id));'
+		'CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, username TEXT, owner_id INTEGER, registered_by INTEGER NOT NULL, admins_synced_at TEXT, official_suffix TEXT, official_suffix_entities TEXT, suffix_skip_marker TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (registered_by) REFERENCES users(id), FOREIGN KEY (owner_id) REFERENCES users(id));'
 	);
 	await env.my_database.exec(
 		'CREATE TABLE IF NOT EXISTS channel_admins (channel_id INTEGER NOT NULL, user_id INTEGER NOT NULL, added_at TEXT DEFAULT (CURRENT_TIMESTAMP), PRIMARY KEY (channel_id, user_id), FOREIGN KEY (channel_id) REFERENCES channels(channel_id), FOREIGN KEY (user_id) REFERENCES users(id));'
@@ -245,10 +245,32 @@ describe('official_suffix', () => {
 		expect(await getOfficialSuffix(env.my_database, -100999)).toBeNull();
 
 		await setOfficialSuffix(env.my_database, -100999, '📢 @SuffixChan');
-		expect(await getOfficialSuffix(env.my_database, -100999)).toBe('📢 @SuffixChan');
+		expect(await getOfficialSuffix(env.my_database, -100999)).toEqual({
+			text: '📢 @SuffixChan',
+			entities: [],
+		});
 
 		await setOfficialSuffix(env.my_database, -100999, null);
 		expect(await getOfficialSuffix(env.my_database, -100999)).toBeNull();
+	});
+
+	it('stores suffix MessageEntity list', async () => {
+		await registerChannel(env.my_database, 1, {
+			id: -100996,
+			title: 'Ent Chan',
+			username: null,
+		});
+		const ents = [{ type: 'bold', offset: 0, length: 4 }];
+		await setOfficialSuffix(env.my_database, -100996, 'BOLD rest', ents);
+		const rec = await getOfficialSuffix(env.my_database, -100996);
+		expect(rec.text).toBe('BOLD rest');
+		expect(rec.entities).toEqual(ents);
+
+		await setOfficialSuffix(env.my_database, -100996, 'plain only');
+		expect(await getOfficialSuffix(env.my_database, -100996)).toEqual({
+			text: 'plain only',
+			entities: [],
+		});
 	});
 
 	it('isUserChannelAdmin reflects channel_admins membership', async () => {

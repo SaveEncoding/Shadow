@@ -206,3 +206,67 @@ export function shouldSkipAutoSuffix(text, marker) {
   const body = stripBotStamp(text).text;
   return body.includes(String(marker));
 }
+
+
+/**
+ * Keep only JSON-serializable fields Telegram accepts on editMessage* entities.
+ * @param {Array<object>|null|undefined} entities
+ * @returns {Array<object>}
+ */
+export function sanitizeEntities(entities) {
+  if (!Array.isArray(entities)) return [];
+  const out = [];
+  for (const e of entities) {
+    if (!e || typeof e.type !== "string") continue;
+    if (!Number.isFinite(e.offset) || !Number.isFinite(e.length) || e.length <= 0) {
+      continue;
+    }
+    /** @type {Record<string, unknown>} */
+    const row = {
+      type: e.type,
+      offset: Math.trunc(e.offset),
+      length: Math.trunc(e.length),
+    };
+    if (typeof e.url === "string") row.url = e.url;
+    if (typeof e.language === "string") row.language = e.language;
+    if (e.custom_emoji_id != null) row.custom_emoji_id = String(e.custom_emoji_id);
+    // text_mention
+    if (e.user && e.user.id != null) {
+      row.user = { id: Number(e.user.id) };
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+/**
+ * Rebase entities that fall inside [start, end) so offsets are relative to start.
+ * @param {Array<object>|null|undefined} entities
+ * @param {number} start
+ * @param {number} end
+ */
+export function sliceEntities(entities, start, end) {
+  if (!Array.isArray(entities) || end <= start) return [];
+  return sanitizeEntities(entities)
+    .filter((e) => e.offset + e.length > start && e.offset < end)
+    .map((e) => {
+      const o = Math.max(e.offset, start);
+      const endPos = Math.min(e.offset + e.length, end);
+      return { ...e, offset: o - start, length: endPos - o };
+    })
+    .filter((e) => e.length > 0);
+}
+
+/**
+ * Parse JSON entity list from DB; always returns an array.
+ * @param {string|null|undefined} json
+ */
+export function parseEntitiesJson(json) {
+  if (json == null || json === "") return [];
+  try {
+    const parsed = typeof json === "string" ? JSON.parse(json) : json;
+    return sanitizeEntities(parsed);
+  } catch {
+    return [];
+  }
+}

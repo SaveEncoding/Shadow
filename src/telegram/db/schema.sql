@@ -45,7 +45,8 @@ CREATE TABLE IF NOT EXISTS channels (
   owner_id INTEGER,                     -- the channel's real creator; NULL until we observe a "creator"-status admin
   registered_by INTEGER NOT NULL,       -- the first user who registered this channel via the bot
   admins_synced_at TEXT,                -- last time channel_admins was refreshed via getChatAdministrators; NULL = never
-  official_suffix TEXT,                 -- plain-text footer appended to channel posts (entities preserved on original body)
+  official_suffix TEXT,                 -- footer text appended to channel posts
+  official_suffix_entities TEXT,        -- JSON array of MessageEntity (offsets relative to official_suffix)
   suffix_skip_marker TEXT,              -- if this substring appears in post text/caption, auto-suffix is skipped
   created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
   updated_at TEXT DEFAULT (CURRENT_TIMESTAMP),

@@ -8,6 +8,7 @@ import {
 } from "../db/channels.js";
 import { Role, RoleLabel } from "../constants/roles.js";
 import { renderScreen, toast } from "../ui/render.js";
+import { sanitizeEntities } from "../utils/messageSuffix.js";
 import {
   setPendingInput,
   getPendingInput,
@@ -351,7 +352,14 @@ export function menuFeature(bot, env) {
     clearPendingInput(ctx.from.id);
 
     if (pending.type === "suffix") {
-      await setOfficialSuffix(env.my_database, pending.channelId, text);
+      // Preserve bold/spoiler/links/… from the user's formatted message.
+      const entities = sanitizeEntities(ctx.message.entities);
+      await setOfficialSuffix(
+        env.my_database,
+        pending.channelId,
+        text,
+        entities
+      );
     } else if (pending.type === "skip") {
       await setSuffixSkipMarker(env.my_database, pending.channelId, text);
     }
@@ -381,7 +389,10 @@ export function menuFeature(bot, env) {
         );
         await ctx.reply(
           pending.type === "suffix"
-            ? "✅ پسوند رسمی ذخیره شد."
+            ? "✅ پسوند رسمی ذخیره شد" +
+              (sanitizeEntities(ctx.message.entities).length
+                ? " (با فرمت)."
+                : ".")
             : "✅ مارکر رد ذخیره شد."
         );
         return;

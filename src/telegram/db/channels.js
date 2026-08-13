@@ -199,36 +199,55 @@ export async function isUserChannelAdmin(db, channelId, userId) {
 }
 
 /**
+ * Official suffix + its MessageEntity list (offsets relative to suffix text).
  * @param {D1Database} db
  * @param {number} channelId
- * @returns {Promise<string|null>}
+ * @returns {Promise<{ text: string, entities: Array<object> }|null>}
  */
 export async function getOfficialSuffix(db, channelId) {
   const row = await db
-    .prepare("SELECT official_suffix FROM channels WHERE channel_id = ?")
+    .prepare(
+      "SELECT official_suffix, official_suffix_entities FROM channels WHERE channel_id = ?"
+    )
     .bind(channelId)
     .first();
   if (!row || row.official_suffix == null || row.official_suffix === "") {
     return null;
   }
-  return String(row.official_suffix);
+  let entities = [];
+  if (row.official_suffix_entities) {
+    try {
+      const parsed = JSON.parse(row.official_suffix_entities);
+      if (Array.isArray(parsed)) entities = parsed;
+    } catch {
+      entities = [];
+    }
+  }
+  return { text: String(row.official_suffix), entities };
 }
 
 /**
  * @param {D1Database} db
  * @param {number} channelId
- * @param {string|null} suffix - null/empty clears the suffix
+ * @param {string|null} suffix - null/empty clears the suffix and entities
+ * @param {Array<object>|null} [entities] - MessageEntity[] relative to suffix start
  */
-export async function setOfficialSuffix(db, channelId, suffix) {
+export async function setOfficialSuffix(db, channelId, suffix, entities = null) {
   const value =
     suffix == null || String(suffix).trim() === "" ? null : String(suffix);
+  let entitiesJson = null;
+  if (value != null && Array.isArray(entities) && entities.length > 0) {
+    entitiesJson = JSON.stringify(entities);
+  }
   return db
     .prepare(
       `UPDATE channels
-       SET official_suffix = ?, updated_at = CURRENT_TIMESTAMP
+       SET official_suffix = ?,
+           official_suffix_entities = ?,
+           updated_at = CURRENT_TIMESTAMP
        WHERE channel_id = ?`
     )
-    .bind(value, channelId)
+    .bind(value, entitiesJson, channelId)
     .run();
 }
 

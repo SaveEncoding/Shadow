@@ -9,6 +9,9 @@ import {
 	hashContent,
 	TEXT_MAX_LENGTH,
 	CAPTION_MAX_LENGTH,
+	sanitizeEntities,
+	sliceEntities,
+	parseEntitiesJson,
 } from '../src/telegram/utils/messageSuffix.js';
 
 describe('appendSuffixPreservingEntities', () => {
@@ -167,5 +170,45 @@ describe('shouldSkipAutoSuffix', () => {
 	it('ignores invisible stamp when matching marker', () => {
 		const stamped = attachBotStamp('خبر #nosuffix');
 		expect(shouldSkipAutoSuffix(stamped, '#nosuffix')).toBe(true);
+	});
+});
+
+
+describe('suffix entities helpers', () => {
+	it('sanitizeEntities keeps url and drops junk', () => {
+		const s = sanitizeEntities([
+			{ type: 'bold', offset: 0, length: 4 },
+			{ type: 'text_link', offset: 5, length: 3, url: 'https://t.me' },
+			{ type: 'bold', offset: 1, length: 0 },
+			null,
+		]);
+		expect(s).toHaveLength(2);
+		expect(s[1].url).toBe('https://t.me');
+	});
+
+	it('sliceEntities rebases to payload window', () => {
+		// full: "/cmd -1\nHello"  — Hello starts at index 8
+		const entities = [{ type: 'bold', offset: 8, length: 5 }];
+		const sliced = sliceEntities(entities, 8, 13);
+		expect(sliced).toEqual([{ type: 'bold', offset: 0, length: 5 }]);
+	});
+
+	it('appendSuffixPreservingEntities shifts suffix entities', () => {
+		const result = appendSuffixPreservingEntities(
+			'Body',
+			[{ type: 'italic', offset: 0, length: 4 }],
+			'FOOT',
+			{ suffixEntities: [{ type: 'bold', offset: 0, length: 4 }] }
+		);
+		// "Body" + "\n\n" = 6
+		expect(result.entities.map((e) => e.offset)).toEqual([0, 6]);
+	});
+
+	it('parseEntitiesJson tolerates bad input', () => {
+		expect(parseEntitiesJson(null)).toEqual([]);
+		expect(parseEntitiesJson('not-json')).toEqual([]);
+		expect(parseEntitiesJson('[{"type":"bold","offset":0,"length":1}]')).toEqual([
+			{ type: 'bold', offset: 0, length: 1 },
+		]);
 	});
 });

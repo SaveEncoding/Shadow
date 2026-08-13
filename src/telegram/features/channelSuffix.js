@@ -15,6 +15,9 @@ import {
   hasValidBotStamp,
   attachBotStamp,
   stripBotStamp,
+  sanitizeEntities,
+  sliceEntities,
+  parseEntitiesJson,
 } from "../utils/messageSuffix.js";
 import {
   editMessageTextWithEntities,
@@ -78,7 +81,11 @@ export function channelSuffixFeature(bot, env) {
       const current = await getOfficialSuffix(env.my_database, channelId);
       return ctx.reply(
         current
-          ? `پسوند فعلی کانال <code>${channelId}</code>:\n${escapeHtml(current)}\n\nبرای تغییر، دستور را با متن جدید بفرستید.`
+          ? `پسوند فعلی کانال <code>${channelId}</code>:\n${escapeHtml(current.text)}\n` +
+            (current.entities?.length
+              ? `<i>(${current.entities.length} فرمت ذخیره‌شده)</i>\n\n`
+              : `\n`) +
+            `برای تغییر، دستور را با متن جدید بفرستید.`
           : `پسوندی برای <code>${channelId}</code> تنظیم نشده.\nدوباره بفرستید:\n<code>/setsuffix ${channelId}</code>\nمتن پسوند`,
         { parse_mode: "HTML" }
       );
@@ -91,7 +98,16 @@ export function channelSuffixFeature(bot, env) {
       });
     }
 
-    await setOfficialSuffix(env.my_database, channelId, payload);
+    // Map entities from the full command message onto the payload substring.
+    const full = ctx.message?.text || "";
+    const payloadStart = full.lastIndexOf(payload);
+    const rawEntities = ctx.message?.entities || [];
+    const suffixEntities =
+      payloadStart >= 0
+        ? sliceEntities(rawEntities, payloadStart, payloadStart + payload.length)
+        : [];
+
+    await setOfficialSuffix(env.my_database, channelId, payload, suffixEntities);
     return ctx.reply(
       `✅ پسوند رسمی برای <code>${channelId}</code> ذخیره شد.\n\n` +
         `از این به بعد روی <b>هر پست جدید</b> کانال به‌صورت خودکار اعمال می‌شود ` +
@@ -118,7 +134,8 @@ export function channelSuffixFeature(bot, env) {
     const current = await getOfficialSuffix(env.my_database, channelId);
     const marker = await getSuffixSkipMarker(env.my_database, channelId);
     let msg = current
-      ? `پسوند <code>${channelId}</code>:\n${escapeHtml(current)}`
+      ? `پسوند <code>${channelId}</code>:\n${escapeHtml(current.text)}` +
+        (current.entities?.length ? `\n<i>(${current.entities.length} فرمت)</i>` : "")
       : `پسوندی تنظیم نشده.`;
     msg += marker
       ? `\n\nمارکر رد خودکار: <code>${escapeHtml(marker)}</code>`
@@ -210,10 +227,10 @@ export function channelSuffixFeature(bot, env) {
       });
     }
 
-    const suffix = await getOfficialSuffix(env.my_database, channelId);
-    if (!suffix) {
+    const suffixRec = await getOfficialSuffix(env.my_database, channelId);
+    if (!suffixRec) {
       return ctx.answerCallbackQuery({
-        text: "پسوند تنظیم نشده. /setsuffix",
+        text: "پسوند تنظیم نشده.",
         show_alert: true,
       });
     }
@@ -230,8 +247,8 @@ export function channelSuffixFeature(bot, env) {
     const result = appendSuffixPreservingEntities(
       content.text,
       content.entities,
-      suffix,
-      { maxLen: content.maxLen }
+      suffixRec.text,
+      { maxLen: content.maxLen, suffixEntities: sanitizeEntities(suffixRec.entities) }
     );
 
     if (result.skipped === "already_present") {
@@ -310,6 +327,7 @@ export async function autoApplySuffixToChannelPost(ctx, env) {
   if (suffix == null || suffix === "") {
     return { applied: false, reason: "no_suffix" };
   }
+  const suffixEntities = parseEntitiesJson(channel.official_suffix_entities);
 
   const content = extractEditableContent(post);
   if (!content.kind) return { applied: false, reason: "no_text" };
@@ -331,7 +349,7 @@ export async function autoApplySuffixToChannelPost(ctx, env) {
     bodyText,
     content.entities,
     String(suffix),
-    { maxLen: content.maxLen }
+    { maxLen: content.maxLen, suffixEntities }
   );
 
   if (result.skipped) {
@@ -394,7 +412,7 @@ export async function autoApplySuffixToChannelPost(ctx, env) {
  */
 export async function maybeOfferSuffixApply(ctx, env, channel) {
   const suffix = await getOfficialSuffix(env.my_database, channel.id);
-  if (!suffix) return false;
+  if (!suffix?.text) return false;
 
   const origin = ctx.message?.forward_origin;
   if (origin?.type !== "channel" || origin.message_id == null) return false;

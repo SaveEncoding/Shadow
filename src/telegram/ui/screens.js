@@ -131,13 +131,20 @@ export function channelDetailKeyboard(channelId) {
 }
 
 export function channelSuffixHelpText(ch) {
-  const current = ch.official_suffix
+  let current = ch.official_suffix
     ? escapeHtml(String(ch.official_suffix))
     : "<i>خالی</i>";
+  if (ch.official_suffix && ch.official_suffix_entities) {
+    try {
+      const n = JSON.parse(ch.official_suffix_entities)?.length || 0;
+      if (n > 0) current += `\n<i>(${n} فرمت ذخیره‌شده)</i>`;
+    } catch { /* ignore */ }
+  }
   return (
     `✍️ <b>پسوند رسمی</b> — ${escapeHtml(ch.title)}\n\n` +
     `وضعیت فعلی:\n${current}\n\n` +
-    `با دکمه‌های زیر تنظیم کنید؛ بعد از «تنظیم پسوند» متن را در چت بفرستید.\n\n` +
+    `با دکمه‌های زیر تنظیم کنید؛ بعد از «تنظیم پسوند» متن را در چت بفرستید.\n` +
+    `<i>فرمت تلگرام (بولد، ایتالیک، اسپویلر، لینک و …) در پسوند ذخیره می‌شود.</i>\n\n` +
     `پس از ذخیره، روی پست‌های جدید/ادیت‌شدهٔ کانال به‌صورت خودکار اعمال می‌شود.`
   );
 }
@@ -187,6 +194,9 @@ export function awaitInputText(kind, channelTitle) {
     `✏️ <b>در انتظار ${label}</b>\n` +
     `کانال: <b>${escapeHtml(channelTitle)}</b>\n\n` +
     `متن مورد نظر را در یک پیام بفرستید.\n` +
+    (kind === "suffix"
+      ? `<i>می‌توانید متن را بولد/اسپویلر/لینک کنید؛ فرمت ذخیره می‌شود.</i>\n`
+      : "") +
     `<i>برای انصراف از دکمه زیر استفاده کنید (۵ دقیقه مهلت).</i>`
   );
 }
