@@ -22,6 +22,12 @@
 			"id": "f33d01e83e2b43baa349f8ad265997c8"
 		}
 	],
+	"r2_buckets": [
+		{
+			"binding": "MEDIA_BUCKET",
+			"bucket_name": "shadow-media"
+		}
+	],
 	"rules": [
     	{
 			"type": "Data",

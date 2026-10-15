@@ -70,3 +70,20 @@ CREATE TABLE IF NOT EXISTS channel_admins (
 );
 
 CREATE INDEX IF NOT EXISTS idx_channel_admins_user_id ON channel_admins(user_id);
+
+-- Async media jobs: muxing subtitles into video (MKVToolnix-like).
+CREATE TABLE IF NOT EXISTS media_jobs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  video_key TEXT NOT NULL,
+  subtitle_key TEXT NOT NULL,
+  result_key TEXT,
+  status TEXT NOT NULL DEFAULT 'queued',
+  error TEXT,
+  created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+  updated_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_media_jobs_user_id ON media_jobs(user_id);
+CREATE INDEX IF NOT EXISTS idx_media_jobs_status ON media_jobs(status);

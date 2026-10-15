@@ -10,6 +10,7 @@ const {
 	adminPanelFeatureMock,
 	channelSuffixFeatureMock,
 	channelsFeatureMock,
+	mediaFeatureMock,
 	echoMock,
 	reportErrorToAdminMock,
 } = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ const {
 	adminPanelFeatureMock: vi.fn(),
 	channelSuffixFeatureMock: vi.fn(),
 	channelsFeatureMock: vi.fn(),
+	mediaFeatureMock: vi.fn(),
 	echoMock: vi.fn(),
 	reportErrorToAdminMock: vi.fn(),
 }));
@@ -49,6 +51,9 @@ vi.mock('../src/telegram/features/channelSuffix.js', () => ({
 }));
 vi.mock('../src/telegram/features/channels.js', () => ({
 	channelsFeature: channelsFeatureMock,
+}));
+vi.mock('../src/telegram/features/media.js', () => ({
+	mediaFeature: mediaFeatureMock,
 }));
 // main-tel imports echo from features/, not services/
 vi.mock('../src/telegram/features/echoFun.js', () => ({
@@ -92,6 +97,7 @@ describe('handleTelegramUpdate', () => {
 		expect(adminPanelFeatureMock).toHaveBeenCalled();
 		expect(channelSuffixFeatureMock).toHaveBeenCalled();
 		expect(channelsFeatureMock).toHaveBeenCalled();
+		expect(mediaFeatureMock).toHaveBeenCalled();
 		expect(echoMock).toHaveBeenCalled();
 		expect(mockWebhookHandler).toHaveBeenCalledTimes(1);
 	});
@@ -111,6 +117,7 @@ describe('handleTelegramUpdate', () => {
 		expect(adminPanelFeatureMock).toHaveBeenCalledTimes(1);
 		expect(channelSuffixFeatureMock).toHaveBeenCalledTimes(1);
 		expect(channelsFeatureMock).toHaveBeenCalledTimes(1);
+		expect(mediaFeatureMock).toHaveBeenCalledTimes(1);
 		expect(echoMock).toHaveBeenCalledTimes(1);
 		expect(mockWebhookHandler).toHaveBeenCalledTimes(3);
 	});

@@ -5,6 +5,7 @@ import { Env } from "../types.js";
 import { reportErrorToAdmin as reportError } from "./utils/Error.js";
 import { startCommand } from "./commands/start.js";
 import { channelsFeature } from "./features/channels.js";
+import { mediaFeature } from "./features/media.js";
 import { echo } from "./features/echoFun.js";
 import { setErrorLogCommand } from "./commands/setErrorLog.js";
 import { adminPanelFeature } from "./features/adminPanel.js";
@@ -37,6 +38,7 @@ const FEATURES: Array<(bot: Bot, env: Env) => void | Promise<void>> = [
   (bot, env) => adminPanelFeature(bot, env),
   (bot, env) => channelSuffixFeature(bot, env),
   (bot, env) => channelsFeature(bot, env),
+  (bot, env) => mediaFeature(bot, env),
   (bot, env) => echo(bot),
 ];
 

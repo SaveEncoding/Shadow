@@ -1,4 +1,9 @@
 import indexHtml from "./view/index.html";
+import {
+  getMediaJob,
+  getQueuedMediaJobs,
+  updateMediaJob,
+} from "../telegram/services/mediaService.js";
 import aboutHtml from "./view/about.html";
 import notFoundHtml from "./view/404.html";
 import telegramHtml from "./view/telegram.html";
@@ -130,6 +135,74 @@ export async function handleWebsiteUpdate(request, env) {
   const page = HTML_PAGES[pathname];
   if (page) {
     return htmlResponse(page, 200, method);
+  }
+
+  // --- Media API (for external muxer services) ---
+  if (pathname.startsWith("/api/media/")) {
+    // Simple shared-secret auth when configured.
+    if (env.MEDIA_API_SECRET) {
+      const auth = request.headers.get("Authorization") || "";
+      if (auth !== `Bearer ${env.MEDIA_API_SECRET}`) {
+        return new Response("Unauthorized", { status: 401, headers: withCommonHeaders({}) });
+      }
+    }
+
+    // GET /api/media/jobs?status=queued
+    if (pathname === "/api/media/jobs" && method === "GET") {
+      const status = url.searchParams.get("status");
+      let jobs = [];
+      if (status === "queued") {
+        jobs = await getQueuedMediaJobs(env.my_database, 10);
+      }
+      return new Response(JSON.stringify({ jobs }), {
+        status: 200,
+        headers: withCommonHeaders({ "Content-Type": "application/json; charset=UTF-8" }),
+      });
+    }
+
+    // GET /api/media/jobs/:id
+    const jobMatch = pathname.match(/^\/api\/media\/jobs\/(\d+)$/);
+    if (jobMatch && method === "GET") {
+      const job = await getMediaJob(env.my_database, Number(jobMatch[1]));
+      if (!job) {
+        return new Response(JSON.stringify({ error: "not found" }), {
+          status: 404,
+          headers: withCommonHeaders({ "Content-Type": "application/json; charset=UTF-8" }),
+        });
+      }
+      return new Response(JSON.stringify({ job }), {
+        status: 200,
+        headers: withCommonHeaders({ "Content-Type": "application/json; charset=UTF-8" }),
+      });
+    }
+
+    // POST /api/media/jobs/:id/complete
+    const completeMatch = pathname.match(/^\/api\/media\/jobs\/(\d+)\/complete$/);
+    if (completeMatch && method === "POST") {
+      const id = Number(completeMatch[1]);
+      let body = {};
+      try {
+        body = await request.json();
+      } catch (e) {
+        body = {};
+      }
+      if (body.resultKey) {
+        await updateMediaJob(env.my_database, id, { status: "done", resultKey: body.resultKey });
+      } else if (body.error) {
+        await updateMediaJob(env.my_database, id, { status: "failed", error: String(body.error) });
+      } else {
+        await updateMediaJob(env.my_database, id, { status: "processing" });
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: withCommonHeaders({ "Content-Type": "application/json; charset=UTF-8" }),
+      });
+    }
+
+    return new Response(JSON.stringify({ error: "not found" }), {
+      status: 404,
+      headers: withCommonHeaders({ "Content-Type": "application/json; charset=UTF-8" }),
+    });
   }
 
   return htmlResponse(notFoundHtml, 404, method);
