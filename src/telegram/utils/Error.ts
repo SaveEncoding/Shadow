@@ -15,6 +15,10 @@ const COOLDOWN_SECONDS = 300; // 5 minutes - only active if env.ERROR_KV is defi
  * @param {Error|Object} error - Error object
  * @param {number|string|null} userId - Telegram user id (optional)
  */
+// Compatibility alias: some callers/tests refer to the reporter as
+// `reportErrorToAdmin`. Keep both names so neither breaks.
+export const reportErrorToAdmin = reportError;
+
 export async function reportError(
   env: Env,
   context: string,

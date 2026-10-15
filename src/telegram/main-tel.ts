@@ -2,7 +2,7 @@ import { createBot, executionCtxStorage } from "./bot.js";
 import { Bot, webhookCallback } from "grammy";
 import { Update } from "grammy/types";
 import { Env } from "../types.js";
-import { reportError } from "./utils/Error.js";
+import { reportErrorToAdmin as reportError } from "./utils/Error.js";
 import { startCommand } from "./commands/start.js";
 import { channelsFeature } from "./features/channels.js";
 import { echo } from "./features/echoFun.js";

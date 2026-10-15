@@ -38,9 +38,11 @@ vi.mock('../src/telegram/commands/start.js', () => ({
 vi.mock('../src/telegram/commands/setErrorLog.js', () => ({
 	setErrorLogCommand: setErrorLogCommandMock,
 }));
+vi.mock('../src/telegram/features/menu.js', () => ({
+	menuFeature: menuFeatureMock,
+}));
 vi.mock('../src/telegram/features/adminPanel.js', () => ({
-	adminPanelFeature: menuFeatureMock,
-	adminPanelFeatureMock,
+	adminPanelFeature: adminPanelFeatureMock,
 }));
 vi.mock('../src/telegram/features/channelSuffix.js', () => ({
 	channelSuffixFeature: channelSuffixFeatureMock,

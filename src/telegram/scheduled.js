@@ -1,6 +1,6 @@
 import { UserService } from "./services/userService.js";
 import { sendMessage } from "./services/telegramService.js";
-import { reportError } from "./utils/Error.js";
+import { reportErrorToAdmin as reportError } from "./utils/Error.js";
 import { getErrorLogTarget } from "./db/settings.js";
 
 const INACTIVE_DAYS = 30;

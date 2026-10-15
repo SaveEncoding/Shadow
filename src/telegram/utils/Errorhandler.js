@@ -1,4 +1,4 @@
-import { reportError } from "./Error.js";
+import { reportErrorToAdmin as reportError } from "./Error.js";
 import { executionCtxStorage } from "../bot.js";
 
 const DEFAULT_USER_MESSAGE =

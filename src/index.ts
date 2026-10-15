@@ -1,5 +1,5 @@
 import { handleTelegramUpdate } from "./telegram/main-tel.js"
-import { reportError } from "./telegram/utils/Error.js"
+import { reportErrorToAdmin as reportError } from "./telegram/utils/Error.js"
 import { handleWebsiteUpdate } from "./website/main-web.js";
 import { runScheduledCleanup } from "./telegram/scheduled.js";
 import { refreshChannelAdmins } from "./telegram/channelAdminSync.js";
