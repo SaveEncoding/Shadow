@@ -70,3 +70,25 @@ CREATE TABLE IF NOT EXISTS channel_admins (
 );
 
 CREATE INDEX IF NOT EXISTS idx_channel_admins_user_id ON channel_admins(user_id);
+
+-- شطرنج: هر بازی یک ردیف. تخته از روی `moves` (آرایه‌ی JSON از SAN) بازسازی می‌شود،
+-- بنابراین جدول فقط «منبع حقیقت تاریخچه» را نگه می‌دارد و fen صرفاً کش نمایش است.
+CREATE TABLE IF NOT EXISTS chess_games (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_id INTEGER NOT NULL,                 -- بازی به چت گره می‌خورد (در گروه، دو نفر روی یک صفحه بازی می‌کنند)
+  user_id INTEGER NOT NULL,                 -- سازنده‌ی بازی (برای آمار)
+  mode TEXT NOT NULL DEFAULT 'engine',      -- engine | local
+  level INTEGER NOT NULL DEFAULT 2,         -- 1..4 (فقط در حالت engine)
+  seed INTEGER NOT NULL DEFAULT 0,          -- برای بازتولیدپذیری انتخاب‌های موتور
+  start_fen TEXT NOT NULL,                  -- وضعیت شروع (امکان بازی از موقعیت دلخواه در آینده)
+  fen TEXT NOT NULL,                        -- وضعیت فعلی (کش)
+  moves TEXT NOT NULL DEFAULT '[]',         -- JSON array of SAN
+  status TEXT NOT NULL DEFAULT 'active',    -- active | finished | abandoned
+  result TEXT,                              -- 1-0 | 0-1 | 1/2-1/2
+  reason TEXT,                              -- checkmate | stalemate | resignation | ...
+  created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+  updated_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chess_games_chat ON chess_games(chat_id, status);
+CREATE INDEX IF NOT EXISTS idx_chess_games_user ON chess_games(user_id, status);

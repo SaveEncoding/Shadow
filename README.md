@@ -8,6 +8,8 @@ Shadow is a single Cloudflare Worker that does two things at once:
 
 1. **Telegram bot** (route `POST /telegram`) — with [grammY](https://grammy.dev), currently focused on managing users' Telegram channels.
 
+   **Chess** is available as `/chess` — see [docs/CHESS.md](./docs/CHESS.md).
+
 2. **website** (rest of the routes) — a static site with a heaven/hell theme (gold and white on top, crimson and purple on the bottom), Persian and right-to-left.
 
 Both parts are served from a single Worker and rely on **D1** (SQLite) and **KV** as database/temporary storage.
@@ -50,6 +52,24 @@ npm test
 
 ---
 
+## 🧭 مستندات معماری
+
+طراحی «Shadow به‌عنوان دستیار همه‌کاره» (مدیریت کانال/چت، شطرنج، ادغام زیرنویس با ویدیو):
+
+| سند | محتوا |
+|---|---|
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | معماری هدف: لایه‌ی هسته‌ی خالص، پورت‌ها، آداپتورها، پلاگین‌ها، مدل داده، سطح اجرا، امنیت، تست. |
+| [`docs/ROADMAP.md`](./docs/ROADMAP.md) | نقشه‌ی راه فاز‌به‌فاز با قدم‌های PR-اندازه و معیار پذیرش هر قدم. |
+| [`docs/MEDIA-PLANE.md`](./docs/MEDIA-PLANE.md) | سطح اجرا: سرور Bot API محلی تلگرام (سقف ۲GB)، نود ffmpeg، پروتکل امن، ریسک‌ها. |
+| [`docs/CHESS.md`](./docs/CHESS.md) | فیچر شطرنج: مدل داده، الگوی callback، سطوح موتور، تست‌ها و محدودیت‌ها. |
+
+خلاصه‌ی یک‌خطی معماری: **Worker فقط تصمیم می‌گیرد و هماهنگ می‌کند؛ ffmpeg/Stockfish روی یک
+سطح اجرای جدا اجرا می‌شوند؛ حالت زنده در Durable Objects، رکورد در D1، فایل در R2.**
+دلیل: هر ایزوله‌ی Worker فقط ۱۲۸MB حافظه دارد، ffmpeg نمی‌تواند اجرا کند، و `getFile` تلگرام
+در نسخه‌ی ابری سقف ۲۰MB دارد.
+
+---
+
 ## 📋 TODO
 
 ### Website
@@ -76,12 +96,20 @@ npm test
 - [x] "My channels" feature
 - [x] Vitest test suite, including real tests on D1 (not mock) for the logic of the user and channel database
 - [x] Regression coverage for the body-already-used bug, channel forwarding detection, and user "direct interaction" definition
+- [x] **Chess** (`/chess`): engine with 4 levels (pure negation search in the Worker), local two-player mode, inline 8×8 keyboard, undo, resignation, PGN export, per-user stats
+- [x] Pure chess core in `src/core/chess` with perft-verified move generation (6 standard positions) and 100% unit-test coverage of FEN/SAN/rules
 - [ ] Use Gemini
 - [ ] Connect the rest Menu buttons: "Admin Panel", "Settings", "Statistics", "Help" — now nothing happens if the user clicks them (no response, not even the loading state of Telegram closes) because none of them have a callback handler
 - [ ] UI for managing registered channels from within "My Channels" (now just a raw text list; no delete channel button)
 - [x] Hierarchical roles (`role`) replace `is_admin` / `is_vip`; founder panel + `/setrole` for privilege management
 - [ ] Store statistics from each purge run (number of users removed over time) in a small table, instead of just logging, so it can be tracked
 - [ ] Rate limit on the ability to add channels, so that someone can't overload the forwards with too many requests Increase `getChatMember`
+
+### Chess (next steps)
+- [ ] Clocks (per-move time control) with Durable Object alarms
+- [ ] Play by position/FEN, board image renderer, puzzle mode
+- [ ] Engine-vs-engine simulation with reproducible PGN (seeded)
+- [ ] Stronger opponent via Stockfish on the execution plane (`MEDIA-PLANE.md`)
 
 ### Infrastructure
 - [x] Partial migration to TypeScript (`index.ts`, `types.ts`, `assets.d.ts`)

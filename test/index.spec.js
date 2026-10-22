@@ -16,7 +16,9 @@ vi.mock('../src/telegram/main-tel.js', () => ({
 vi.mock('../src/website/main-web.js', () => ({
 	handleWebsiteUpdate: handleWebsiteUpdateMock,
 }));
+// کد فعلی `reportError` را import می‌کند (نام قدیمی: reportErrorToAdmin).
 vi.mock('../src/telegram/utils/Error.js', () => ({
+	reportError: reportErrorToAdminMock,
 	reportErrorToAdmin: reportErrorToAdminMock,
 }));
 
