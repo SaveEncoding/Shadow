@@ -10,6 +10,7 @@ const {
 	adminPanelFeatureMock,
 	channelSuffixFeatureMock,
 	channelsFeatureMock,
+	chessFeatureMock,
 	echoMock,
 	reportErrorToAdminMock,
 } = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ const {
 	adminPanelFeatureMock: vi.fn(),
 	channelSuffixFeatureMock: vi.fn(),
 	channelsFeatureMock: vi.fn(),
+	chessFeatureMock: vi.fn(),
 	echoMock: vi.fn(),
 	reportErrorToAdminMock: vi.fn(),
 }));
@@ -39,8 +41,7 @@ vi.mock('../src/telegram/commands/setErrorLog.js', () => ({
 	setErrorLogCommand: setErrorLogCommandMock,
 }));
 vi.mock('../src/telegram/features/adminPanel.js', () => ({
-	adminPanelFeature: menuFeatureMock,
-	adminPanelFeatureMock,
+	adminPanelFeature: adminPanelFeatureMock,
 }));
 vi.mock('../src/telegram/features/channelSuffix.js', () => ({
 	channelSuffixFeature: channelSuffixFeatureMock,
@@ -48,11 +49,22 @@ vi.mock('../src/telegram/features/channelSuffix.js', () => ({
 vi.mock('../src/telegram/features/channels.js', () => ({
 	channelsFeature: channelsFeatureMock,
 }));
+// menu و chess هم در main-tel ثبت می‌شوند؛ اگر mock نشوند، روی بات جعلی
+// (`{ __fakeBot: true }`) متد `callbackQuery` صدا زده می‌شود و تست می‌شکند.
+vi.mock('../src/telegram/features/menu.js', () => ({
+	menuFeature: menuFeatureMock,
+}));
+vi.mock('../src/telegram/features/chess.js', () => ({
+	chessFeature: chessFeatureMock,
+}));
 // main-tel imports echo from features/, not services/
 vi.mock('../src/telegram/features/echoFun.js', () => ({
 	echo: echoMock,
 }));
+// منبع، تابع را به `reportError` تغییر نام داده است؛ هر دو نام را تأمین می‌کنیم
+// تا هم کد فعلی و هم انتظارهای قدیمی تست کار کنند.
 vi.mock('../src/telegram/utils/Error.js', () => ({
+	reportError: reportErrorToAdminMock,
 	reportErrorToAdmin: reportErrorToAdminMock,
 }));
 
@@ -90,6 +102,7 @@ describe('handleTelegramUpdate', () => {
 		expect(adminPanelFeatureMock).toHaveBeenCalled();
 		expect(channelSuffixFeatureMock).toHaveBeenCalled();
 		expect(channelsFeatureMock).toHaveBeenCalled();
+		expect(chessFeatureMock).toHaveBeenCalled();
 		expect(echoMock).toHaveBeenCalled();
 		expect(mockWebhookHandler).toHaveBeenCalledTimes(1);
 	});
@@ -109,6 +122,7 @@ describe('handleTelegramUpdate', () => {
 		expect(adminPanelFeatureMock).toHaveBeenCalledTimes(1);
 		expect(channelSuffixFeatureMock).toHaveBeenCalledTimes(1);
 		expect(channelsFeatureMock).toHaveBeenCalledTimes(1);
+		expect(chessFeatureMock).toHaveBeenCalledTimes(1);
 		expect(echoMock).toHaveBeenCalledTimes(1);
 		expect(mockWebhookHandler).toHaveBeenCalledTimes(3);
 	});

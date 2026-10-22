@@ -10,6 +10,7 @@ import { setErrorLogCommand } from "./commands/setErrorLog.js";
 import { adminPanelFeature } from "./features/adminPanel.js";
 import { channelSuffixFeature } from "./features/channelSuffix.js";
 import { menuFeature } from "./features/menu.js";
+import { chessFeature } from "./features/chess.js";
 
 // webhookCallback is overloaded per-adapter, so `ReturnType<typeof webhookCallback>`
 // alone resolves to its broad, generic multi-adapter overload rather than the
@@ -37,6 +38,7 @@ const FEATURES: Array<(bot: Bot, env: Env) => void | Promise<void>> = [
   (bot, env) => adminPanelFeature(bot, env),
   (bot, env) => channelSuffixFeature(bot, env),
   (bot, env) => channelsFeature(bot, env),
+  (bot, env) => chessFeature(bot, env),
   (bot, env) => echo(bot),
 ];
 
