@@ -21,6 +21,8 @@ export function homeKeyboard(userRole = Role.NORMAL) {
     .text("📋 کانال‌های من", "m:l")
     .row()
     .text("♟ شطرنج", "cg:h")
+    .text("📅 زمان‌بندی پست", "ps:h")
+    .row()
     .text("🎬 زیرنویس و ویدیو", "m:soon:media")
     .row()
     .text("📈 آمار", "m:st")

@@ -11,6 +11,7 @@ const {
 	channelSuffixFeatureMock,
 	channelsFeatureMock,
 	chessFeatureMock,
+	postSchedulerFeatureMock,
 	echoMock,
 	reportErrorToAdminMock,
 } = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ const {
 	channelSuffixFeatureMock: vi.fn(),
 	channelsFeatureMock: vi.fn(),
 	chessFeatureMock: vi.fn(),
+	postSchedulerFeatureMock: vi.fn(),
 	echoMock: vi.fn(),
 	reportErrorToAdminMock: vi.fn(),
 }));
@@ -56,6 +58,9 @@ vi.mock('../src/telegram/features/menu.js', () => ({
 }));
 vi.mock('../src/telegram/features/chess.js', () => ({
 	chessFeature: chessFeatureMock,
+}));
+vi.mock('../src/telegram/features/postScheduler.js', () => ({
+	postSchedulerFeature: postSchedulerFeatureMock,
 }));
 // main-tel imports echo from features/, not services/
 vi.mock('../src/telegram/features/echoFun.js', () => ({
@@ -103,6 +108,7 @@ describe('handleTelegramUpdate', () => {
 		expect(channelSuffixFeatureMock).toHaveBeenCalled();
 		expect(channelsFeatureMock).toHaveBeenCalled();
 		expect(chessFeatureMock).toHaveBeenCalled();
+		expect(postSchedulerFeatureMock).toHaveBeenCalled();
 		expect(echoMock).toHaveBeenCalled();
 		expect(mockWebhookHandler).toHaveBeenCalledTimes(1);
 	});
@@ -123,6 +129,7 @@ describe('handleTelegramUpdate', () => {
 		expect(channelSuffixFeatureMock).toHaveBeenCalledTimes(1);
 		expect(channelsFeatureMock).toHaveBeenCalledTimes(1);
 		expect(chessFeatureMock).toHaveBeenCalledTimes(1);
+		expect(postSchedulerFeatureMock).toHaveBeenCalledTimes(1);
 		expect(echoMock).toHaveBeenCalledTimes(1);
 		expect(mockWebhookHandler).toHaveBeenCalledTimes(3);
 	});

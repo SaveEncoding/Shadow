@@ -92,3 +92,88 @@ CREATE TABLE IF NOT EXISTS chess_games (
 
 CREATE INDEX IF NOT EXISTS idx_chess_games_chat ON chess_games(chat_id, status);
 CREATE INDEX IF NOT EXISTS idx_chess_games_user ON chess_games(user_id, status);
+
+-- ───────────────────── کپی و زمان‌بندی پست کانال ─────────────────────
+-- هر قانون: «هر پست جدید در کانال مبدأ، پس از N دقیقه در کانال مقصد منتشر شود».
+-- این تأخیر عمدی است تا ادمین کانال مقصد فرصت ویرایش داشته باشد.
+CREATE TABLE IF NOT EXISTS post_sources (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_channel_id INTEGER NOT NULL UNIQUE,  -- کانال مبدأ (بات باید ادمین آن باشد)
+  source_title TEXT,                          -- فقط برای نمایش در UI
+  source_username TEXT,
+  target_channel_id INTEGER NOT NULL,         -- کانال مقصد (بات باید اجازه‌ی ارسال داشته باشد)
+  delay_minutes INTEGER NOT NULL DEFAULT 30,  -- پنجره‌ی ویرایش
+  enabled INTEGER NOT NULL DEFAULT 1,
+  notify_chat_id INTEGER,                     -- چتی که پیش‌نمایش برای ادمین فرستاده می‌شود
+  added_by INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_post_sources_target ON post_sources(target_channel_id);
+
+CREATE TABLE IF NOT EXISTS post_queue (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_channel_id INTEGER NOT NULL,         -- 0 برای پست دستی (فوروارد)
+  source_title TEXT,                          -- عنوان مبدأ در لحظه‌ی ثبت (برای UI)
+  source_username TEXT,
+  target_channel_id INTEGER NOT NULL,
+  media_group_id TEXT,                        -- آلبوم‌ها: پیام‌های هم‌گروه یک پست‌اند
+  status TEXT NOT NULL DEFAULT 'collecting',   -- collecting|scheduled|publishing|published|failed|canceled
+  publish_at INTEGER NOT NULL,                -- ثانیه‌ی یونیکس
+  finalize_at INTEGER,                        -- پایان مهلت جمع‌آوری آیتم‌های آلبوم
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  published_at INTEGER,
+  published_message_id INTEGER,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  created_by INTEGER,
+  preview_chat_id INTEGER,
+  preview_message_id INTEGER,
+  edited INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_post_queue_ready ON post_queue(status, publish_at);
+CREATE INDEX IF NOT EXISTS idx_post_queue_target ON post_queue(target_channel_id, status, publish_at);
+CREATE INDEX IF NOT EXISTS idx_post_queue_collect ON post_queue(source_channel_id, media_group_id, status);
+
+CREATE TABLE IF NOT EXISTS post_queue_items (
+  queue_id INTEGER NOT NULL,
+  source_message_id INTEGER NOT NULL,         -- شناسه‌ی پیام در کانال مبدأ
+  kind TEXT NOT NULL,                         -- text|photo|video|document|audio|voice|animation|sticker
+  file_id TEXT,                               -- تلگرام: برای ارسال مجدد بدون آپلود
+  text TEXT,                                  -- متن پست یا کپشن
+  entities TEXT,                              -- JSON آرایه‌ی MessageEntity
+  extra TEXT,                                 -- JSON: عرض/ارتفاع/مدت ویدیو
+  PRIMARY KEY (queue_id, source_message_id),
+  FOREIGN KEY (queue_id) REFERENCES post_queue(id) ON DELETE CASCADE
+);
+
+-- جلوگیری از ثبت دوباره‌ی همان پیام (retry وبهوک، آلبوم تکراری)
+CREATE TABLE IF NOT EXISTS post_seen (
+  source_channel_id INTEGER NOT NULL,
+  source_message_id INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (source_channel_id, source_message_id)
+);
+
+-- «منتظر متن جدید از ادمین» — در D1 نگه داشته می‌شود، نه در حافظه‌ی ایزوله،
+-- چون هر درخواست می‌تواند روی ایزوله‌ی دیگری اجرا شود (بدهی فنی شناخته‌شده).
+CREATE TABLE IF NOT EXISTS post_edit_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL UNIQUE,
+  chat_id INTEGER NOT NULL,
+  message_id INTEGER NOT NULL,
+  field TEXT NOT NULL,                        -- text|caption
+  target_message_id INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+
+-- «منتظر فوروارد یک پست از ادمین» برای حالت کپی دستی
+CREATE TABLE IF NOT EXISTS post_capture_sessions (
+  user_id INTEGER PRIMARY KEY,
+  target_channel_id INTEGER NOT NULL,
+  mode TEXT NOT NULL DEFAULT 'manual',        -- manual: پست دستی | source: ثبت کانال مبدأ
+  delay_minutes INTEGER NOT NULL DEFAULT 30,
+  expires_at INTEGER NOT NULL
+);

@@ -68,6 +68,7 @@ export async function registerChannel(db, userId, channel, { isOwner = false } =
   * 
   * @param {D1Database} db
   * @param {number} userId
+  * @returns {Promise<Array<{ channel_id: number, title: string, username: string|null }>>}
   */
 export async function getChannels(db, userId) {
   const result = await db
@@ -81,7 +82,9 @@ export async function getChannels(db, userId) {
     .bind(userId)
     .all();
 
-  return result.results;
+  return /** @type {Array<{ channel_id: number, title: string, username: string|null }>} */ (
+    result.results
+  );
 }
 
 /**
@@ -175,6 +178,7 @@ export async function syncChannelAdmins(db, channelId, currentAdminUserIds) {
 /**
  * @param {D1Database} db
  * @param {number} channelId - Telegram channel id
+ * @returns {Promise<{ channel_id: number, title: string, username: string|null }|null>}
  */
 export async function getChannelByTelegramId(db, channelId) {
   return db
@@ -217,7 +221,7 @@ export async function getOfficialSuffix(db, channelId) {
   let entities = [];
   if (row.official_suffix_entities) {
     try {
-      const parsed = JSON.parse(row.official_suffix_entities);
+      const parsed = JSON.parse(String(row.official_suffix_entities));
       if (Array.isArray(parsed)) entities = parsed;
     } catch {
       entities = [];
