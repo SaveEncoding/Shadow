@@ -68,6 +68,11 @@ export interface SourceRule {
 	enabled: boolean;
 	/** چتی که اعلان/پیش‌نمایش در آن فرستاده می‌شود (معمولاً چت خصوصی سازنده) */
 	notifyChatId: number | null;
+	/**
+	 * اگر پر باشد، این منبع از **پیش‌نمایش وب** خوانده می‌شود (بات عضو/ادمینش نیست)
+	 * و مقدارش نام کاربری کانال است. `null` یعنی حالت ادمین (webhook).
+	 */
+	pollUsername: string | null;
 	addedBy: number;
 	createdAt: number;
 }

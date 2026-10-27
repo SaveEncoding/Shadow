@@ -156,6 +156,18 @@ CREATE TABLE IF NOT EXISTS post_seen (
   PRIMARY KEY (source_channel_id, source_message_id)
 );
 
+-- کانال‌های عمومی که بات در آن‌ها عضو/ادمین نیست: پست‌ها از پیش‌نمایش وب خوانده می‌شوند.
+-- جدول جدا (نه ستون تازه در post_sources) تا روی دیتابیس‌های موجود بدون ALTER کار کند.
+CREATE TABLE IF NOT EXISTS post_poll_sources (
+  rule_id INTEGER PRIMARY KEY,                -- post_sources.id
+  username TEXT NOT NULL,                     -- بدون @
+  cursor_message_id INTEGER NOT NULL DEFAULT 0, -- آخرین پست خوانده‌شده
+  last_polled_at INTEGER,
+  last_error TEXT,
+  failures INTEGER NOT NULL DEFAULT 0,        -- برای backoff پلکانی
+  FOREIGN KEY (rule_id) REFERENCES post_sources(id) ON DELETE CASCADE
+);
+
 -- «منتظر متن جدید از ادمین» — در D1 نگه داشته می‌شود، نه در حافظه‌ی ایزوله،
 -- چون هر درخواست می‌تواند روی ایزوله‌ی دیگری اجرا شود (بدهی فنی شناخته‌شده).
 CREATE TABLE IF NOT EXISTS post_edit_sessions (

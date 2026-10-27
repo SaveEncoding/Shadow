@@ -10,7 +10,9 @@ Shadow is a single Cloudflare Worker that does two things at once:
 
    **Chess** is available as `/chess` — see [docs/CHESS.md](./docs/CHESS.md).
    **Scheduled post copy** (`/schedule`) copies posts from other channels into your
-   channel and publishes them after a delay, so you can edit them first — see
+   channel and publishes them after a delay, so you can edit them first. Sources can be
+   channels where the bot is an admin (instant webhook) **or public channels where the bot
+   is not a member at all** (read from the `t.me/s/…` web preview) — see
    [docs/SCHEDULED-POSTS.md](./docs/SCHEDULED-POSTS.md).
 
 2. **website** (rest of the routes) — a static site with a heaven/hell theme (gold and white on top, crimson and purple on the bottom), Persian and right-to-left.
@@ -103,6 +105,7 @@ npm test
 - [x] **Chess** (`/chess`): engine with 4 levels (pure negation search in the Worker), local two-player mode, inline 8×8 keyboard, undo, resignation, PGN export, per-user stats
 - [x] Pure chess core in `src/core/chess` with perft-verified move generation (6 standard positions) and 100% unit-test coverage of FEN/SAN/rules
 - [x] **Scheduled post copy** (`/schedule` + `/post`): copy posts from a source channel (or a manual forward) into a target channel and publish them after a delay, so the admin can edit the text/caption, reschedule, cancel or publish now — see [`docs/SCHEDULED-POSTS.md`](./docs/SCHEDULED-POSTS.md)
+- [x] **Sources where the bot is not a member**: public channels are polled through the `t.me/s/<username>` web preview (text/photo/small video, polled once a minute, media converted to durable `file_id`s), with an automatic offer when a forwarded channel rejects the bot as non-admin
 - [ ] Use Gemini
 - [ ] Connect the rest Menu buttons: "Admin Panel", "Settings", "Statistics", "Help" — now nothing happens if the user clicks them (no response, not even the loading state of Telegram closes) because none of them have a callback handler
 - [ ] UI for managing registered channels from within "My Channels" (now just a raw text list; no delete channel button)
