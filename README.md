@@ -9,6 +9,9 @@ Shadow is a single Cloudflare Worker that does two things at once:
 1. **Telegram bot** (route `POST /telegram`) — with [grammY](https://grammy.dev), currently focused on managing users' Telegram channels.
 
    **Chess** is available as `/chess` — see [docs/CHESS.md](./docs/CHESS.md).
+   **Scheduled post copy** (`/schedule`) copies posts from other channels into your
+   channel and publishes them after a delay, so you can edit them first — see
+   [docs/SCHEDULED-POSTS.md](./docs/SCHEDULED-POSTS.md).
 
 2. **website** (rest of the routes) — a static site with a heaven/hell theme (gold and white on top, crimson and purple on the bottom), Persian and right-to-left.
 
@@ -62,6 +65,7 @@ npm test
 | [`docs/ROADMAP.md`](./docs/ROADMAP.md) | نقشه‌ی راه فاز‌به‌فاز با قدم‌های PR-اندازه و معیار پذیرش هر قدم. |
 | [`docs/MEDIA-PLANE.md`](./docs/MEDIA-PLANE.md) | سطح اجرا: سرور Bot API محلی تلگرام (سقف ۲GB)، نود ffmpeg، پروتکل امن، ریسک‌ها. |
 | [`docs/CHESS.md`](./docs/CHESS.md) | فیچر شطرنج: مدل داده، الگوی callback، سطوح موتور، تست‌ها و محدودیت‌ها. |
+| [`docs/SCHEDULED-POSTS.md`](./docs/SCHEDULED-POSTS.md) | کپی و زمان‌بندی پست: صف در D1، کرون دقیقه‌ای، پنجرهٔ ویرایش، آلبوم‌ها، تضمین‌های ضدپست‌تکراری. |
 
 خلاصه‌ی یک‌خطی معماری: **Worker فقط تصمیم می‌گیرد و هماهنگ می‌کند؛ ffmpeg/Stockfish روی یک
 سطح اجرای جدا اجرا می‌شوند؛ حالت زنده در Durable Objects، رکورد در D1، فایل در R2.**
@@ -98,6 +102,7 @@ npm test
 - [x] Regression coverage for the body-already-used bug, channel forwarding detection, and user "direct interaction" definition
 - [x] **Chess** (`/chess`): engine with 4 levels (pure negation search in the Worker), local two-player mode, inline 8×8 keyboard, undo, resignation, PGN export, per-user stats
 - [x] Pure chess core in `src/core/chess` with perft-verified move generation (6 standard positions) and 100% unit-test coverage of FEN/SAN/rules
+- [x] **Scheduled post copy** (`/schedule` + `/post`): copy posts from a source channel (or a manual forward) into a target channel and publish them after a delay, so the admin can edit the text/caption, reschedule, cancel or publish now — see [`docs/SCHEDULED-POSTS.md`](./docs/SCHEDULED-POSTS.md)
 - [ ] Use Gemini
 - [ ] Connect the rest Menu buttons: "Admin Panel", "Settings", "Statistics", "Help" — now nothing happens if the user clicks them (no response, not even the loading state of Telegram closes) because none of them have a callback handler
 - [ ] UI for managing registered channels from within "My Channels" (now just a raw text list; no delete channel button)

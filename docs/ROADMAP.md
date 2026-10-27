@@ -19,7 +19,7 @@
 | ۰.۳ | `GET /health` | پاسخ JSON: `{ ok, d1:{ok,ms}, kv:{ok,ms}, do:{ok,ms}, queue:{depth}, nodes:[{id,lastSeen}] }`. بدون احراز هویت (فقط وضعیت، بدون داده‌ی حساس)، با `Cache-Control: no-store`. |
 | ۰.۴ | رفع باگ dedupe وبهوک | کلید `update_id` در `DedupeDO` (یا جدول با TTL). تست: ارسال دو بار `update_id=1` فقط یک‌بار پردازش شود. |
 | ۰.۵ | throttle و auto-retry | افزودن `@grammyjs/auto-retry` و `@grammyjs/transformer-throttler` در `createBot`. تست: شبیه‌سازی پاسخ `429 retry_after` و اطمینان از retry. |
-| ۰.۶ | cron router صریح | `platform/cron-router.ts` با `Map<cronString, handler>`؛ کرون ناشناخته → لاگ `cron.unmapped` و هیچ کاری. تست: کرون سوم، cleanup را اجرا نکند. |
+| ۰.۶ | cron router صریح | ✅ انجام شد در `src/index.ts` (`CRON_HANDLERS`): کرون ناشناخته لاگ می‌شود و هیچ کاری نمی‌کند؛ تست: `test/index.spec.js`. |
 | ۰.۷ | مهاجرت به `wrangler d1 migrations` | پوشه‌ی `migrations/` با فایل شماره‌دار `0001_init.sql` (معادل دقیق `schema.sql` فعلی، شامل همه‌ی `IF NOT EXISTS`). اسکریپت `npm run db:migrate:local` / `:remote`. تست: مهاجرت روی DB خالی و روی DB موجود هر دو بدون خطا. |
 | ۰.۸ | لاگ ساختاریافته + زمینه‌ی درخواست | `platform/context.ts` (AsyncLocalStorage) با `traceId`, `updateId`, `userId`؛ `logger.{info,warn,error}(event, fields)`. همه‌ی `console.*` موجود منتقل شوند. |
 | ۰.۹ | پاک‌کردن وابستگی مرده | حذف `conversations()` (استفاده نشده) یا آوردنش به `SessionDO` — تصمیم در قدم ۱.۵. |
@@ -74,6 +74,27 @@
 هم‌تراز بهترین می‌گیرند و «سطح سخت» مهره می‌دهد. جزئیات: [`CHESS.md`](./CHESS.md).
 
 **پایان فاز ۲:** شطرنج کامل و تست‌شده، بدون یک خط زیرساخت جدید.
+
+---
+
+## فاز ۲.۵ — کپی و زمان‌بندی پست — ✅ انجام شد
+
+هدف: ادمین پست‌های کانال‌های دیگر را به کانال خودش ببرد، ولی **دیرتر** منتشر شود تا
+اول ویرایشش کند. جزئیات: [`SCHEDULED-POSTS.md`](./SCHEDULED-POSTS.md).
+
+| قدم | کار | معیار پذیرش | وضعیت |
+|---|---|---|---|
+| ۲.۵.۱ | `core/schedule/{timing,jalali,types}.ts` | زمان خالص و تزریقی: تأخیر، «چقدر مانده»، `isDue`، شمسی بدون `Intl`. | ✅ |
+| ۲.۵.۲ | جدول‌های `post_*` در `schema.sql` + `db/postQueue.ts` | `IF NOT EXISTS`؛ `claimForPublish` اتمیک؛ تست هم‌زمانی. | ✅ (D1 واقعی) |
+| ۲.۵.۳ | `services/postPublisher.ts` | نقشهٔ ارسال خالص + اجرا؛ `copyMessage` استفاده نشود (ویرایش متن). | ✅ |
+| ۲.۵.۴ | `capturePost.ts` | متن/رسانه/آلبوم؛ dedupe با `post_seen`؛ ویرایش مبدأ. | ✅ |
+| ۲.۵.۵ | `publishQueue.ts` | کرون دقیقه‌ای؛ تلاش مجدد پلکانی؛ پست گیرکرده بدون ارسال دوباره؛ حداکثر ۱۰/تیک. | ✅ |
+| ۲.۵.۶ | `features/postScheduler.ts` + `ui/schedulerScreens.ts` | `/schedule`، افزودن منبع با فوروارد، ویرایش متن، تغییر زمان، لغو، انتشار الان. | ✅ |
+| ۲.۵.۷ | cron router صریح در `index.ts` | کرون ناشناخته هیچ کاری نکند (قبلاً cleanup را ۱۴۴۰ بار در روز اجرا می‌کرد). | ✅ |
+| ۲.۵.۸ | زمان‌بندی مطلق («فردا ۹ صبح») در UI | `nextOccurrenceOfClock` هست؛ دکمه/ورودی ساعت اضافه شود. | ⏳ |
+| ۲.۵.۹ | پشتیبانی poll/موقعیت با `copyMessage` برای پست‌های بدون نیاز به ویرایش | فقط اگر لازم شد. | ⏳ |
+
+**پایان فاز ۲.۵:** صف انتشار با پنجرهٔ ویرایش، بدون پست تکراری و بدون توقف زنجیره.
 
 ---
 

@@ -11,6 +11,7 @@ import { adminPanelFeature } from "./features/adminPanel.js";
 import { channelSuffixFeature } from "./features/channelSuffix.js";
 import { menuFeature } from "./features/menu.js";
 import { chessFeature } from "./features/chess.js";
+import { postSchedulerFeature } from "./features/postScheduler.js";
 
 // webhookCallback is overloaded per-adapter, so `ReturnType<typeof webhookCallback>`
 // alone resolves to its broad, generic multi-adapter overload rather than the
@@ -36,6 +37,9 @@ const FEATURES: Array<(bot: Bot, env: Env) => void | Promise<void>> = [
   (bot, env) => menuFeature(bot, env),
   (bot, env) => setErrorLogCommand(bot, env),
   (bot, env) => adminPanelFeature(bot, env),
+  // این فیچر باید قبل از channelSuffix باشد: آن یکی برای channel_post زنجیره را
+  // متوقف می‌کند و اگر بعد ثبت شود، پست‌های کانال مبدأ هرگز کپی نمی‌شوند.
+  (bot, env) => postSchedulerFeature(bot, env),
   (bot, env) => channelSuffixFeature(bot, env),
   (bot, env) => channelsFeature(bot, env),
   (bot, env) => chessFeature(bot, env),
