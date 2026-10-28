@@ -13,6 +13,8 @@
  *   ps:c:<channelId>            صفحه‌ی کانال مقصد
  *   ps:src:<channelId>          افزودن منبع (منتظر فوروارد)
  *   ps:man:<channelId>          کپی دستی (منتظر فوروارد)
+ *   ps:pubsrc:<channelId>       افزودن کانال عمومی (منتظر @یوزرنیم)
+ *   ps:usepub:<channelId>:<user>  پیشنهاد حالت عمومی وقتی بات ادمین نیست
  *   ps:sd:<channelId>:<min>     تأخیر پیش‌فرض برای همان منبع
  *   ps:dp:<scope>               انتخاب تأخیر/زمان  (scope = r<sourceId> یا p<postId>)
  *   ps:ds:<scope>:<min>         اعمال مقدار
@@ -28,9 +30,16 @@
  *   ps:help                     راهنما
  */
 
-import type { Context } from 'grammy';
+import { InlineKeyboard, type Context } from 'grammy';
 import { captureSourcePost, applySourceEdit, extractPostItem, queueManualPost, unsupportedReason } from '../capturePost.js';
 import { computePublishAt, DEFAULT_DELAY_MINUTES, formatDelay, SECONDS_PER_MINUTE } from '../../core/schedule/timing.js';
+import {
+	latestMessageId,
+	isValidChannelUsername,
+	normalizeUsername,
+	publicSourceChannelId,
+} from '../../core/schedule/publicFeed.js';
+import { fetchPublicFeed } from '../publicFeed.js';
 import type { PostItem } from '../../core/schedule/types.js';
 import { getChannelByTelegramId, getChannels, isUserChannelAdmin } from '../db/channels.js';
 import {
@@ -46,6 +55,7 @@ import {
 	getSourceRule,
 	listPendingPosts,
 	listRulesForTarget,
+	recordPollResult,
 	reschedulePost,
 	saveSourceRule,
 	setRuleDelay,
@@ -55,6 +65,7 @@ import {
 	updateItemContent,
 } from '../db/postQueue.js';
 import { notifyQueued, publishOne, type SchedulerApi } from '../publishQueue.js';
+import { feedPostLink } from '../pollSources.js';
 import { renderScreen, toast, toastAlert } from '../ui/render.js';
 import {
 	addSourceText,
@@ -70,6 +81,9 @@ import {
 	manualCaptureText,
 	postDetailKeyboard,
 	postDetailText,
+	publicSourceAddedText,
+	publicSourceKeyboard,
+	publicSourceText,
 	queueKeyboard,
 	queueText,
 	schedulerHomeKeyboard,
@@ -228,6 +242,98 @@ export function postSchedulerFeature(bot: any, env: { my_database: D1Database; T
 			manualCaptureText(channel?.title ?? String(channelId), delay),
 			manualCaptureKeyboard(channelId),
 		);
+	});
+
+	// ── کانال عمومی (بدون عضویت بات) ──
+	bot.callbackQuery(/^ps:pubsrc:(-?\d+)$/, async (ctx: Context) => {
+		const channelId = Number(ctx.match[1]);
+		if (!(await canManage(db, channelId, ctx.from?.id))) return toast(ctx, 'دسترسی ندارید.');
+
+		const channel = await getChannelByTelegramId(db, channelId);
+		if (!channel) return toast(ctx, 'کانال پیدا نشد.');
+
+		await startCaptureSession(db, {
+			userId: ctx.from.id,
+			targetChannelId: channelId,
+			mode: 'public',
+			delayMinutes: DEFAULT_DELAY_MINUTES,
+			expiresAt: nowSeconds() + SESSION_TTL_SECONDS,
+		});
+
+		return renderScreen(ctx, publicSourceText(channel.title), publicSourceKeyboard(channelId));
+	});
+
+	/**
+	 * ثبت یک منبع عمومی. مشترک بین «افزودن با یوزرنیم» و «پیشنهاد حالت عمومی».
+	 * خروجی: پیام نتیجه برای فرستادن به کاربر.
+	 */
+	const registerPublicSource = async (
+		userId: number,
+		channelId: number,
+		chatId: number,
+		rawUsername: string,
+		delayMinutes: number,
+	): Promise<{ ok: true } | { ok: false; message: string }> => {
+		if (!isValidChannelUsername(rawUsername)) {
+			return { ok: false, message: '❌ آدرس کانال درست نیست. نمونه‌ی درست: <code>@my_channel</code>' };
+		}
+		const username = normalizeUsername(rawUsername);
+
+		const existing = await listRulesForTarget(db, channelId);
+		if (existing.some((rule) => rule.pollUsername === username || rule.sourceUsername === username)) {
+			return { ok: false, message: 'این کانال از قبل به این مقصد وصل شده است.' };
+		}
+
+		// پیش از ثبت، یک بار واقعاً می‌خوانیم تا مطمئن شویم پیش‌نمایش عمومی دارد
+		const feed = await fetchPublicFeed(username);
+		if (feed.ok === false) return { ok: false, message: `❌ ${feed.error}` };
+
+		const now = nowSeconds();
+		const ruleId = await saveSourceRule(db, {
+			sourceChannelId: publicSourceChannelId(username),
+			sourceTitle: `@${username}`,
+			sourceUsername: username,
+			targetChannelId: channelId,
+			delayMinutes,
+			addedBy: userId,
+			notifyChatId: chatId,
+			pollUsername: username,
+			now,
+		});
+
+		// کِرسر روی آخرین پست فعلی: آرشیو کانال یک‌جا سرازیر نمی‌شود
+		if (ruleId) {
+			await recordPollResult(db, { ruleId, now, cursorMessageId: latestMessageId(feed.posts) });
+		}
+
+		return { ok: true };
+	};
+
+	// پیشنهاد حالت عمومی، وقتی بات در کانال مبدأ ادمین نیست
+	bot.callbackQuery(/^ps:usepub:(-?\d+):(@?[A-Za-z0-9_]+)$/, async (ctx: Context) => {
+		const channelId = Number(ctx.match[1]);
+		const username = ctx.match[2];
+		if (!(await canManage(db, channelId, ctx.from?.id))) return toast(ctx, 'دسترسی ندارید.');
+
+		const channel = await getChannelByTelegramId(db, channelId);
+		const result = await registerPublicSource(
+			ctx.from!.id,
+			channelId,
+			ctx.chat?.id ?? ctx.from!.id,
+			username,
+			DEFAULT_DELAY_MINUTES,
+		);
+
+		if (result.ok === false) {
+			await toast(ctx, 'انجام نشد.');
+			return ctx.reply(result.message);
+		}
+		await toast(ctx, 'اضافه شد.');
+
+		await ctx.reply(
+			publicSourceAddedText(`@${normalizeUsername(username)}`, channel?.title ?? String(channelId), DEFAULT_DELAY_MINUTES),
+		);
+		return openChannel(ctx, channelId);
 	});
 
 	// ── انتخاب تأخیر / زمان ──
@@ -411,6 +517,16 @@ export function postSchedulerFeature(bot: any, env: { my_database: D1Database; T
 		const chatId = ctx.chat?.id;
 		if (!chatId) return toast(ctx, 'چت پیدا نشد.');
 
+		// منبع عمومی (بدون عضویت): بات نمی‌تواند کپی کند، پس لینک خود پست را می‌فرستیم
+		if (post.sourceChannelId < -1_000_000 && post.sourceUsername) {
+			const item = post.items[0];
+			if (!item) return toast(ctx, 'این پست محتوایی ندارد.');
+			await ctx.reply(feedPostLink(post.sourceUsername, item.sourceMessageId), {
+				link_preview_options: { is_disabled: false },
+			});
+			return toast(ctx, 'پیش‌نمایش ارسال شد.');
+		}
+
 		try {
 			await ctx.api.copyMessage(chatId, post.sourceChannelId, post.items[0].sourceMessageId);
 			await toast(ctx, 'پیش‌نمایش ارسال شد.');
@@ -488,6 +604,28 @@ export function postSchedulerFeature(bot: any, env: { my_database: D1Database; T
 		const channel = await getChannelByTelegramId(db, session.targetChannelId);
 		const targetTitle = channel?.title ?? String(session.targetChannelId);
 
+		// حالت ۰: منبع عمومی — کاربر باید @یوزرنیم بفرستد
+		if (session.mode === 'public') {
+			const text = (ctx.message?.text ?? '').trim();
+			const result = await registerPublicSource(
+				userId,
+				session.targetChannelId,
+				ctx.chat.id,
+				text,
+				session.delayMinutes,
+			);
+			if (result.ok === false) {
+				// جلسه باز می‌ماند تا کاربر آدرس درست را بفرستد (یا /cancel بزند)
+				return ctx.reply(result.message);
+			}
+
+			await clearCaptureSession(db, userId);
+			await ctx.reply(
+				publicSourceAddedText(`@${normalizeUsername(text)}`, targetTitle, session.delayMinutes),
+			);
+			return openChannel(ctx, session.targetChannelId);
+		}
+
 		// حالت ۱: ثبت منبع — از فوروارد می‌فهمیم کانال مبدأ کدام است
 		if (session.mode === 'source') {
 			const source = getForwardedChannel(ctx.message) as { id: number; title: string; username: string | null } | null;
@@ -502,6 +640,20 @@ export function postSchedulerFeature(bot: any, env: { my_database: D1Database; T
 				const me = ctx.me ?? (await ctx.api.getMe());
 				const botMember = await ctx.api.getChatMember(source.id, me.id);
 				if (botMember.status !== 'administrator' && botMember.status !== 'creator') {
+					// اگر کانال عمومی است، راه دوم را پیشنهاد می‌دهیم (پیش‌نمایش وب)
+					if (source.username && isValidChannelUsername(source.username)) {
+						const kb = new InlineKeyboard()
+							.text('🌐 افزودن بدون عضویت', `ps:usepub:${session.targetChannelId}:${source.username}`)
+							.row()
+							.text('🔙 بازگشت', `ps:c:${session.targetChannelId}`);
+						return ctx.reply(
+							`بات در کانال «${source.title}» ادمین نیست.\n\n` +
+								'دو راه داری:\n' +
+								'۱. بات را در آن کانال ادمین کن (کامل‌ترین حالت: هر نوع محتوایی کپی می‌شود).\n' +
+								`۲. همین کانال را «بدون عضویت» وصل کن؛ چون عمومی است (@${source.username})، پست‌هایش از پیش‌نمایش وب خوانده می‌شود (فقط متن/عکس/ویدیوی کوچک).`,
+							{ reply_markup: kb },
+						);
+					}
 					return ctx.reply(
 						`❌ بات در کانال «${source.title}» ادمین نیست.\nاول بات را ادمین کن، بعد دوباره فوروارد کن.`,
 					);

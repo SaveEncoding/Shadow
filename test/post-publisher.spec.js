@@ -133,6 +133,48 @@ describe('buildPublishPlan', () => {
 	});
 });
 
+describe('buildPublishPlan — web sources', () => {
+	it('sends media from a URL when no file_id is available', () => {
+		const item = { ...mediaItem('photo', null, 'کپشن'), extra: { sourceUrl: 'https://cdn.example/a.jpg' } };
+		const plan = buildPublishPlan(post([item]), TARGET);
+		expect(plan.method).toBe('sendPhoto');
+		expect(plan.args[1]).toBe('https://cdn.example/a.jpg');
+	});
+
+	it('prefers a real file_id over the URL', () => {
+		const item = { ...mediaItem('photo', 'file-9'), extra: { sourceUrl: 'https://cdn.example/a.jpg' } };
+		expect(buildPublishPlan(post([item]), TARGET).args[1]).toBe('file-9');
+	});
+
+	it('splits a long text post into several messages (Telegram limit)', () => {
+		const long = 'کلمه '.repeat(1500); // ~۷۵۰۰ کاراکتر
+		const plan = buildPublishPlan(post([textItem(long)]), TARGET);
+
+		expect(plan.method).toBe('sequence');
+		expect(plan.steps.length).toBeGreaterThan(1);
+		for (const step of plan.steps) {
+			expect(step.method).toBe('sendMessage');
+			expect(step.args[1].length).toBeLessThanOrEqual(4096);
+		}
+	});
+
+	it('moves caption overflow into a follow-up message', () => {
+		const caption = 'ا'.repeat(1500);
+		const item = mediaItem('photo', 'f1', caption);
+		const plan = buildPublishPlan(post([item]), TARGET);
+
+		expect(plan.method).toBe('sequence');
+		expect(plan.steps[0].method).toBe('sendPhoto');
+		expect(plan.steps[0].args[2].caption.length).toBeLessThanOrEqual(1024);
+		expect(plan.steps[1].method).toBe('sendMessage');
+	});
+
+	it('refuses an album item without any media reference', () => {
+		const plan = buildPublishPlan(post([mediaItem('photo', 'a'), mediaItem('photo', null)]), TARGET);
+		expect(plan.method).toBe('unsupported');
+	});
+});
+
 describe('executePublishPlan', () => {
 	function stubApi(handler) {
 		const calls = [];
@@ -190,6 +232,36 @@ describe('executePublishPlan', () => {
 		expect(result.ok).toBe(false);
 		expect(result.error).toContain('قابل ارسال');
 		expect(calls).toHaveLength(0);
+	});
+
+	it('runs every step of a sequence and returns the first message id', async () => {
+		let next = 0;
+		const { api, calls } = stubApi(() => ({ message_id: ++next }));
+		const long = 'کلمه '.repeat(1500);
+		const result = await executePublishPlan(api, buildPublishPlan(post([textItem(long)]), TARGET));
+
+		expect(result.ok).toBe(true);
+		expect(result.messageId).toBe(1);
+		expect(calls.length).toBeGreaterThan(1);
+	});
+
+	it('stops a sequence on the first failure and reports it', async () => {
+		let call = 0;
+		const { api, calls } = stubApi(() => {
+			call++;
+			if (call === 2) {
+				const err = new Error('Bad Request: message is too long');
+				err.error_code = 400;
+				throw err;
+			}
+			return { message_id: call };
+		});
+		const long = 'کلمه '.repeat(1500);
+		const result = await executePublishPlan(api, buildPublishPlan(post([textItem(long)]), TARGET));
+
+		expect(result.ok).toBe(false);
+		expect(result.errorCode).toBe(400);
+		expect(calls).toHaveLength(2);
 	});
 
 	it('publishPost is a plan+execute shortcut', async () => {

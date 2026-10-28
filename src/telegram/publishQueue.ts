@@ -32,12 +32,14 @@ import {
 	getSourceRule,
 	markFailed,
 	markPublished,
+	listActivePollSources,
 	listReadyPosts,
 	listStuckPosts,
 	pruneEditSessions,
 	pruneSeen,
 	setPreviewMessage,
 } from './db/postQueue.js';
+import { pollDueSources } from './pollSources.js';
 import { describeTelegramError, executePublishPlan, buildPublishPlan, type PublisherApi } from './services/postPublisher.js';
 import {
 	failedNotificationText,
@@ -55,6 +57,8 @@ export interface SchedulerApi extends PublisherApi {
 		other?: Record<string, unknown>,
 	): Promise<unknown>;
 	copyMessage(chatId: number, fromChatId: number, messageId: number): Promise<{ message_id: number }>;
+	/** برای پاک‌کردن پیام موقتِ گرفتن file_id (اختیاری: در تست لازم نیست) */
+	deleteMessage?(chatId: number, messageId: number): Promise<unknown>;
 	answerCallbackQuery(id: string, other?: Record<string, unknown>): Promise<unknown>;
 }
 
@@ -229,11 +233,27 @@ export async function recoverStuckPosts(api: SchedulerApi, db: D1Database, now: 
  */
 export async function publishDuePosts(
 	env: { TELEGRAM_TOKEN?: string; my_database: D1Database },
-	options: { api?: SchedulerApi; now?: number } = {},
-): Promise<{ finalized: number; published: number; failed: number; recovered: number }> {
+	options: { api?: SchedulerApi; now?: number; fetchImpl?: typeof fetch } = {},
+): Promise<{ finalized: number; published: number; failed: number; recovered: number; polled: number; queued: number }> {
 	const now = options.now ?? Math.floor(Date.now() / 1000);
 	const db = env.my_database;
 	const api = options.api ?? createSchedulerApi(env.TELEGRAM_TOKEN ?? '');
+
+	// ── منابع عمومی (بدون عضویت بات) ──
+	// اول خوانده می‌شوند تا پست تازه‌شان اگر تأخیرش صفر باشد در همین تیک جا بیفتد.
+	let polled = 0;
+	let queued = 0;
+	try {
+		const sources = await listActivePollSources(db, { limit: MAX_PUBLISH_PER_TICK });
+		if (sources.length > 0) {
+			const result = await pollDueSources(env, { api, now, fetchImpl: options.fetchImpl, sources });
+			polled = result.polled;
+			queued = result.queued;
+		}
+	} catch (err) {
+		// خطای خواندن پیش‌نمایش وب نباید انتشار پست‌های آماده را متوقف کند
+		console.error('[publishQueue] polling sources failed:', err);
+	}
 
 	const recovered = await recoverStuckPosts(api, db, now);
 	const finalizedAlbums = await finalizeReadyAlbums(db, now);
@@ -277,7 +297,7 @@ export async function publishDuePosts(
 		console.log(`[publishQueue] tick: published=${published} failed=${failed} recovered=${recovered}`);
 	}
 
-	return { finalized: finalizedAlbums.length, published, failed, recovered };
+	return { finalized: finalizedAlbums.length, published, failed, recovered, polled, queued };
 }
 
 /**

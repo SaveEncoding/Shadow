@@ -12,6 +12,8 @@
  */
 
 import type { PostItem, QueuePost } from '../../core/schedule/types.js';
+import { MAX_CAPTION_LENGTH, splitTextWithEntities } from '../../core/text/split.js';
+import type { HtmlTextEntity } from '../../core/text/htmlToEntities.js';
 
 /** حداقل رابطی که از کلاینت تلگرام لازم داریم (تا در تست قابل جایگزینی باشد) */
 export interface PublisherApi {
@@ -44,6 +46,8 @@ export type SendMethod =
 
 export type PublishPlan =
 	| { method: SendMethod; args: unknown[]; items: number }
+	/** چند پیام پشت‌سرهم (متن بلندتر از سقف تلگرام، یا کپشن + ادامه‌ی متن) */
+	| { method: 'sequence'; steps: PublishPlan[]; items: number }
 	| { method: 'unsupported'; reason: string; items: number };
 
 const SINGLE_MEDIA_METHOD: Record<string, SendMethod> = {
@@ -56,9 +60,26 @@ const SINGLE_MEDIA_METHOD: Record<string, SendMethod> = {
 	sticker: 'sendSticker',
 };
 
+/**
+ * مرجعی که تلگرام برای رسانه می‌پذیرد:
+ *   ۱. `file_id` (حالت ادمین؛ پایدارترین راه)
+ *   ۲. `sourceUrl` (حالت پیش‌نمایش وب، وقتی نشد فایل را به تلگرام بدهیم)
+ */
+export function mediaRef(item: PostItem): string | null {
+	if (item.fileId) return item.fileId;
+	const raw = item.extra ?? {};
+	const url = raw.sourceUrl;
+	return typeof url === 'string' && url.length > 0 ? url : null;
+}
+
 /** JSON تلگرام برای entities؛ همیشه آرایه‌ی تازه (نه رفرنس مشترک) */
 function entitiesOf(item: PostItem): unknown[] | undefined {
 	return item.entities && item.entities.length > 0 ? item.entities : undefined;
+}
+
+/** entities آیتم به شکل قابل‌استفاده برای شکستن متن */
+function entityList(item: PostItem): HtmlTextEntity[] {
+	return (item.entities ?? []) as HtmlTextEntity[];
 }
 
 function mediaExtra(item: PostItem): Record<string, unknown> {
@@ -76,6 +97,12 @@ function mediaExtra(item: PostItem): Record<string, unknown> {
  * @param post پست صف (آیتم‌ها مرتب‌شده)
  * @param targetChannelId کانال مقصد
  */
+function textPlan(chatId: number, text: string, entities: unknown[]): PublishPlan {
+	const other: Record<string, unknown> = {};
+	if (entities.length > 0) other.entities = entities;
+	return { method: 'sendMessage', args: [chatId, text, other], items: 1 };
+}
+
 export function buildPublishPlan(post: QueuePost, targetChannelId: number): PublishPlan {
 	const items = post.items.filter((item) => item.kind !== 'unsupported');
 
@@ -89,26 +116,42 @@ export function buildPublishPlan(post: QueuePost, targetChannelId: number): Publ
 		if (!text.trim()) {
 			return { method: 'unsupported', reason: 'متن پست خالی است.', items: 1 };
 		}
-		const other: Record<string, unknown> = {};
-		const entities = entitiesOf(items[0]);
-		if (entities) other.entities = entities;
-		return { method: 'sendMessage', args: [targetChannelId, text, other], items: 1 };
+		const parts = splitTextWithEntities(text, entityList(items[0]));
+		if (parts.length === 1) return textPlan(targetChannelId, parts[0].text, parts[0].entities as unknown[]);
+		return {
+			method: 'sequence',
+			items: 1,
+			steps: parts.map((part) => textPlan(targetChannelId, part.text, part.entities as unknown[])),
+		};
 	}
 
 	// ── پست تک‌آیتمی رسانه‌ای ──
 	if (items.length === 1) {
 		const item = items[0];
 		const method = SINGLE_MEDIA_METHOD[item.kind];
-		if (!method || !item.fileId) {
+		const ref = mediaRef(item);
+		if (!method || !ref) {
 			return { method: 'unsupported', reason: 'این نوع رسانه پشتیبانی نمی‌شود.', items: 1 };
 		}
 		const other: Record<string, unknown> = { ...mediaExtra(item) };
-		if (item.text && item.text.trim()) {
-			other.caption = item.text;
-			const entities = entitiesOf(item);
-			if (entities) other.caption_entities = entities;
+
+		// کپشن سقف ۱۰۲۴ کاراکتر دارد؛ باقی متن در پیام بعدی می‌آید (نه اینکه گم شود)
+		const captionParts = item.text && item.text.trim()
+			? splitTextWithEntities(item.text, entityList(item), MAX_CAPTION_LENGTH)
+			: [];
+		if (captionParts.length > 0) {
+			other.caption = captionParts[0].text;
+			if (captionParts[0].entities.length > 0) other.caption_entities = captionParts[0].entities;
 		}
-		return { method, args: [targetChannelId, item.fileId, other], items: 1 };
+
+		const plan: PublishPlan = { method, args: [targetChannelId, ref, other], items: 1 };
+		const overflow = captionParts.slice(1);
+		if (overflow.length === 0) return plan;
+		return {
+			method: 'sequence',
+			items: 1,
+			steps: [plan, ...overflow.map((part) => textPlan(targetChannelId, part.text, part.entities))],
+		};
 	}
 
 	// ── آلبوم (۲ تا ۱۰ آیتم) ──
@@ -116,13 +159,19 @@ export function buildPublishPlan(post: QueuePost, targetChannelId: number): Publ
 		return { method: 'unsupported', reason: 'آلبوم بیش از ۱۰ آیتم دارد.', items: items.length };
 	}
 
+	const missingRef = items.find((item) => !mediaRef(item));
+	if (missingRef) {
+		return { method: 'unsupported', reason: 'یکی از رسانه‌های آلبوم مرجعی برای ارسال ندارد.', items: items.length };
+	}
+
 	const media = items.map((item) => {
 		const type = item.kind === 'video' ? 'video' : item.kind === 'document' ? 'document' : 'photo';
-		const entry: Record<string, unknown> = { type, media: item.fileId };
+		const entry: Record<string, unknown> = { type, media: mediaRef(item) };
 		if (item.text && item.text.trim()) {
-			entry.caption = item.text;
-			const entities = entitiesOf(item);
-			if (entities) entry.caption_entities = entities;
+			// سقف کپشن هر آیتم ۱۰۲۴ است؛ بیشتر از آن در پیام جدا نمی‌گنجد
+			const caption = splitTextWithEntities(item.text, entityList(item), MAX_CAPTION_LENGTH)[0];
+			entry.caption = caption.text;
+			if (caption.entities.length > 0) entry.caption_entities = caption.entities;
 		}
 		if (type === 'video') {
 			const raw = item.extra ?? {};
@@ -156,6 +205,20 @@ export async function executePublishPlan(
 ): Promise<{ ok: boolean; messageId: number | null; error: string | null; errorCode: number | null }> {
 	if (plan.method === 'unsupported') {
 		return { ok: false, messageId: null, error: plan.reason, errorCode: null };
+	}
+
+	// چند پیام: اگر یکی شکست بخورد، همان شکست برگردانده می‌شود تا ادمین بداند
+	// پست ناقص منتشر شده (نسبت به سکوت، صادقانه‌تر است).
+	if (plan.method === 'sequence') {
+		let firstId: number | null = null;
+		for (const step of plan.steps) {
+			const result = await executePublishPlan(api, step);
+			if (!result.ok) {
+				return { ok: false, messageId: firstId, error: result.error, errorCode: result.errorCode };
+			}
+			if (firstId === null) firstId = result.messageId;
+		}
+		return { ok: firstId !== null, messageId: firstId, error: null, errorCode: null };
 	}
 
 	try {

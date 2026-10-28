@@ -105,7 +105,13 @@ export interface ChannelScheduleModel {
 }
 
 /** نام نمایشی منبع: عنوان، وگرنه @یوزرنیم، وگرنه شناسه */
-export function sourceName(rule: { sourceTitle: string | null; sourceUsername: string | null; sourceChannelId: number }): string {
+export function sourceName(rule: {
+	sourceTitle: string | null;
+	sourceUsername: string | null;
+	sourceChannelId: number;
+	pollUsername?: string | null;
+}): string {
+	if (rule.pollUsername) return `@${rule.pollUsername}`;
 	if (rule.sourceTitle) return rule.sourceTitle;
 	if (rule.sourceUsername) return `@${rule.sourceUsername}`;
 	return toPersianDigits(rule.sourceChannelId);
@@ -126,7 +132,8 @@ export function channelScheduleText(model: ChannelScheduleModel): string {
 		lines.push('<b>منابع فعال:</b>');
 		for (const rule of model.rules) {
 			const state = rule.enabled ? '🟢' : '⏸';
-			lines.push(`${state} ${escapeHtml(sourceName(rule))} — تأخیر ${formatDelay(rule.delayMinutes)}`);
+			const mode = rule.pollUsername ? ' 🌐 بدون عضویت' : '';
+			lines.push(`${state} ${escapeHtml(sourceName(rule))}${mode} — تأخیر ${formatDelay(rule.delayMinutes)}`);
 		}
 	}
 
@@ -151,7 +158,8 @@ export function channelScheduleKeyboard(model: ChannelScheduleModel): InlineKeyb
 			.row();
 	});
 
-	kb.text('➕ افزودن منبع', `ps:src:${model.channelId}`)
+	kb.text('➕ افزودن منبع (بات ادمین)', `ps:src:${model.channelId}`).row()
+		.text('🌐 کانال عمومی (بدون عضویت)', `ps:pubsrc:${model.channelId}`).row()
 		.text('📥 کپی دستی', `ps:man:${model.channelId}`)
 		.row()
 		.text(`📋 صف (${toPersianDigits(model.pending)})`, `ps:q:${model.channelId}`)
@@ -209,6 +217,41 @@ export function manualCaptureText(targetTitle: string, delayMinutes: number): st
 
 export function manualCaptureKeyboard(channelId: number): InlineKeyboard {
 	return new InlineKeyboard().text('🔙 بازگشت', `ps:c:${channelId}`);
+}
+
+// ─────────────────── کانال عمومی (بدون عضویت بات) ───────────────────
+
+export function publicSourceText(targetTitle: string): string {
+	return [
+		`🌐 <b>کانال عمومی برای ${escapeHtml(targetTitle)}</b>`,
+		'',
+		'آدرس کانال عمومی را بفرست (مثلاً <code>@my_channel</code> یا <code>my_channel</code>).',
+		'',
+		'<b>در این حالت بات لازم نیست عضو یا ادمین کانال مبدأ باشد.</b>',
+		'پست‌ها از پیش‌نمایش عمومی وب تلگرام (<code>t.me/s/…</code>) خوانده می‌شوند.',
+		'',
+		'<b>محدودیت‌ها:</b>',
+		'• فقط کانال <b>عمومی</b> (دارای @username) — کانال خصوصی پیش‌نمایش ندارد.',
+		'• فقط پست‌های <b>تازه</b>: کانال از لحظه‌ی اتصال به بعد پایش می‌شود.',
+		'• هر دقیقه چک می‌شود؛ شاید یکی دو دقیقه تأخیر اضافه پیدا کند.',
+		'• متن و عکس و ویدیوی کوچک بله؛ فایل، ویس، استیکر و نظرسنجی نه.',
+		'',
+		'<i>برای انصراف /cancel را بفرست.</i>',
+	].join('\n');
+}
+
+export function publicSourceKeyboard(channelId: number): InlineKeyboard {
+	return new InlineKeyboard().text('🔙 بازگشت', `ps:c:${channelId}`);
+}
+
+export function publicSourceAddedText(sourceTitle: string, targetTitle: string, delayMinutes: number): string {
+	return [
+		`✅ کانال <b>${escapeHtml(sourceTitle)}</b> به «${escapeHtml(targetTitle)}» وصل شد.`,
+		'',
+		`از این به بعد پست‌های تازه‌اش پس از <b>${formatDelay(delayMinutes)}</b> در کانال مقصد منتشر می‌شوند.`,
+		'',
+		'<i>خانه‌ی کانال را برای تغییر تأخیر یا قطع این منبع می‌توانی باز کنی.</i>',
+	].join('\n');
 }
 
 // ─────────────────────────── انتخاب تأخیر ───────────────────────────
