@@ -6,6 +6,7 @@ import {
 	channelScheduleText,
 	delayPickerKeyboard,
 	describeItems,
+	helpText,
 	manualCaptureText,
 	postDetailKeyboard,
 	postDetailText,
@@ -125,6 +126,44 @@ describe('channel screen', () => {
 		expect(data).toContain(`ps:src:${TARGET}`);
 		expect(data).toContain(`ps:man:${TARGET}`);
 		expect(data).toContain(`ps:q:${TARGET}`);
+	});
+
+	it('hides the X button while the feature is suspended', () => {
+		const data = buttons(
+			channelScheduleKeyboard({
+				channelId: TARGET,
+				title: 'کانال من',
+				rules: [rule()],
+				pending: 0,
+				lastPublishedAt: null,
+				now: NOW,
+			}),
+		);
+		expect(data).not.toContain('ps:xsrc:');
+		// بقیه‌ی مسیرها دست‌نخورده‌اند
+		expect(data).toContain(`ps:pubsrc:${TARGET}`);
+		expect(data).toContain(`ps:src:${TARGET}`);
+	});
+
+	it('marks the X section as suspended in the help text', () => {
+		expect(helpText()).toContain('تعلیق');
+		expect(helpText()).not.toContain('پل RSS');
+		expect(helpText(true)).toContain('پل RSS');
+	});
+
+	it('shows the X button again when the flag is on', () => {
+		const data = buttons(
+			channelScheduleKeyboard({
+				channelId: TARGET,
+				title: 'کانال من',
+				rules: [rule()],
+				pending: 0,
+				lastPublishedAt: null,
+				now: NOW,
+				xSources: true,
+			}),
+		);
+		expect(data).toContain(`ps:xsrc:${TARGET}`);
 	});
 
 	it('shows the setup steps while there is no source', () => {

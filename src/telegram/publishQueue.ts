@@ -42,7 +42,7 @@ import {
 } from './db/postQueue.js';
 import { pollDueSources } from './pollSources.js';
 import { pollDueXSources } from './xPoll.js';
-import { resolveXProvider } from './xSource.js';
+import { isXSourcesEnabled, resolveXProvider } from './xSource.js';
 import { describeTelegramError, executePublishPlan, buildPublishPlan, type PublisherApi } from './services/postPublisher.js';
 import {
 	failedNotificationText,
@@ -235,7 +235,13 @@ export async function recoverStuckPosts(api: SchedulerApi, db: D1Database, now: 
  * @param options.api و options.now فقط برای تست تزریق می‌شوند
  */
 export async function publishDuePosts(
-	env: { TELEGRAM_TOKEN?: string; my_database: D1Database; X_BEARER_TOKEN?: string; X_RSS_TEMPLATE?: string },
+	env: {
+		TELEGRAM_TOKEN?: string;
+		my_database: D1Database;
+		X_BEARER_TOKEN?: string;
+		X_RSS_TEMPLATE?: string;
+		X_SOURCES_ENABLED?: string;
+	},
 	options: { api?: SchedulerApi; now?: number; fetchImpl?: typeof fetch } = {},
 ): Promise<{
 	finalized: number;
@@ -269,10 +275,12 @@ export async function publishDuePosts(
 
 	// ── منابع X (توییتر) ──
 	// هر منبع حداقل ۵ دقیقه یک‌بار خوانده می‌شود (هزینه‌ی API)؛ تابع خودش ساعت را چک می‌کند.
+	// کل این بخش با پرچم `X_SOURCES_ENABLED` تعلیق/فعال می‌شود؛ در حالت تعلیق
+	// حتی یک کوئری هم به D1 زده نمی‌شود و هیچ درخواستی به X نمی‌رود.
 	let xPolled = 0;
 	let xQueued = 0;
 	try {
-		const provider = resolveXProvider(env);
+		const provider = isXSourcesEnabled(env) ? resolveXProvider(env) : ({ kind: 'none' } as const);
 		if (provider.kind !== 'none') {
 			const sources = await listActiveXSources(db, { limit: MAX_PUBLISH_PER_TICK });
 			if (sources.length > 0) {
