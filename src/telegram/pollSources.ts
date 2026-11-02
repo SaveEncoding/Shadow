@@ -17,6 +17,7 @@ import type { PostItem } from '../core/schedule/types.js';
 import { MAX_FEED_MEDIA, type FeedPost } from '../core/schedule/publicFeed.js';
 import { appendItem, createQueuedPost, finalizePost, markMessageSeen, recordPollResult } from './db/postQueue.js';
 import { fetchPublicFeed } from './publicFeed.js';
+import { spoolMedia } from './mediaSpool.js';
 import type { SchedulerApi } from './publishQueue.js';
 import { notifyQueued } from './publishQueue.js';
 import type { PollSourceRow } from './db/postQueue.js';
@@ -199,58 +200,6 @@ async function captureFeedPost(
 
 	await notifyQueued(api, db, postId, now);
 	return 'queued';
-}
-
-type SpoolResult = { fileId: string; width?: number; height?: number };
-
-/**
- * گرفتن `file_id` پایدار برای یک رسانه‌ی وب.
- *
- * ترفند: فایل را به چت خصوصی ادمین می‌فرستیم و بلافاصله پاک می‌کنیم؛ تلگرام در
- * پاسخ، `file_id` می‌دهد. مزیتش این است که اگر لینک وب منقضی شود، انتشار خراب نمی‌شود.
- * اگر این کار نشد (چت ادمین در دسترس نیست/خطا)، `null` برمی‌گردد و انتشار با URL
- * انجام می‌شود — پس در هر حال پست از دست نمی‌رود.
- */
-async function spoolMedia(
-	api: SchedulerApi,
-	chatId: number | null,
-	url: string,
-	kind: 'photo' | 'video',
-): Promise<SpoolResult | null> {
-	if (!chatId) return null;
-
-	try {
-		const message =
-			kind === 'video'
-				? await api.sendVideo(chatId, url, { disable_notification: true })
-				: await api.sendPhoto(chatId, url, { disable_notification: true });
-
-		const raw = message as unknown as {
-			message_id: number;
-			photo?: Array<{ file_id: string; width: number; height: number }>;
-			video?: { file_id: string; width?: number; height?: number };
-		};
-
-		const pick = raw.photo?.[raw.photo.length - 1];
-		const fileId = pick?.file_id ?? raw.video?.file_id;
-		const width = pick?.width ?? raw.video?.width;
-		const height = pick?.height ?? raw.video?.height;
-
-		// پاک‌کردن فورى پیام موقت، تا چت ادمین شلوغ نشود
-		try {
-			await (api as unknown as { deleteMessage(chatId: number, messageId: number): Promise<unknown> }).deleteMessage(
-				chatId,
-				raw.message_id,
-			);
-		} catch {
-			/* پاک نشد هم مهم نیست */
-		}
-
-		return fileId ? { fileId, width, height } : null;
-	} catch (err) {
-		console.warn('[pollSources] spool failed, falling back to URL:', (err as Error)?.message);
-		return null;
-	}
 }
 
 /**

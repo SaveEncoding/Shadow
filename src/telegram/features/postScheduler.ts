@@ -14,6 +14,7 @@
  *   ps:src:<channelId>          افزودن منبع (منتظر فوروارد)
  *   ps:man:<channelId>          کپی دستی (منتظر فوروارد)
  *   ps:pubsrc:<channelId>       افزودن کانال عمومی (منتظر @یوزرنیم)
+ *   ps:xsrc:<channelId>         افزودن حساب X (منتظر handle)
  *   ps:usepub:<channelId>:<user>  پیشنهاد حالت عمومی وقتی بات ادمین نیست
  *   ps:sd:<channelId>:<min>     تأخیر پیش‌فرض برای همان منبع
  *   ps:dp:<scope>               انتخاب تأخیر/زمان  (scope = r<sourceId> یا p<postId>)
@@ -40,6 +41,13 @@ import {
 	publicSourceChannelId,
 } from '../../core/schedule/publicFeed.js';
 import { fetchPublicFeed } from '../publicFeed.js';
+import {
+	isValidXHandle,
+	normalizeXHandle,
+	xSourceChannelId,
+} from '../../core/sources/x.js';
+import { fetchXTimeline, resolveXProvider, X_NOT_CONFIGURED_MESSAGE } from '../xSource.js';
+import { upsertXSource } from '../db/postQueue.js';
 import type { PostItem } from '../../core/schedule/types.js';
 import { getChannelByTelegramId, getChannels, isUserChannelAdmin } from '../db/channels.js';
 import {
@@ -56,6 +64,7 @@ import {
 	listPendingPosts,
 	listRulesForTarget,
 	recordPollResult,
+	recordXPollResult,
 	reschedulePost,
 	saveSourceRule,
 	setRuleDelay,
@@ -84,6 +93,9 @@ import {
 	publicSourceAddedText,
 	publicSourceKeyboard,
 	publicSourceText,
+	xSourceAddedText,
+	xSourceKeyboard,
+	xSourceText,
 	queueKeyboard,
 	queueText,
 	schedulerHomeKeyboard,
@@ -118,7 +130,10 @@ async function canManage(db: D1Database, channelId: number, userId: number | und
  * باید **قبل** از `channelSuffixFeature` در `main-tel.ts` ثبت شود، چون آن فیچر
  * برای `channel_post` زنجیره‌ی middleware را متوقف می‌کند.
  */
-export function postSchedulerFeature(bot: any, env: { my_database: D1Database; TELEGRAM_TOKEN?: string }): void {
+export function postSchedulerFeature(
+	bot: any,
+	env: { my_database: D1Database; TELEGRAM_TOKEN?: string; X_BEARER_TOKEN?: string; X_RSS_TEMPLATE?: string },
+): void {
 	const db = env.my_database;
 
 	const openHub = async (ctx: Context) => {
@@ -243,6 +258,80 @@ export function postSchedulerFeature(bot: any, env: { my_database: D1Database; T
 			manualCaptureKeyboard(channelId),
 		);
 	});
+
+	// ── حساب X (توییتر) ──
+	bot.callbackQuery(/^ps:xsrc:(-?\d+)$/, async (ctx: Context) => {
+		const channelId = Number(ctx.match[1]);
+		if (!(await canManage(db, channelId, ctx.from?.id))) return toast(ctx, 'دسترسی ندارید.');
+
+		const channel = await getChannelByTelegramId(db, channelId);
+		if (!channel) return toast(ctx, 'کانال پیدا نشد.');
+
+		await startCaptureSession(db, {
+			userId: ctx.from.id,
+			targetChannelId: channelId,
+			mode: 'x',
+			delayMinutes: DEFAULT_DELAY_MINUTES,
+			expiresAt: nowSeconds() + SESSION_TTL_SECONDS,
+		});
+
+		return renderScreen(ctx, xSourceText(channel.title), xSourceKeyboard(channelId));
+	});
+
+	/**
+	 * ثبت یک حساب X.
+	 * خروجی موفق/ناموفق است تا هم مسیر «دکمه» و هم مسیر «تایپ handle» از آن استفاده کنند.
+	 */
+	const registerXSource = async (
+		userId: number,
+		channelId: number,
+		chatId: number,
+		rawHandle: string,
+		delayMinutes: number,
+	): Promise<{ ok: true; handle: string } | { ok: false; message: string }> => {
+		const handle = normalizeXHandle(rawHandle);
+		if (!isValidXHandle(handle)) {
+			return { ok: false, message: '❌ آدرس حساب X درست نیست. نمونه‌ی درست: <code>@openai</code>' };
+		}
+
+		// بدون کلید/پل، هیچ خواندنی ممکن نیست؛ همان اول صادقانه می‌گوییم
+		const provider = resolveXProvider(env);
+		if (provider.kind === 'none') {
+			return { ok: false, message: X_NOT_CONFIGURED_MESSAGE };
+		}
+
+		const existing = await listRulesForTarget(db, channelId);
+		if (existing.some((rule) => rule.xHandle === handle)) {
+			return { ok: false, message: 'این حساب X از قبل به این مقصد وصل شده است.' };
+		}
+
+		// پیش از ثبت، یک بار می‌خوانیم: هم حساب را بررسی می‌کنیم هم کِرسر را
+		// روی آخرین پست می‌گذاریم تا آرشیو حساب یک‌جا سرازیر نشود.
+		const feed = await fetchXTimeline({ handle, provider });
+		if (feed.ok !== true) return { ok: false, message: `❌ ${feed.error ?? 'خواندن X ممکن نشد.'}` };
+
+		const now = nowSeconds();
+		const sourceChannelId = xSourceChannelId(handle);
+		const ruleId = await saveSourceRule(db, {
+			sourceChannelId,
+			sourceTitle: `@${handle}`,
+			sourceUsername: handle,
+			targetChannelId: channelId,
+			delayMinutes,
+			addedBy: userId,
+			notifyChatId: chatId,
+			xHandle: handle,
+			now,
+		});
+
+		if (ruleId) {
+			// کِرسر و شناسه‌ی کاربر (برای صرفه‌جویی در هزینه‌ی lookup بعدی)
+			await upsertXSource(db, { ruleId, handle, now, cursorId: feed.cursor ?? null });
+			await recordXPollResult(db, { ruleId, now, cursorId: feed.cursor ?? null, userId: feed.userId ?? null });
+		}
+
+		return { ok: true, handle };
+	};
 
 	// ── کانال عمومی (بدون عضویت بات) ──
 	bot.callbackQuery(/^ps:pubsrc:(-?\d+)$/, async (ctx: Context) => {
@@ -603,6 +692,33 @@ export function postSchedulerFeature(bot: any, env: { my_database: D1Database; T
 
 		const channel = await getChannelByTelegramId(db, session.targetChannelId);
 		const targetTitle = channel?.title ?? String(session.targetChannelId);
+
+		// حالت X: کاربر باید handle حساب را بفرستد
+		if (session.mode === 'x') {
+			const result = await registerXSource(
+				userId,
+				session.targetChannelId,
+				ctx.chat.id,
+				ctx.message?.text ?? '',
+				session.delayMinutes,
+			);
+
+			if (result.ok === false) {
+				// اگر فقط آدرس اشتباه بود، جلسه باز می‌ماند؛ اگر پیکربندی سرور
+				// ناقص است، جلسه را می‌بندیم تا کاربر سردرگم نشود.
+				if (result.message.includes('X_BEARER_TOKEN')) {
+					await clearCaptureSession(db, userId);
+					return ctx.reply(result.message, { parse_mode: 'HTML' });
+				}
+				return ctx.reply(result.message, { parse_mode: 'HTML' });
+			}
+
+			await clearCaptureSession(db, userId);
+			await ctx.reply(xSourceAddedText(result.handle, targetTitle, session.delayMinutes), {
+				parse_mode: 'HTML',
+			});
+			return openChannel(ctx, session.targetChannelId);
+		}
 
 		// حالت ۰: منبع عمومی — کاربر باید @یوزرنیم بفرستد
 		if (session.mode === 'public') {

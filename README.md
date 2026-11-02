@@ -12,7 +12,9 @@ Shadow is a single Cloudflare Worker that does two things at once:
    **Scheduled post copy** (`/schedule`) copies posts from other channels into your
    channel and publishes them after a delay, so you can edit them first. Sources can be
    channels where the bot is an admin (instant webhook) **or public channels where the bot
-   is not a member at all** (read from the `t.me/s/…` web preview) — see
+   is not a member at all** (read from the `t.me/s/…` web preview). Accounts on **X** can be
+   connected the same way: new tweets are queued in full (text, expanded links, up to 4 photos,
+   video link) and published on schedule — see
    [docs/SCHEDULED-POSTS.md](./docs/SCHEDULED-POSTS.md).
 
 2. **website** (rest of the routes) — a static site with a heaven/hell theme (gold and white on top, crimson and purple on the bottom), Persian and right-to-left.
@@ -68,6 +70,7 @@ npm test
 | [`docs/MEDIA-PLANE.md`](./docs/MEDIA-PLANE.md) | سطح اجرا: سرور Bot API محلی تلگرام (سقف ۲GB)، نود ffmpeg، پروتکل امن، ریسک‌ها. |
 | [`docs/CHESS.md`](./docs/CHESS.md) | فیچر شطرنج: مدل داده، الگوی callback، سطوح موتور، تست‌ها و محدودیت‌ها. |
 | [`docs/SCHEDULED-POSTS.md`](./docs/SCHEDULED-POSTS.md) | کپی و زمان‌بندی پست: صف در D1، کرون دقیقه‌ای، پنجرهٔ ویرایش، آلبوم‌ها، تضمین‌های ضدپست‌تکراری. |
+| [`docs/SCHEDULED-POSTS.md#۱۷-حساب-x-توییتر`](./docs/SCHEDULED-POSTS.md) | منابع X (توییتر): انتخاب ارائه‌دهنده (API رسمی/RSS)، کنترل هزینه، محدودیت‌های محتوایی. |
 
 خلاصه‌ی یک‌خطی معماری: **Worker فقط تصمیم می‌گیرد و هماهنگ می‌کند؛ ffmpeg/Stockfish روی یک
 سطح اجرای جدا اجرا می‌شوند؛ حالت زنده در Durable Objects، رکورد در D1، فایل در R2.**
@@ -106,6 +109,7 @@ npm test
 - [x] Pure chess core in `src/core/chess` with perft-verified move generation (6 standard positions) and 100% unit-test coverage of FEN/SAN/rules
 - [x] **Scheduled post copy** (`/schedule` + `/post`): copy posts from a source channel (or a manual forward) into a target channel and publish them after a delay, so the admin can edit the text/caption, reschedule, cancel or publish now — see [`docs/SCHEDULED-POSTS.md`](./docs/SCHEDULED-POSTS.md)
 - [x] **Sources where the bot is not a member**: public channels are polled through the `t.me/s/<username>` web preview (text/photo/small video, polled once a minute, media converted to durable `file_id`s), with an automatic offer when a forwarded channel rejects the bot as non-admin
+- [x] **X (Twitter) sources**: connect one or more `@handle`s to a target channel; new tweets are queued in full (text with expanded `t.co` links, `note_tweet` long text, up to 4 photos spooled to durable `file_id`s, video kept as a link) and published on schedule. Reads through the official X API (`X_BEARER_TOKEN`) or a self-hosted RSS bridge (`X_RSS_TEMPLATE`); never scrapes X. Built as a platform-agnostic scanner (`src/core/sources/`) so more websites can be added as adapters — see [`docs/SCHEDULED-POSTS.md`](./docs/SCHEDULED-POSTS.md)
 - [ ] Use Gemini
 - [ ] Connect the rest Menu buttons: "Admin Panel", "Settings", "Statistics", "Help" — now nothing happens if the user clicks them (no response, not even the loading state of Telegram closes) because none of them have a callback handler
 - [ ] UI for managing registered channels from within "My Channels" (now just a raw text list; no delete channel button)
