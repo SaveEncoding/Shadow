@@ -11,4 +11,6 @@ export interface Env {
 	 */
 	X_BEARER_TOKEN?: string;
 	X_RSS_TEMPLATE?: string;
+	/** «1» = منابع X روشن؛ پیش‌فرض خاموش (تعلیق) */
+	X_SOURCES_ENABLED?: string;
 }

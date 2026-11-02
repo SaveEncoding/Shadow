@@ -46,7 +46,13 @@ import {
 	normalizeXHandle,
 	xSourceChannelId,
 } from '../../core/sources/x.js';
-import { fetchXTimeline, resolveXProvider, X_NOT_CONFIGURED_MESSAGE } from '../xSource.js';
+import {
+	fetchXTimeline,
+	isXSourcesEnabled,
+	resolveXProvider,
+	X_NOT_CONFIGURED_MESSAGE,
+	X_SUSPENDED_MESSAGE,
+} from '../xSource.js';
 import { upsertXSource } from '../db/postQueue.js';
 import type { PostItem } from '../../core/schedule/types.js';
 import { getChannelByTelegramId, getChannels, isUserChannelAdmin } from '../db/channels.js';
@@ -161,7 +167,7 @@ export function postSchedulerFeature(
 	bot.command('post', openHub);
 	bot.callbackQuery('ps:h', openHub);
 	bot.callbackQuery('ps:help', async (ctx: Context) => {
-		await renderScreen(ctx, helpText(), undefined);
+		await renderScreen(ctx, helpText(isXSourcesEnabled(env)), undefined);
 	});
 
 	/** صفحه‌ی یک کانال مقصد */
@@ -186,6 +192,7 @@ export function postSchedulerFeature(
 			pending,
 			lastPublishedAt: last?.publishedAt ?? null,
 			now,
+			xSources: isXSourcesEnabled(env),
 		};
 
 		return renderScreen(ctx, channelScheduleText(model), channelScheduleKeyboard(model));
@@ -261,6 +268,10 @@ export function postSchedulerFeature(
 
 	// ── حساب X (توییتر) ──
 	bot.callbackQuery(/^ps:xsrc:(-?\d+)$/, async (ctx: Context) => {
+		// فیچر تعلیق است: دکمه در صفحه‌های تازه پنهان می‌شود، ولی ممکن است
+		// کاربر روی دکمه‌ی یک پیام قدیمی بزند — همان‌جا صادقانه توضیح می‌دهیم.
+		if (!isXSourcesEnabled(env)) return toastAlert(ctx, '⏸ منابع X فعلاً تعلیق شده‌اند. راهنما در /schedule است.');
+
 		const channelId = Number(ctx.match[1]);
 		if (!(await canManage(db, channelId, ctx.from?.id))) return toast(ctx, 'دسترسی ندارید.');
 
@@ -289,6 +300,8 @@ export function postSchedulerFeature(
 		rawHandle: string,
 		delayMinutes: number,
 	): Promise<{ ok: true; handle: string } | { ok: false; message: string }> => {
+		if (!isXSourcesEnabled(env)) return { ok: false, message: X_SUSPENDED_MESSAGE };
+
 		const handle = normalizeXHandle(rawHandle);
 		if (!isValidXHandle(handle)) {
 			return { ok: false, message: '❌ آدرس حساب X درست نیست. نمونه‌ی درست: <code>@openai</code>' };
@@ -695,6 +708,11 @@ export function postSchedulerFeature(
 
 		// حالت X: کاربر باید handle حساب را بفرستد
 		if (session.mode === 'x') {
+			if (!isXSourcesEnabled(env)) {
+				await clearCaptureSession(db, userId);
+				return ctx.reply(X_SUSPENDED_MESSAGE, { parse_mode: 'HTML' });
+			}
+
 			const result = await registerXSource(
 				userId,
 				session.targetChannelId,

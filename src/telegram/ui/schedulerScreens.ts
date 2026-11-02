@@ -102,6 +102,8 @@ export interface ChannelScheduleModel {
 	pending: number;
 	lastPublishedAt: number | null;
 	now: number;
+	/** منابع X روشن است؟ (پیش‌فرض خاموش — تعلیق) */
+	xSources?: boolean;
 }
 
 /** نام نمایشی منبع: عنوان، وگرنه @یوزرنیم، وگرنه شناسه */
@@ -161,9 +163,10 @@ export function channelScheduleKeyboard(model: ChannelScheduleModel): InlineKeyb
 	});
 
 	kb.text('➕ افزودن منبع (بات ادمین)', `ps:src:${model.channelId}`).row()
-		.text('🌐 کانال عمومی (بدون عضویت)', `ps:pubsrc:${model.channelId}`)
-		.text('🐦 حساب X', `ps:xsrc:${model.channelId}`).row()
-		.text('📥 کپی دستی', `ps:man:${model.channelId}`)
+		.text('🌐 کانال عمومی (بدون عضویت)', `ps:pubsrc:${model.channelId}`);
+	// دکمه‌ی X فقط وقتی نمایش داده می‌شود که فیچر روشن باشد (پیش‌فرض: تعلیق)
+	if (model.xSources === true) kb.text('🐦 حساب X', `ps:xsrc:${model.channelId}`);
+	kb.row().text('📥 کپی دستی', `ps:man:${model.channelId}`)
 		.row()
 		.text(`📋 صف (${toPersianDigits(model.pending)})`, `ps:q:${model.channelId}`)
 		.row()
@@ -470,7 +473,7 @@ export function cancellingKeyboard(): InlineKeyboard {
 	return new InlineKeyboard().text('🏠 منو', 'm:h');
 }
 
-export function helpText(): string {
+export function helpText(xSources = false): string {
 	return [
 		'ℹ️ <b>راهنمای زمان‌بندی پست</b>',
 		'',
@@ -486,7 +489,9 @@ export function helpText(): string {
 		'',
 		'<b>۶. کانال عمومی بدون عضویت</b> — برای کانال عمومی (@username) بات لازم نیست عضو باشد؛ از پیش‌نمایش وب تلگرام خوانده می‌شود (فقط متن/عکس/ویدیوی کوچک، تا ~۱ دقیقه تأخیر).',
 		'',
-		'<b>۷. حساب X (توییتر)</b> — متن، عکس و آلبوم حساب‌های X وصل می‌شوند. X دسترسی رایگان ندارد؛ سرور باید کلید API یا پل RSS داشته باشد. هر حساب حداکثر هر ۵ دقیقه خوانده می‌شود و فقط پست‌های تازه می‌آیند.',
+		xSources
+			? '<b>۷. حساب X (توییتر)</b> — متن، عکس و آلبوم حساب‌های X وصل می‌شوند. X دسترسی رایگان ندارد؛ سرور باید کلید API یا پل RSS داشته باشد. هر حساب حداکثر هر ۵ دقیقه خوانده می‌شود و فقط پست‌های تازه می‌آیند.'
+			: '<b>۷. حساب X (توییتر)</b> — ⏸ فعلاً تعلیق شده است (تا آماده‌شدن سرور خواندن X). بقیه‌ی منابع دست‌نخورده کار می‌کنند.',
 		'',
 		'<b>نکته:</b> برای انتشار دقیقاً رأس یک ساعت مشخص، بعد از رسیدن پست «⏰ تغییر زمان» را بزن.',
 		'',
