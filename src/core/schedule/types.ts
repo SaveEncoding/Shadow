@@ -73,6 +73,11 @@ export interface SourceRule {
 	 * و مقدارش نام کاربری کانال است. `null` یعنی حالت ادمین (webhook).
 	 */
 	pollUsername: string | null;
+	/**
+	 * اگر پر باشد، منبع یک حساب **X** است و مقدارش handle (بدون @) است.
+	 * پست‌ها با پول‌کردن API/RSS خوانده می‌شوند.
+	 */
+	xHandle: string | null;
 	addedBy: number;
 	createdAt: number;
 }

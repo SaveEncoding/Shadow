@@ -52,6 +52,8 @@ interface RuleRow {
 	created_at: number;
 	/** از JOIN با post_poll_sources (اگر منبع عمومی باشد) */
 	poll_username?: string | null;
+	/** از JOIN با post_x_sources (اگر منبع X باشد) */
+	x_handle?: string | null;
 }
 
 function parseJson<T>(raw: string | null, fallback: T): T {
@@ -110,6 +112,7 @@ function rowToRule(row: RuleRow): SourceRule {
 		enabled: Number(row.enabled) === 1,
 		notifyChatId: row.notify_chat_id === null ? null : Number(row.notify_chat_id),
 		pollUsername: row.poll_username ?? null,
+		xHandle: row.x_handle ?? null,
 		addedBy: Number(row.added_by),
 		createdAt: Number(row.created_at),
 	};
@@ -129,6 +132,8 @@ export async function saveSourceRule(
 		notifyChatId: number | null;
 		/** اگر پر باشد، این منبع از پیش‌نمایش وب خوانده می‌شود (بات عضو کانال نیست) */
 		pollUsername?: string | null;
+		/** اگر پر باشد، منبع یک حساب X است */
+		xHandle?: string | null;
 		now: number;
 	},
 ): Promise<number> {
@@ -171,6 +176,12 @@ export async function saveSourceRule(
 		await db.prepare('DELETE FROM post_poll_sources WHERE rule_id = ?').bind(ruleId).run();
 	}
 
+	if (input.xHandle) {
+		await upsertXSource(db, { ruleId, handle: input.xHandle, now: input.now });
+	} else if (ruleId) {
+		await db.prepare('DELETE FROM post_x_sources WHERE rule_id = ?').bind(ruleId).run();
+	}
+
 	return ruleId;
 }
 
@@ -185,8 +196,9 @@ async function findRuleIdBySourceChannel(db: D1Database, sourceChannelId: number
 export async function getSourceRule(db: D1Database, sourceChannelId: number): Promise<SourceRule | null> {
 	const row = await db
 		.prepare(
-			`SELECT s.*, p.username AS poll_username FROM post_sources s
+			`SELECT s.*, p.username AS poll_username, x.handle AS x_handle FROM post_sources s
 			 LEFT JOIN post_poll_sources p ON p.rule_id = s.id
+			 LEFT JOIN post_x_sources x ON x.rule_id = s.id
 			 WHERE s.source_channel_id = ?`,
 		)
 		.bind(sourceChannelId)
@@ -197,8 +209,9 @@ export async function getSourceRule(db: D1Database, sourceChannelId: number): Pr
 export async function listRulesForTarget(db: D1Database, targetChannelId: number): Promise<SourceRule[]> {
 	const { results } = await db
 		.prepare(
-			`SELECT s.*, p.username AS poll_username FROM post_sources s
+			`SELECT s.*, p.username AS poll_username, x.handle AS x_handle FROM post_sources s
 			 LEFT JOIN post_poll_sources p ON p.rule_id = s.id
+			 LEFT JOIN post_x_sources x ON x.rule_id = s.id
 			 WHERE s.target_channel_id = ? ORDER BY s.id DESC`,
 		)
 		.bind(targetChannelId)
@@ -209,8 +222,9 @@ export async function listRulesForTarget(db: D1Database, targetChannelId: number
 export async function listRulesForUser(db: D1Database, userId: number): Promise<SourceRule[]> {
 	const { results } = await db
 		.prepare(
-			`SELECT s.*, p.username AS poll_username FROM post_sources s
+			`SELECT s.*, p.username AS poll_username, x.handle AS x_handle FROM post_sources s
 			 LEFT JOIN post_poll_sources p ON p.rule_id = s.id
+			 LEFT JOIN post_x_sources x ON x.rule_id = s.id
 			 WHERE s.added_by = ? ORDER BY s.id DESC`,
 		)
 		.bind(userId)
@@ -234,7 +248,10 @@ export async function setRuleDelay(db: D1Database, sourceChannelId: number, dela
 
 export async function deleteSourceRule(db: D1Database, sourceChannelId: number): Promise<void> {
 	const ruleId = await findRuleIdBySourceChannel(db, sourceChannelId);
-	if (ruleId) await db.prepare('DELETE FROM post_poll_sources WHERE rule_id = ?').bind(ruleId).run();
+	if (ruleId) {
+		await db.prepare('DELETE FROM post_poll_sources WHERE rule_id = ?').bind(ruleId).run();
+		await db.prepare('DELETE FROM post_x_sources WHERE rule_id = ?').bind(ruleId).run();
+	}
 	await db.prepare('DELETE FROM post_sources WHERE source_channel_id = ?').bind(sourceChannelId).run();
 }
 
@@ -340,6 +357,145 @@ export async function recordPollResult(
 			 WHERE rule_id = ?`,
 		)
 		.bind(input.cursorMessageId ?? 0, input.now, input.ruleId)
+		.run();
+}
+
+// ─────────────────── منابع X (توییتر) ───────────────────
+
+export interface XSourceRow {
+	ruleId: number;
+	handle: string;
+	/** شناسه‌ی عددی کاربر در X (کش) */
+	userId: string | null;
+	/** شناسه‌ی آخرین توییت خوانده‌شده */
+	cursorId: string | null;
+	lastPolledAt: number | null;
+	lastError: string | null;
+	failures: number;
+}
+
+export async function upsertXSource(
+	db: D1Database,
+	input: { ruleId: number; handle: string; now: number; cursorId?: string | null },
+): Promise<void> {
+	await db
+		.prepare(
+			`INSERT INTO post_x_sources (rule_id, handle, cursor_id, last_polled_at, failures)
+			 VALUES (?, ?, ?, ?, 0)
+			 ON CONFLICT(rule_id) DO UPDATE SET
+			   handle = excluded.handle,
+			   cursor_id = COALESCE(excluded.cursor_id, post_x_sources.cursor_id)`,
+		)
+		.bind(input.ruleId, input.handle.replace(/^@/, '').toLowerCase(), input.cursorId ?? null, input.now)
+		.run();
+}
+
+function rowToXSource(row: {
+	rule_id: number;
+	handle: string;
+	user_id: string | null;
+	cursor_id: string | null;
+	last_polled_at: number | null;
+	last_error: string | null;
+	failures: number;
+}): XSourceRow {
+	return {
+		ruleId: Number(row.rule_id),
+		handle: String(row.handle),
+		userId: row.user_id ?? null,
+		cursorId: row.cursor_id ?? null,
+		lastPolledAt: row.last_polled_at === null ? null : Number(row.last_polled_at),
+		lastError: row.last_error ?? null,
+		failures: Number(row.failures ?? 0),
+	};
+}
+
+export async function getXSource(db: D1Database, ruleId: number): Promise<XSourceRow | null> {
+	const row = await db
+		.prepare('SELECT * FROM post_x_sources WHERE rule_id = ?')
+		.bind(ruleId)
+		.first<{
+			rule_id: number;
+			handle: string;
+			user_id: string | null;
+			cursor_id: string | null;
+			last_polled_at: number | null;
+			last_error: string | null;
+			failures: number;
+		}>();
+	return row ? rowToXSource(row) : null;
+}
+
+/** منابع X فعال (برای کرون) */
+export async function listActiveXSources(
+	db: D1Database,
+	options: { targetChannelId?: number; limit?: number } = {},
+): Promise<Array<XSourceRow & { rule: SourceRule }>> {
+	const { results } = await db
+		.prepare(
+			`SELECT s.*, p.username AS poll_username, x.handle AS x_handle, x.handle,
+			        x.rule_id, x.user_id, x.cursor_id, x.last_polled_at, x.last_error, x.failures
+			 FROM post_x_sources x
+			 JOIN post_sources s ON s.id = x.rule_id
+			 LEFT JOIN post_poll_sources p ON p.rule_id = s.id
+			 WHERE s.enabled = 1 ${options.targetChannelId ? 'AND s.target_channel_id = ?' : ''}
+			 ORDER BY COALESCE(x.last_polled_at, 0) ASC
+			 LIMIT ?`,
+		)
+		.bind(...(options.targetChannelId ? [options.targetChannelId, options.limit ?? 20] : [options.limit ?? 20]))
+		.all<
+			RuleRow & {
+				handle: string;
+				user_id: string | null;
+				cursor_id: string | null;
+				last_polled_at: number | null;
+				last_error: string | null;
+				failures: number;
+			}
+		>();
+
+	return (results ?? []).map((row) => ({
+		...rowToXSource({
+			rule_id: Number(row.id),
+			handle: String(row.handle),
+			user_id: row.user_id ?? null,
+			cursor_id: row.cursor_id ?? null,
+			last_polled_at: row.last_polled_at,
+			last_error: row.last_error,
+			failures: row.failures,
+		}),
+		rule: rowToRule(row),
+	}));
+}
+
+/** ثبت نتیجه‌ی خواندن X: کِرسر/شناسه‌ی کاربر جلو می‌رود، خطا ثبت می‌شود */
+export async function recordXPollResult(
+	db: D1Database,
+	input: { ruleId: number; now: number; cursorId?: string | null; userId?: string | null; error?: string | null },
+): Promise<void> {
+	if (input.error) {
+		await db
+			.prepare(
+				`UPDATE post_x_sources
+				 SET last_polled_at = ?, last_error = ?, failures = failures + 1
+				 WHERE rule_id = ?`,
+			)
+			.bind(input.now, input.error.slice(0, 400), input.ruleId)
+			.run();
+		return;
+	}
+
+	await db
+		.prepare(
+			`UPDATE post_x_sources
+			 SET cursor_id = COALESCE(?, cursor_id),
+			     user_id = COALESCE(?, user_id),
+			     last_polled_at = ?,
+			     last_error = NULL,
+			     failures = 0
+			 WHERE rule_id = ?`,
+		)
+		.bind(input.cursorId ?? null, input.userId ?? null, input.now, input.ruleId)
 		.run();
 }
 
@@ -750,7 +906,7 @@ export async function pruneEditSessions(db: D1Database, now: number): Promise<vo
 
 export async function startCaptureSession(
 	db: D1Database,
-	input: { userId: number; targetChannelId: number; mode: 'manual' | 'source' | 'public'; delayMinutes: number; expiresAt: number },
+	input: { userId: number; targetChannelId: number; mode: 'manual' | 'source' | 'public' | 'x'; delayMinutes: number; expiresAt: number },
 ): Promise<void> {
 	await db
 		.prepare(
@@ -770,7 +926,7 @@ export async function findCaptureSession(
 	db: D1Database,
 	userId: number,
 	now: number,
-): Promise<{ targetChannelId: number; mode: 'manual' | 'source' | 'public'; delayMinutes: number; expiresAt: number } | null> {
+): Promise<{ targetChannelId: number; mode: 'manual' | 'source' | 'public' | 'x'; delayMinutes: number; expiresAt: number } | null> {
 	const row = await db
 		.prepare('SELECT * FROM post_capture_sessions WHERE user_id = ? AND expires_at > ?')
 		.bind(userId, now)
@@ -778,7 +934,14 @@ export async function findCaptureSession(
 	if (!row) return null;
 	return {
 		targetChannelId: Number(row.target_channel_id),
-		mode: row.mode === 'source' ? 'source' : row.mode === 'public' ? 'public' : 'manual',
+		mode:
+			row.mode === 'source'
+				? 'source'
+				: row.mode === 'public'
+					? 'public'
+					: row.mode === 'x'
+						? 'x'
+						: 'manual',
 		delayMinutes: Number(row.delay_minutes ?? 30),
 		expiresAt: Number(row.expires_at),
 	};

@@ -168,6 +168,18 @@ CREATE TABLE IF NOT EXISTS post_poll_sources (
   FOREIGN KEY (rule_id) REFERENCES post_sources(id) ON DELETE CASCADE
 );
 
+-- منابع X (توییتر): خط زمانی با API رسمی یا پل RSS خوانده می‌شود.
+CREATE TABLE IF NOT EXISTS post_x_sources (
+  rule_id INTEGER PRIMARY KEY,                 -- post_sources.id
+  handle TEXT NOT NULL,                        -- بدون @ و حروف کوچک
+  user_id TEXT,                                -- شناسه‌ی عددی X (کش، تا هر بار هزینه‌ی lookup ندهیم)
+  cursor_id TEXT,                              -- since_id: آخرین توییت خوانده‌شده
+  last_polled_at INTEGER,
+  last_error TEXT,
+  failures INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (rule_id) REFERENCES post_sources(id) ON DELETE CASCADE
+);
+
 -- «منتظر متن جدید از ادمین» — در D1 نگه داشته می‌شود، نه در حافظه‌ی ایزوله،
 -- چون هر درخواست می‌تواند روی ایزوله‌ی دیگری اجرا شود (بدهی فنی شناخته‌شده).
 CREATE TABLE IF NOT EXISTS post_edit_sessions (

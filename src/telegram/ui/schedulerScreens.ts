@@ -110,7 +110,9 @@ export function sourceName(rule: {
 	sourceUsername: string | null;
 	sourceChannelId: number;
 	pollUsername?: string | null;
+	xHandle?: string | null;
 }): string {
+	if (rule.xHandle) return `🐦 @${rule.xHandle}`;
 	if (rule.pollUsername) return `@${rule.pollUsername}`;
 	if (rule.sourceTitle) return rule.sourceTitle;
 	if (rule.sourceUsername) return `@${rule.sourceUsername}`;
@@ -132,7 +134,7 @@ export function channelScheduleText(model: ChannelScheduleModel): string {
 		lines.push('<b>منابع فعال:</b>');
 		for (const rule of model.rules) {
 			const state = rule.enabled ? '🟢' : '⏸';
-			const mode = rule.pollUsername ? ' 🌐 بدون عضویت' : '';
+			const mode = rule.pollUsername ? ' 🌐 بدون عضویت' : rule.xHandle ? ' 🐦 X' : '';
 			lines.push(`${state} ${escapeHtml(sourceName(rule))}${mode} — تأخیر ${formatDelay(rule.delayMinutes)}`);
 		}
 	}
@@ -159,7 +161,8 @@ export function channelScheduleKeyboard(model: ChannelScheduleModel): InlineKeyb
 	});
 
 	kb.text('➕ افزودن منبع (بات ادمین)', `ps:src:${model.channelId}`).row()
-		.text('🌐 کانال عمومی (بدون عضویت)', `ps:pubsrc:${model.channelId}`).row()
+		.text('🌐 کانال عمومی (بدون عضویت)', `ps:pubsrc:${model.channelId}`)
+		.text('🐦 حساب X', `ps:xsrc:${model.channelId}`).row()
 		.text('📥 کپی دستی', `ps:man:${model.channelId}`)
 		.row()
 		.text(`📋 صف (${toPersianDigits(model.pending)})`, `ps:q:${model.channelId}`)
@@ -251,6 +254,40 @@ export function publicSourceAddedText(sourceTitle: string, targetTitle: string, 
 		`از این به بعد پست‌های تازه‌اش پس از <b>${formatDelay(delayMinutes)}</b> در کانال مقصد منتشر می‌شوند.`,
 		'',
 		'<i>خانه‌ی کانال را برای تغییر تأخیر یا قطع این منبع می‌توانی باز کنی.</i>',
+	].join('\n');
+}
+
+// ─────────────────────────── حساب X (توییتر) ───────────────────────────
+
+export function xSourceText(targetTitle: string): string {
+	return [
+		`🐦 <b>حساب X برای ${escapeHtml(targetTitle)}</b>`,
+		'',
+		'آدرس حساب X را بفرست (مثلاً <code>@openai</code> یا <code>x.com/openai</code>).',
+		'',
+		'از این به بعد هر پستی که آن حساب منتشر کند (متن، عکس و آلبوم) با تأخیر در کانال مقصد می‌نشیند و می‌توانی اول ویرایشش کنی.',
+		'',
+		'<b>نکته‌های مهم:</b>',
+		'• X دسترسی رایگان ندارد؛ سرور باید کلید API یا پل RSS داشته باشد (اگر نداشته باشد، همین‌جا به تو می‌گوید).',
+		'• هر حساب حداکثر هر ۵ دقیقه یک‌بار خوانده می‌شود (کنترل هزینه).',
+		'• فقط پست‌های <b>تازه</b>؛ آرشیو حساب کپی نمی‌شود.',
+		'• عکس‌ها کامل می‌آیند؛ ویدیو در X فقط HLS است و تلگرام نمی‌تواند بردارد، پس لینک اصل پست به متن اضافه می‌شود.',
+		'',
+		'<i>برای انصراف /cancel را بفرست.</i>',
+	].join('\n');
+}
+
+export function xSourceKeyboard(channelId: number): InlineKeyboard {
+	return new InlineKeyboard().text('🔙 بازگشت', `ps:c:${channelId}`);
+}
+
+export function xSourceAddedText(handle: string, targetTitle: string, delayMinutes: number): string {
+	return [
+		`✅ حساب X <b>@${escapeHtml(handle)}</b> به «${escapeHtml(targetTitle)}» وصل شد.`,
+		'',
+		`از این به بعد پست‌های تازه‌اش حداکثر با ~۵ دقیقه تأخیر برداشته و پس از <b>${formatDelay(delayMinutes)}</b> در کانال مقصد منتشر می‌شوند.`,
+		'',
+		'<i>تا اولین پست تازه، صف خالی می‌ماند.</i>',
 	].join('\n');
 }
 
@@ -446,6 +483,10 @@ export function helpText(): string {
 		'<b>۴. ویرایش</b> — روی پست در صف بزن و «✏️ ویرایش متن» را انتخاب کن. تغییر روی همان پستی که در کانال می‌رود اعمال می‌شود.',
 		'',
 		'<b>۵. کپی دستی</b> — اگر بات نمی‌تواند در کانال مبدأ ادمین شود، پست را خودت برای بات فوروارد کن.',
+		'',
+		'<b>۶. کانال عمومی بدون عضویت</b> — برای کانال عمومی (@username) بات لازم نیست عضو باشد؛ از پیش‌نمایش وب تلگرام خوانده می‌شود (فقط متن/عکس/ویدیوی کوچک، تا ~۱ دقیقه تأخیر).',
+		'',
+		'<b>۷. حساب X (توییتر)</b> — متن، عکس و آلبوم حساب‌های X وصل می‌شوند. X دسترسی رایگان ندارد؛ سرور باید کلید API یا پل RSS داشته باشد. هر حساب حداکثر هر ۵ دقیقه خوانده می‌شود و فقط پست‌های تازه می‌آیند.',
 		'',
 		'<b>نکته:</b> برای انتشار دقیقاً رأس یک ساعت مشخص، بعد از رسیدن پست «⏰ تغییر زمان» را بزن.',
 		'',

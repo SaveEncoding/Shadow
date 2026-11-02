@@ -33,6 +33,7 @@ import {
 	markFailed,
 	markPublished,
 	listActivePollSources,
+	listActiveXSources,
 	listReadyPosts,
 	listStuckPosts,
 	pruneEditSessions,
@@ -40,6 +41,8 @@ import {
 	setPreviewMessage,
 } from './db/postQueue.js';
 import { pollDueSources } from './pollSources.js';
+import { pollDueXSources } from './xPoll.js';
+import { resolveXProvider } from './xSource.js';
 import { describeTelegramError, executePublishPlan, buildPublishPlan, type PublisherApi } from './services/postPublisher.js';
 import {
 	failedNotificationText,
@@ -232,9 +235,18 @@ export async function recoverStuckPosts(api: SchedulerApi, db: D1Database, now: 
  * @param options.api و options.now فقط برای تست تزریق می‌شوند
  */
 export async function publishDuePosts(
-	env: { TELEGRAM_TOKEN?: string; my_database: D1Database },
+	env: { TELEGRAM_TOKEN?: string; my_database: D1Database; X_BEARER_TOKEN?: string; X_RSS_TEMPLATE?: string },
 	options: { api?: SchedulerApi; now?: number; fetchImpl?: typeof fetch } = {},
-): Promise<{ finalized: number; published: number; failed: number; recovered: number; polled: number; queued: number }> {
+): Promise<{
+	finalized: number;
+	published: number;
+	failed: number;
+	recovered: number;
+	polled: number;
+	queued: number;
+	xPolled: number;
+	xQueued: number;
+}> {
 	const now = options.now ?? Math.floor(Date.now() / 1000);
 	const db = env.my_database;
 	const api = options.api ?? createSchedulerApi(env.TELEGRAM_TOKEN ?? '');
@@ -253,6 +265,30 @@ export async function publishDuePosts(
 	} catch (err) {
 		// خطای خواندن پیش‌نمایش وب نباید انتشار پست‌های آماده را متوقف کند
 		console.error('[publishQueue] polling sources failed:', err);
+	}
+
+	// ── منابع X (توییتر) ──
+	// هر منبع حداقل ۵ دقیقه یک‌بار خوانده می‌شود (هزینه‌ی API)؛ تابع خودش ساعت را چک می‌کند.
+	let xPolled = 0;
+	let xQueued = 0;
+	try {
+		const provider = resolveXProvider(env);
+		if (provider.kind !== 'none') {
+			const sources = await listActiveXSources(db, { limit: MAX_PUBLISH_PER_TICK });
+			if (sources.length > 0) {
+				const result = await pollDueXSources(env, {
+					api,
+					now,
+					sources,
+					provider,
+					fetchImpl: options.fetchImpl,
+				});
+				xPolled = result.polled;
+				xQueued = result.queued;
+			}
+		}
+	} catch (err) {
+		console.error('[publishQueue] polling X sources failed:', err);
 	}
 
 	const recovered = await recoverStuckPosts(api, db, now);
@@ -297,7 +333,7 @@ export async function publishDuePosts(
 		console.log(`[publishQueue] tick: published=${published} failed=${failed} recovered=${recovered}`);
 	}
 
-	return { finalized: finalizedAlbums.length, published, failed, recovered, polled, queued };
+	return { finalized: finalizedAlbums.length, published, failed, recovered, polled, queued, xPolled, xQueued };
 }
 
 /**
