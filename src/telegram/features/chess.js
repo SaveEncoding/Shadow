@@ -24,8 +24,8 @@ import {
 	IllegalMoveError,
 	applyUserMove,
 	chooseMove,
-	currentStatus,
 	finishGame,
+	gameState,
 	gameToPgn,
 	legalMoves,
 	positionOf,
@@ -96,12 +96,14 @@ export function playEngineTurn(row) {
 
 /**
  * ساخت متن/کیبورد صفحه برای یک ردیف بازی.
+ *
+ * `state` اختیاری است: اگر فراخوان از قبل تخته و وضعیت را دارد (با `gameState`
+ * که یک‌بار بازپخش می‌کند)، دوباره بازپخش نمی‌کنیم.
  * @param {StoredGame} row
- * @param {{ selected?: number|null, targets?: any[] }} [options]
+ * @param {{ selected?: number|null, targets?: any[], state?: { position: any, status: any } }} [options]
  */
-export function screenFor(row, { selected = null, targets = [] } = {}) {
-	const position = positionOf(row.game);
-	const status = currentStatus(row.game);
+export function screenFor(row, { selected = null, targets = [], state = null } = {}) {
+	const { position, status } = state ?? gameState(row.game);
 
 	if (status.over || row.game.result) {
 		return {
@@ -167,7 +169,8 @@ export async function commitMove(db, row, from, to, promo) {
 		return { ok: false, code: 'stale', message: 'این حرکت ثبت نشد؛ صفحه به‌روز شد.' };
 	}
 
-	return { ok: true, row: finalRow, san: outcome.san, status: currentStatus(finalRow.game) };
+	const { status } = gameState(finalRow.game);
+	return { ok: true, row: finalRow, san: outcome.san, status };
 }
 
 /** پیام فارسی برای خطاهای حرکت */
@@ -255,7 +258,8 @@ export function chessFeature(bot, env) {
 		if (!row) return toast(ctx, 'بازی فعالی ندارید؛ یک بازی جدید شروع کنید.');
 
 		const square = Number(ctx.match[1]);
-		const position = positionOf(row.game);
+		const state = gameState(row.game);
+		const position = state.position;
 		const piece = position.board[square];
 		const mine = piece !== 0 && piece > 0 === (position.turn === 'w');
 
@@ -264,7 +268,7 @@ export function chessFeature(bot, env) {
 		const targets = legalMoves(position).filter((m) => m.from === square);
 		if (targets.length === 0) return toast(ctx, 'این مهره حرکت قانونی ندارد.');
 
-		const screen = screenFor(row, { selected: square, targets });
+		const screen = screenFor(row, { selected: square, targets, state });
 		return renderScreen(ctx, screen.text, screen.keyboard);
 	});
 
