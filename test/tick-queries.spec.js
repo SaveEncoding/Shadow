@@ -63,7 +63,8 @@ describe('cron tick query budget', () => {
 
 	it('adds only the hourly prune on the hourly tick', async () => {
 		const { counter } = await tick(TICK_WITH_PRUNE);
-		expect(counter.total, counter.summary()).toBe(5);
+		// pruneSeen + pruneEditSessions + prunePendingInputs
+		expect(counter.total, counter.summary()).toBe(6);
 	});
 
 	it('publishes one due post within 10 statements', async () => {
