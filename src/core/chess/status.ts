@@ -6,16 +6,7 @@
 
 import { fileOf, isInCheck, opposite, rankOf } from './board.js';
 import { legalMoves } from './movegen.js';
-import {
-	BISHOP,
-	KNIGHT,
-	PAWN,
-	QUEEN,
-	ROOK,
-	type Color,
-	type GameStatus,
-	type Position,
-} from './types.js';
+import { BISHOP, KNIGHT, PAWN, QUEEN, ROOK, type Color, type GameStatus, type Position } from './types.js';
 
 export interface StatusOptions {
 	/** چند بار وضعیت فعلی (با نوبت و حقوق قلعه و en-passant) تکرار شده است */

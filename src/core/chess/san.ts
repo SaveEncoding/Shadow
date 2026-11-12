@@ -58,9 +58,7 @@ export function moveToSan(pos: Position, move: Move): string {
 
 	const letter = PIECE_LETTERS[type];
 	// رفع ابهام: اگر مهره‌ی هم‌نوع دیگری هم می‌تواند به همان خانه برود، مبدأ باید ذکر شود.
-	const rivals = legalMoves(pos).filter(
-		(m) => m.to === move.to && m.from !== move.from && Math.abs(m.piece) === type && !m.castle,
-	);
+	const rivals = legalMoves(pos).filter((m) => m.to === move.to && m.from !== move.from && Math.abs(m.piece) === type && !m.castle);
 
 	let disambiguation = '';
 	if (rivals.length > 0) {

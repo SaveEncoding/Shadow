@@ -104,12 +104,7 @@ export interface MoveOutcome {
  * اجرای حرکت کاربر (از خانه‌ی مبدأ به مقصد).
  * خطاها با `IllegalMoveError` و کد مشخص برمی‌گردند تا UI پیام فارسی مناسب بسازد.
  */
-export function applyUserMove(
-	game: GameRecord,
-	from: number,
-	to: number,
-	promo?: number,
-): MoveOutcome {
+export function applyUserMove(game: GameRecord, from: number, to: number, promo?: number): MoveOutcome {
 	const status = currentStatus(game);
 	if (status.over) throw new IllegalMoveError('game-over', 'این بازی تمام شده است');
 
