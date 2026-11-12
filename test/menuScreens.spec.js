@@ -1,17 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import {
-	homeText,
-	homeKeyboard,
-	channelsListText,
-	channelDetailText,
-	soonText,
-} from '../src/telegram/ui/screens.js';
+import { homeText, homeKeyboard, channelsListText, channelDetailText, soonText } from '../src/telegram/ui/screens.js';
 import { Role } from '../src/telegram/constants/roles.js';
 
 describe('menu screens', () => {
 	it('home shows admin button only for EXEC_ADMIN+', () => {
-		const normal = homeKeyboard(Role.NORMAL).inline_keyboard.flat().map((b) => b.callback_data);
-		const admin = homeKeyboard(Role.EXEC_ADMIN).inline_keyboard.flat().map((b) => b.callback_data);
+		const normal = homeKeyboard(Role.NORMAL)
+			.inline_keyboard.flat()
+			.map((b) => b.callback_data);
+		const admin = homeKeyboard(Role.EXEC_ADMIN)
+			.inline_keyboard.flat()
+			.map((b) => b.callback_data);
 		expect(normal).not.toContain('m:ad');
 		expect(admin).toContain('m:ad');
 		expect(homeText(Role.FOUNDER)).toContain('منوی اصلی');
@@ -32,7 +30,7 @@ describe('menu screens', () => {
 				official_suffix: null,
 				suffix_skip_marker: null,
 			},
-			1
+			1,
 		);
 		expect(text).toContain('تنظیم نشده');
 	});

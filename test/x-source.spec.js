@@ -59,9 +59,9 @@ describe('handles', () => {
 describe('tweet text', () => {
 	it('expands t.co links', () => {
 		const text = 'خبر: https://t.co/abc';
-		expect(
-			expandTweetLinks(text, [{ url: 'https://t.co/abc', expanded_url: 'https://example.com/full-story' }]),
-		).toBe('خبر: https://example.com/full-story');
+		expect(expandTweetLinks(text, [{ url: 'https://t.co/abc', expanded_url: 'https://example.com/full-story' }])).toBe(
+			'خبر: https://example.com/full-story',
+		);
 	});
 
 	it('leaves text alone when there is nothing to expand', () => {
@@ -200,10 +200,7 @@ describe('RSS bridge parsing', () => {
 		const posts = parseXRss(rss, HANDLE);
 		expect(posts.map((p) => p.externalId)).toEqual(['201', '202']);
 		expect(posts[0].text).toBe('متن کامل توییت');
-		expect(posts[0].media.map((m) => m.url)).toEqual([
-			'https://pbs.twimg.com/media/r1.jpg',
-			'https://pbs.twimg.com/media/r2.jpg',
-		]);
+		expect(posts[0].media.map((m) => m.url)).toEqual(['https://pbs.twimg.com/media/r1.jpg', 'https://pbs.twimg.com/media/r2.jpg']);
 		expect(posts[0].createdAt).toBe(Date.UTC(2026, 9, 24, 10) / 1000);
 	});
 
@@ -328,8 +325,7 @@ describe('fetchXTimeline — official api', () => {
 	});
 
 	it('reports 429 with the reset time', async () => {
-		const impl = async () =>
-			new Response('{}', { status: 429, headers: { 'x-rate-limit-reset': '1800003600' } });
+		const impl = async () => new Response('{}', { status: 429, headers: { 'x-rate-limit-reset': '1800003600' } });
 		const result = await fetchXTimeline({
 			handle: HANDLE,
 			provider: { kind: 'official', token: 'tok' },

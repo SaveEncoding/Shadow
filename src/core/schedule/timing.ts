@@ -147,10 +147,7 @@ export function nextOccurrenceOfClock(nowSeconds: number, minutesOfDayTehran: nu
 /**
  * آیا این ردیف وقت انتشارش رسیده است؟ (حالت آلبوم که باید نهایی شود هم همین‌جا پوشش داده می‌شود)
  */
-export function isDue(
-	row: { status: string; publishAt: number; finalizeAt: number | null },
-	nowSeconds: number,
-): boolean {
+export function isDue(row: { status: string; publishAt: number; finalizeAt: number | null }, nowSeconds: number): boolean {
 	if (row.status === 'collecting') {
 		return row.finalizeAt !== null && row.finalizeAt <= nowSeconds;
 	}

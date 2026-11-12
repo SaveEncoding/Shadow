@@ -7,9 +7,7 @@
 
 import { parsePublicFeed, type FeedPost } from '../core/schedule/publicFeed.js';
 
-export type PublicFeedResult =
-	| { ok: true; posts: FeedPost[] }
-	| { ok: false; error: string; status: number | null };
+export type PublicFeedResult = { ok: true; posts: FeedPost[] } | { ok: false; error: string; status: number | null };
 
 export interface PublicFeedOptions {
 	/** برای تست */

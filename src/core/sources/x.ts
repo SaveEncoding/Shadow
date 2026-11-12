@@ -243,11 +243,7 @@ export function parseXRss(xml: string, handle: string, sinceId: string | null = 
 		const enclosure = attr(block, 'enclosure', 'url');
 		const enclosureType = attr(block, 'enclosure', 'type') ?? '';
 		if (enclosure) {
-			media.push(
-				enclosureType.startsWith('video')
-					? { kind: 'video', url: enclosure }
-					: { kind: 'photo', url: enclosure },
-			);
+			media.push(enclosureType.startsWith('video') ? { kind: 'video', url: enclosure } : { kind: 'photo', url: enclosure });
 		}
 		for (const match of block.matchAll(/<media:(?:content|thumbnail)\b[^>]*\surl\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
 			if (!media.some((m) => m.url === match[1])) media.push({ kind: 'photo', url: decodeXml(match[1]) });

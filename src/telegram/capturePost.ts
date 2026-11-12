@@ -178,11 +178,7 @@ export type CaptureOutcome =
  * @param message پیام کانال (channel_post)
  * @param now ثانیه‌ی یونیکس
  */
-export async function captureSourcePost(
-	db: D1Database,
-	message: TelegramPostMessage,
-	now: number,
-): Promise<CaptureOutcome> {
+export async function captureSourcePost(db: D1Database, message: TelegramPostMessage, now: number): Promise<CaptureOutcome> {
 	const sourceChannelId = Number(message.chat?.id);
 	if (!sourceChannelId) return { action: 'no-rule' };
 
@@ -247,11 +243,7 @@ export type EditOutcome =
  *  - اگر هنوز منتشر نشده: متن/کپشن صف به‌روز می‌شود (ادمین چیزی را از دست نمی‌دهد).
  *  - اگر منتشر شده: فقط گزارش می‌دهیم؛ ویرایش پست منتشرشده تصمیم جداگانه‌ی ادمین است.
  */
-export async function applySourceEdit(
-	db: D1Database,
-	message: TelegramPostMessage,
-	now: number,
-): Promise<EditOutcome> {
+export async function applySourceEdit(db: D1Database, message: TelegramPostMessage, now: number): Promise<EditOutcome> {
 	const sourceChannelId = Number(message.chat?.id);
 	if (!sourceChannelId) return { action: 'ignored' };
 

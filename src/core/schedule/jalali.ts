@@ -108,20 +108,7 @@ export function toGregorian(jy: number, jm: number, jd: number): { gy: number; g
 	return jdnToGregorian(jalaaliToJdn(jy, jm, jd));
 }
 
-export const JALAALI_MONTHS = [
-	'فروردین',
-	'اردیبهشت',
-	'خرداد',
-	'تیر',
-	'مرداد',
-	'شهریور',
-	'مهر',
-	'آبان',
-	'آذر',
-	'دی',
-	'بهمن',
-	'اسفند',
-];
+export const JALAALI_MONTHS = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
 
 export const WEEKDAYS = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه', 'شنبه'];
 

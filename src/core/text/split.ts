@@ -21,12 +21,7 @@ export const MAX_MESSAGE_LENGTH = 4000;
 export const MAX_CAPTION_LENGTH = 1024;
 
 /** برش متن + اصلاح آفست entity هایی که با بازه تلاقی دارند */
-export function sliceWithEntities(
-	text: string,
-	entities: HtmlTextEntity[],
-	start: number,
-	end: number,
-): MessagePart {
+export function sliceWithEntities(text: string, entities: HtmlTextEntity[], start: number, end: number): MessagePart {
 	const piece = text.slice(start, end);
 	const shifted: HtmlTextEntity[] = [];
 	for (const entity of entities) {

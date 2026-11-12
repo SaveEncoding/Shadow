@@ -1,20 +1,13 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
-import {
-	closeGame,
-	getActiveGame,
-	getChessStats,
-	getGame,
-	saveGame,
-	startGame,
-} from '../src/telegram/db/chess.js';
+import { closeGame, getActiveGame, getChessStats, getGame, saveGame, startGame } from '../src/telegram/db/chess.js';
 import { START_FEN } from '../src/core/chess/fen.js';
 
 beforeAll(async () => {
 	// D1 `exec` هر دستور را در یک خط انتظار دارد؛ پس CREATE را یک‌خطی می‌نویسیم
 	// (همان اسکیمای `src/telegram/db/schema.sql`).
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS chess_games (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER NOT NULL, user_id INTEGER NOT NULL, mode TEXT NOT NULL DEFAULT \'engine\', level INTEGER NOT NULL DEFAULT 2, seed INTEGER NOT NULL DEFAULT 0, start_fen TEXT NOT NULL, fen TEXT NOT NULL, moves TEXT NOT NULL DEFAULT \'[]\', status TEXT NOT NULL DEFAULT \'active\', result TEXT, reason TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));',
+		"CREATE TABLE IF NOT EXISTS chess_games (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER NOT NULL, user_id INTEGER NOT NULL, mode TEXT NOT NULL DEFAULT 'engine', level INTEGER NOT NULL DEFAULT 2, seed INTEGER NOT NULL DEFAULT 0, start_fen TEXT NOT NULL, fen TEXT NOT NULL, moves TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL DEFAULT 'active', result TEXT, reason TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));",
 	);
 });
 

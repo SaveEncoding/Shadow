@@ -20,52 +20,52 @@ export const CAPTION_MAX_LENGTH = 1024;
 export const TEXT_MAX_LENGTH = 4096;
 
 /** Invisible bookends for the bot content-stamp (must differ so lastIndexOf works). */
-export const BOT_STAMP_START = "\u2060"; // word joiner
-export const BOT_STAMP_END = "\u2063"; // invisible separator
-const BIT0 = "\u200b"; // zero-width space
-const BIT1 = "\u200c"; // zero-width non-joiner
+export const BOT_STAMP_START = '\u2060'; // word joiner
+export const BOT_STAMP_END = '\u2063'; // invisible separator
+const BIT0 = '\u200b'; // zero-width space
+const BIT1 = '\u200c'; // zero-width non-joiner
 
 /**
  * Fast non-crypto hash → 8 hex chars. Only used for anti-loop stamping, not security.
  * @param {string} s
  */
 export function hashContent(s) {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) {
-    h = Math.imul(h, 33) ^ s.charCodeAt(i);
-  }
-  return (h >>> 0).toString(16).padStart(8, "0");
+	let h = 5381;
+	for (let i = 0; i < s.length; i++) {
+		h = Math.imul(h, 33) ^ s.charCodeAt(i);
+	}
+	return (h >>> 0).toString(16).padStart(8, '0');
 }
 
 /** @param {string} hex */
 function encodeHexToZw(hex) {
-  let out = "";
-  for (const ch of hex) {
-    const n = parseInt(ch, 16);
-    if (Number.isNaN(n)) continue;
-    const bits = n.toString(2).padStart(4, "0");
-    for (const b of bits) {
-      out += b === "0" ? BIT0 : BIT1;
-    }
-  }
-  return out;
+	let out = '';
+	for (const ch of hex) {
+		const n = parseInt(ch, 16);
+		if (Number.isNaN(n)) continue;
+		const bits = n.toString(2).padStart(4, '0');
+		for (const b of bits) {
+			out += b === '0' ? BIT0 : BIT1;
+		}
+	}
+	return out;
 }
 
 /** @param {string} zw */
 function decodeZwToHex(zw) {
-  if (!zw || zw.length % 4 !== 0) return null;
-  let hex = "";
-  for (let i = 0; i < zw.length; i += 4) {
-    let bits = "";
-    for (let j = 0; j < 4; j++) {
-      const c = zw[i + j];
-      if (c === BIT0) bits += "0";
-      else if (c === BIT1) bits += "1";
-      else return null;
-    }
-    hex += parseInt(bits, 2).toString(16);
-  }
-  return hex;
+	if (!zw || zw.length % 4 !== 0) return null;
+	let hex = '';
+	for (let i = 0; i < zw.length; i += 4) {
+		let bits = '';
+		for (let j = 0; j < 4; j++) {
+			const c = zw[i + j];
+			if (c === BIT0) bits += '0';
+			else if (c === BIT1) bits += '1';
+			else return null;
+		}
+		hex += parseInt(bits, 2).toString(16);
+	}
+	return hex;
 }
 
 /**
@@ -74,9 +74,9 @@ function decodeZwToHex(zw) {
  * @param {string} text
  */
 export function attachBotStamp(text) {
-  const base = text ?? "";
-  const hex = hashContent(base);
-  return base + BOT_STAMP_START + encodeHexToZw(hex) + BOT_STAMP_END;
+	const base = text ?? '';
+	const hex = hashContent(base);
+	return base + BOT_STAMP_START + encodeHexToZw(hex) + BOT_STAMP_END;
 }
 
 /**
@@ -85,30 +85,30 @@ export function attachBotStamp(text) {
  * @returns {{ text: string, hadStamp: boolean, valid: boolean }}
  */
 export function stripBotStamp(text) {
-  const raw = text ?? "";
-  const start = raw.lastIndexOf(BOT_STAMP_START);
-  if (start < 0) {
-    return { text: raw, hadStamp: false, valid: false };
-  }
-  const afterStart = raw.slice(start + BOT_STAMP_START.length);
-  const end = afterStart.lastIndexOf(BOT_STAMP_END);
-  if (end < 0) {
-    return { text: raw, hadStamp: false, valid: false };
-  }
-  const payload = afterStart.slice(0, end);
-  const trailing = afterStart.slice(end + BOT_STAMP_END.length);
-  // Stamp must be at the very end of the message.
-  if (trailing.length > 0) {
-    return { text: raw, hadStamp: false, valid: false };
-  }
+	const raw = text ?? '';
+	const start = raw.lastIndexOf(BOT_STAMP_START);
+	if (start < 0) {
+		return { text: raw, hadStamp: false, valid: false };
+	}
+	const afterStart = raw.slice(start + BOT_STAMP_START.length);
+	const end = afterStart.lastIndexOf(BOT_STAMP_END);
+	if (end < 0) {
+		return { text: raw, hadStamp: false, valid: false };
+	}
+	const payload = afterStart.slice(0, end);
+	const trailing = afterStart.slice(end + BOT_STAMP_END.length);
+	// Stamp must be at the very end of the message.
+	if (trailing.length > 0) {
+		return { text: raw, hadStamp: false, valid: false };
+	}
 
-  const body = raw.slice(0, start);
-  const hex = decodeZwToHex(payload);
-  if (!hex || hex.length !== 8) {
-    return { text: body, hadStamp: true, valid: false };
-  }
-  const valid = hex === hashContent(body);
-  return { text: body, hadStamp: true, valid };
+	const body = raw.slice(0, start);
+	const hex = decodeZwToHex(payload);
+	if (!hex || hex.length !== 8) {
+		return { text: body, hadStamp: true, valid: false };
+	}
+	const valid = hex === hashContent(body);
+	return { text: body, hadStamp: true, valid };
 }
 
 /**
@@ -116,7 +116,7 @@ export function stripBotStamp(text) {
  * @param {string|null|undefined} text
  */
 export function hasValidBotStamp(text) {
-  return stripBotStamp(text).valid;
+	return stripBotStamp(text).valid;
 }
 
 /**
@@ -126,44 +126,39 @@ export function hasValidBotStamp(text) {
  * @param {{ maxLen?: number, sep?: string, suffixEntities?: Array<object> }} [opts]
  * @returns {{ text: string, entities: Array<object>, skipped: null|string }}
  */
-export function appendSuffixPreservingEntities(
-  text,
-  entities,
-  suffix,
-  { maxLen = 4096, sep = "\n\n", suffixEntities = [] } = {}
-) {
-  // Work on stamp-free body so "already_present" and length checks are clean.
-  const stripped = stripBotStamp(text);
-  const base = stripped.text;
-  const ents = Array.isArray(entities) ? entities.map((e) => ({ ...e })) : [];
-  const foot = suffix == null ? "" : String(suffix);
+export function appendSuffixPreservingEntities(text, entities, suffix, { maxLen = 4096, sep = '\n\n', suffixEntities = [] } = {}) {
+	// Work on stamp-free body so "already_present" and length checks are clean.
+	const stripped = stripBotStamp(text);
+	const base = stripped.text;
+	const ents = Array.isArray(entities) ? entities.map((e) => ({ ...e })) : [];
+	const foot = suffix == null ? '' : String(suffix);
 
-  if (!foot) {
-    return { text: base, entities: ents, skipped: "empty_suffix" };
-  }
+	if (!foot) {
+		return { text: base, entities: ents, skipped: 'empty_suffix' };
+	}
 
-  if (base.endsWith(sep + foot) || base.endsWith(foot)) {
-    return { text: base, entities: ents, skipped: "already_present" };
-  }
+	if (base.endsWith(sep + foot) || base.endsWith(foot)) {
+		return { text: base, entities: ents, skipped: 'already_present' };
+	}
 
-  const addition = sep + foot;
-  // Reserve room for stamp (~ 2 bookends + 32 ZW bits for 8 hex chars)
-  const stampBudget = BOT_STAMP_START.length + BOT_STAMP_END.length + 32;
-  if (base.length + addition.length + stampBudget > maxLen) {
-    return { text: base, entities: ents, skipped: "too_long" };
-  }
+	const addition = sep + foot;
+	// Reserve room for stamp (~ 2 bookends + 32 ZW bits for 8 hex chars)
+	const stampBudget = BOT_STAMP_START.length + BOT_STAMP_END.length + 32;
+	if (base.length + addition.length + stampBudget > maxLen) {
+		return { text: base, entities: ents, skipped: 'too_long' };
+	}
 
-  const offsetBase = base.length + sep.length;
-  const extra = (Array.isArray(suffixEntities) ? suffixEntities : []).map((e) => ({
-    ...e,
-    offset: e.offset + offsetBase,
-  }));
+	const offsetBase = base.length + sep.length;
+	const extra = (Array.isArray(suffixEntities) ? suffixEntities : []).map((e) => ({
+		...e,
+		offset: e.offset + offsetBase,
+	}));
 
-  return {
-    text: base + addition,
-    entities: ents.concat(extra),
-    skipped: null,
-  };
+	return {
+		text: base + addition,
+		entities: ents.concat(extra),
+		skipped: null,
+	};
 }
 
 /**
@@ -171,26 +166,26 @@ export function appendSuffixPreservingEntities(
  * @returns {{ kind: 'text'|'caption'|null, text: string, entities: Array<object>, maxLen: number }}
  */
 export function extractEditableContent(message) {
-  if (!message) {
-    return { kind: null, text: "", entities: [], maxLen: TEXT_MAX_LENGTH };
-  }
-  if (typeof message.text === "string") {
-    return {
-      kind: "text",
-      text: message.text,
-      entities: message.entities ?? [],
-      maxLen: TEXT_MAX_LENGTH,
-    };
-  }
-  if (typeof message.caption === "string") {
-    return {
-      kind: "caption",
-      text: message.caption,
-      entities: message.caption_entities ?? [],
-      maxLen: CAPTION_MAX_LENGTH,
-    };
-  }
-  return { kind: null, text: "", entities: [], maxLen: TEXT_MAX_LENGTH };
+	if (!message) {
+		return { kind: null, text: '', entities: [], maxLen: TEXT_MAX_LENGTH };
+	}
+	if (typeof message.text === 'string') {
+		return {
+			kind: 'text',
+			text: message.text,
+			entities: message.entities ?? [],
+			maxLen: TEXT_MAX_LENGTH,
+		};
+	}
+	if (typeof message.caption === 'string') {
+		return {
+			kind: 'caption',
+			text: message.caption,
+			entities: message.caption_entities ?? [],
+			maxLen: CAPTION_MAX_LENGTH,
+		};
+	}
+	return { kind: null, text: '', entities: [], maxLen: TEXT_MAX_LENGTH };
 }
 
 /**
@@ -201,12 +196,11 @@ export function extractEditableContent(message) {
  * @param {string|null|undefined} marker
  */
 export function shouldSkipAutoSuffix(text, marker) {
-  if (marker == null || marker === "") return false;
-  // Ignore invisible stamp when looking for the admin marker.
-  const body = stripBotStamp(text).text;
-  return body.includes(String(marker));
+	if (marker == null || marker === '') return false;
+	// Ignore invisible stamp when looking for the admin marker.
+	const body = stripBotStamp(text).text;
+	return body.includes(String(marker));
 }
-
 
 /**
  * Keep only JSON-serializable fields Telegram accepts on editMessage* entities.
@@ -214,29 +208,29 @@ export function shouldSkipAutoSuffix(text, marker) {
  * @returns {Array<object>}
  */
 export function sanitizeEntities(entities) {
-  if (!Array.isArray(entities)) return [];
-  const out = [];
-  for (const e of entities) {
-    if (!e || typeof e.type !== "string") continue;
-    if (!Number.isFinite(e.offset) || !Number.isFinite(e.length) || e.length <= 0) {
-      continue;
-    }
-    /** @type {Record<string, unknown>} */
-    const row = {
-      type: e.type,
-      offset: Math.trunc(e.offset),
-      length: Math.trunc(e.length),
-    };
-    if (typeof e.url === "string") row.url = e.url;
-    if (typeof e.language === "string") row.language = e.language;
-    if (e.custom_emoji_id != null) row.custom_emoji_id = String(e.custom_emoji_id);
-    // text_mention
-    if (e.user && e.user.id != null) {
-      row.user = { id: Number(e.user.id) };
-    }
-    out.push(row);
-  }
-  return out;
+	if (!Array.isArray(entities)) return [];
+	const out = [];
+	for (const e of entities) {
+		if (!e || typeof e.type !== 'string') continue;
+		if (!Number.isFinite(e.offset) || !Number.isFinite(e.length) || e.length <= 0) {
+			continue;
+		}
+		/** @type {Record<string, unknown>} */
+		const row = {
+			type: e.type,
+			offset: Math.trunc(e.offset),
+			length: Math.trunc(e.length),
+		};
+		if (typeof e.url === 'string') row.url = e.url;
+		if (typeof e.language === 'string') row.language = e.language;
+		if (e.custom_emoji_id != null) row.custom_emoji_id = String(e.custom_emoji_id);
+		// text_mention
+		if (e.user && e.user.id != null) {
+			row.user = { id: Number(e.user.id) };
+		}
+		out.push(row);
+	}
+	return out;
 }
 
 /**
@@ -246,15 +240,15 @@ export function sanitizeEntities(entities) {
  * @param {number} end
  */
 export function sliceEntities(entities, start, end) {
-  if (!Array.isArray(entities) || end <= start) return [];
-  return sanitizeEntities(entities)
-    .filter((e) => e.offset + e.length > start && e.offset < end)
-    .map((e) => {
-      const o = Math.max(e.offset, start);
-      const endPos = Math.min(e.offset + e.length, end);
-      return { ...e, offset: o - start, length: endPos - o };
-    })
-    .filter((e) => e.length > 0);
+	if (!Array.isArray(entities) || end <= start) return [];
+	return sanitizeEntities(entities)
+		.filter((e) => e.offset + e.length > start && e.offset < end)
+		.map((e) => {
+			const o = Math.max(e.offset, start);
+			const endPos = Math.min(e.offset + e.length, end);
+			return { ...e, offset: o - start, length: endPos - o };
+		})
+		.filter((e) => e.length > 0);
 }
 
 /**
@@ -262,11 +256,11 @@ export function sliceEntities(entities, start, end) {
  * @param {string|null|undefined} json
  */
 export function parseEntitiesJson(json) {
-  if (json == null || json === "") return [];
-  try {
-    const parsed = typeof json === "string" ? JSON.parse(json) : json;
-    return sanitizeEntities(parsed);
-  } catch {
-    return [];
-  }
+	if (json == null || json === '') return [];
+	try {
+		const parsed = typeof json === 'string' ? JSON.parse(json) : json;
+		return sanitizeEntities(parsed);
+	} catch {
+		return [];
+	}
 }

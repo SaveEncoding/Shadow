@@ -43,9 +43,7 @@ const post = (overrides = {}) => ({
 	previewChatId: null,
 	previewMessageId: null,
 	edited: false,
-	items: [
-		{ sourceMessageId: 1, kind: 'text', fileId: null, text: 'سلام دنیا', entities: null, extra: null },
-	],
+	items: [{ sourceMessageId: 1, kind: 'text', fileId: null, text: 'سلام دنیا', entities: null, extra: null }],
 	...overrides,
 });
 

@@ -63,10 +63,7 @@ async function seedXSource() {
 	const rule = await getSourceRule(env.my_database, xSourceChannelId(HANDLE));
 	// کِرسر از قبل ست شده تا این پست «تازه» حساب شود
 	await upsertXSource(env.my_database, { ruleId: rule.id, handle: HANDLE, now: NOW, cursorId: '100' });
-	await env.my_database
-		.prepare('UPDATE post_x_sources SET last_polled_at = NULL WHERE rule_id = ?')
-		.bind(rule.id)
-		.run();
+	await env.my_database.prepare('UPDATE post_x_sources SET last_polled_at = NULL WHERE rule_id = ?').bind(rule.id).run();
 	return rule;
 }
 
@@ -162,10 +159,11 @@ describe('cron when re-enabled', () => {
 	it('polls X and queues the new post', async () => {
 		await seedXSource();
 
-		const result = await publishDuePosts(
-			cronEnv({ X_SOURCES_ENABLED: '1', X_RSS_TEMPLATE: 'https://bridge.test/u/{username}' }),
-			{ api: new FakeApi(), now: NOW, fetchImpl: fakeFetch },
-		);
+		const result = await publishDuePosts(cronEnv({ X_SOURCES_ENABLED: '1', X_RSS_TEMPLATE: 'https://bridge.test/u/{username}' }), {
+			api: new FakeApi(),
+			now: NOW,
+			fetchImpl: fakeFetch,
+		});
 
 		expect(fetchedUrls).toHaveLength(1);
 		expect(fetchedUrls[0]).toContain('/u/openai');

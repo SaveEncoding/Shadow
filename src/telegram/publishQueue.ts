@@ -44,21 +44,11 @@ import { pollDueSources } from './pollSources.js';
 import { pollDueXSources } from './xPoll.js';
 import { isXSourcesEnabled, resolveXProvider } from './xSource.js';
 import { describeTelegramError, executePublishPlan, buildPublishPlan, type PublisherApi } from './services/postPublisher.js';
-import {
-	failedNotificationText,
-	postDetailKeyboard,
-	publishedNotificationText,
-	queuedNotificationText,
-} from './ui/schedulerScreens.js';
+import { failedNotificationText, postDetailKeyboard, publishedNotificationText, queuedNotificationText } from './ui/schedulerScreens.js';
 
 /** کلاینتی که برای انتشار و اعلان لازم است (تزریق‌پذیر برای تست) */
 export interface SchedulerApi extends PublisherApi {
-	editMessageText(
-		chatId: number,
-		messageId: number,
-		text: string,
-		other?: Record<string, unknown>,
-	): Promise<unknown>;
+	editMessageText(chatId: number, messageId: number, text: string, other?: Record<string, unknown>): Promise<unknown>;
 	copyMessage(chatId: number, fromChatId: number, messageId: number): Promise<{ message_id: number }>;
 	/** برای پاک‌کردن پیام موقتِ گرفتن file_id (اختیاری: در تست لازم نیست) */
 	deleteMessage?(chatId: number, messageId: number): Promise<unknown>;
@@ -116,12 +106,7 @@ export async function upsertPreview(
  * انتشار یک پست مشخص (هم برای کرون، هم برای دکمه‌ی «انتشار الان»).
  * قفل گرفتن داخل همین تابع است، پس فراخوانی دوباره بی‌خطر است.
  */
-export async function publishOne(
-	api: SchedulerApi,
-	db: D1Database,
-	postId: number,
-	now: number,
-): Promise<{ ok: boolean; status: string }> {
+export async function publishOne(api: SchedulerApi, db: D1Database, postId: number, now: number): Promise<{ ok: boolean; status: string }> {
 	const claimed = await claimForPublish(db, postId, now);
 	if (!claimed) return { ok: false, status: 'skipped' };
 
@@ -137,14 +122,7 @@ export async function publishOne(
 	// فقط صف را کند می‌کند و نتیجه‌اش عوض نمی‌شود.
 	if (plan.method === 'unsupported') {
 		await markFailed(db, postId, plan.reason, now, null, post.attempts + 1);
-		await upsertPreview(
-			api,
-			db,
-			post,
-			failedNotificationText({ ...post, lastError: plan.reason }, title),
-			null,
-			now,
-		);
+		await upsertPreview(api, db, post, failedNotificationText({ ...post, lastError: plan.reason }, title), null, now);
 		return { ok: false, status: 'failed' };
 	}
 
@@ -153,31 +131,16 @@ export async function publishOne(
 	if (result.ok) {
 		await markPublished(db, postId, result.messageId, now);
 		const link = channelPostLink(channel?.username ?? null, result.messageId);
-		await upsertPreview(
-			api,
-			db,
-			post,
-			publishedNotificationText({ ...post, publishedAt: now }, title, link),
-			null,
-			now,
-		);
+		await upsertPreview(api, db, post, publishedNotificationText({ ...post, publishedAt: now }, title, link), null, now);
 		return { ok: true, status: 'published' };
 	}
 
 	// خطای موقت (شبکه/۵۰۰/۴۲۹) → تلاش مجدد؛ خطای دائمی → توقف و اطلاع به ادمین
 	const attempts = post.attempts + 1;
-	const retryable =
-		result.errorCode === null || result.errorCode === 429 || (result.errorCode ?? 0) >= 500;
+	const retryable = result.errorCode === null || result.errorCode === 429 || (result.errorCode ?? 0) >= 500;
 	const canRetry = retryable && attempts < MAX_PUBLISH_ATTEMPTS;
 
-	await markFailed(
-		db,
-		postId,
-		result.error ?? 'خطای نامشخص',
-		now,
-		canRetry ? now + retryDelaySeconds(attempts) : null,
-		attempts,
-	);
+	await markFailed(db, postId, result.error ?? 'خطای نامشخص', now, canRetry ? now + retryDelaySeconds(attempts) : null, attempts);
 
 	if (!canRetry) {
 		await upsertPreview(api, db, post, failedNotificationText({ ...post, lastError: result.error }, title), null, now);
@@ -348,12 +311,7 @@ export async function publishDuePosts(
  * اعلان «پست تازه در صف» برای ادمین.
  * در همان درخواست وبهوک صدا زده می‌شود (تک‌آیتمی) یا از کرون (آلبوم نهایی‌شده).
  */
-export async function notifyQueued(
-	api: SchedulerApi,
-	db: D1Database,
-	postId: number,
-	now: number,
-): Promise<void> {
+export async function notifyQueued(api: SchedulerApi, db: D1Database, postId: number, now: number): Promise<void> {
 	const post = await getPost(db, postId);
 	if (!post) return;
 

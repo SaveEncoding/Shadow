@@ -25,11 +25,7 @@ export interface PublisherApi {
 	sendVoice(chatId: number, voice: string, other?: Record<string, unknown>): Promise<{ message_id: number }>;
 	sendAnimation(chatId: number, animation: string, other?: Record<string, unknown>): Promise<{ message_id: number }>;
 	sendSticker(chatId: number, sticker: string, other?: Record<string, unknown>): Promise<{ message_id: number }>;
-	sendMediaGroup(
-		chatId: number,
-		media: unknown[],
-		other?: Record<string, unknown>,
-	): Promise<Array<{ message_id: number }>>;
+	sendMediaGroup(chatId: number, media: unknown[], other?: Record<string, unknown>): Promise<Array<{ message_id: number }>>;
 }
 
 /** متدهای تلگرامی که برای ارسال استفاده می‌کنیم */
@@ -136,9 +132,7 @@ export function buildPublishPlan(post: QueuePost, targetChannelId: number): Publ
 		const other: Record<string, unknown> = { ...mediaExtra(item) };
 
 		// کپشن سقف ۱۰۲۴ کاراکتر دارد؛ باقی متن در پیام بعدی می‌آید (نه اینکه گم شود)
-		const captionParts = item.text && item.text.trim()
-			? splitTextWithEntities(item.text, entityList(item), MAX_CAPTION_LENGTH)
-			: [];
+		const captionParts = item.text && item.text.trim() ? splitTextWithEntities(item.text, entityList(item), MAX_CAPTION_LENGTH) : [];
 		if (captionParts.length > 0) {
 			other.caption = captionParts[0].text;
 			if (captionParts[0].entities.length > 0) other.caption_entities = captionParts[0].entities;
@@ -189,8 +183,7 @@ export function buildPublishPlan(post: QueuePost, targetChannelId: number): Publ
 /** استخراج کد/متن خطای تلگرام به شکل یکسان */
 export function describeTelegramError(err: unknown): { message: string; code: number | null } {
 	const anyErr = err as { description?: string; message?: string; error_code?: number; name?: string } | null;
-	const message =
-		anyErr?.description || anyErr?.message || (anyErr?.name ? String(anyErr.name) : '') || 'خطای نامشخص تلگرام';
+	const message = anyErr?.description || anyErr?.message || (anyErr?.name ? String(anyErr.name) : '') || 'خطای نامشخص تلگرام';
 	const code = typeof anyErr?.error_code === 'number' ? anyErr.error_code : null;
 	return { message, code };
 }
@@ -227,9 +220,7 @@ export async function executePublishPlan(
 			return { ok: false, messageId: null, error: `متد ${plan.method} در کلاینت موجود نیست.`, errorCode: null };
 		}
 		const result = (await fn.apply(api, plan.args)) as { message_id?: number } | Array<{ message_id?: number }>;
-		const messageId = Array.isArray(result)
-			? (result[0]?.message_id ?? null)
-			: (result?.message_id ?? null);
+		const messageId = Array.isArray(result) ? (result[0]?.message_id ?? null) : (result?.message_id ?? null);
 		return { ok: true, messageId: messageId === null ? null : Number(messageId), error: null, errorCode: null };
 	} catch (err) {
 		const { message, code } = describeTelegramError(err);

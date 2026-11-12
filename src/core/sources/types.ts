@@ -42,5 +42,4 @@ export interface ExternalPost {
 
 /** نتیجه‌ی یک بار خواندن خط زمانی */
 export type ExternalFetchResult =
-	| { ok: true; posts: ExternalPost[]; handle: string; cursor: string | null }
-	| { ok: false; error: string; status: number | null };
+	{ ok: true; posts: ExternalPost[]; handle: string; cursor: string | null } | { ok: false; error: string; status: number | null };

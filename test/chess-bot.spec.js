@@ -94,20 +94,15 @@ function callbackUpdate(data) {
  */
 async function dispatch(bot, update) {
 	const pending = [];
-	await executionCtxStorage.run(
-		{ waitUntil: (promise) => pending.push(promise), passThroughOnException: () => {} },
-		() => bot.handleUpdate(update),
+	await executionCtxStorage.run({ waitUntil: (promise) => pending.push(promise), passThroughOnException: () => {} }, () =>
+		bot.handleUpdate(update),
 	);
 	await Promise.all(pending);
 }
 
 const lastCall = (method) => [...calls].reverse().find((c) => c.method === method);
-const allTexts = () =>
-	calls
-		.filter((c) => c.method === 'sendMessage' || c.method === 'editMessageText')
-		.map((c) => c.payload.text ?? '');
-const callbacksOf = (payload) =>
-	(payload?.reply_markup?.inline_keyboard ?? []).flat().map((b) => b.callback_data);
+const allTexts = () => calls.filter((c) => c.method === 'sendMessage' || c.method === 'editMessageText').map((c) => c.payload.text ?? '');
+const callbacksOf = (payload) => (payload?.reply_markup?.inline_keyboard ?? []).flat().map((b) => b.callback_data);
 
 beforeAll(async () => {
 	await env.my_database.exec(
@@ -168,9 +163,7 @@ describe('شطرنج از دید کاربر تلگرام', () => {
 		await dispatch(bot, callbackUpdate('cg:s:12'));
 		await dispatch(bot, callbackUpdate('cg:m:12-28'));
 
-		const stored = await env.my_database
-			.prepare("SELECT moves, fen FROM chess_games WHERE chat_id = 777 AND status = 'active'")
-			.first();
+		const stored = await env.my_database.prepare("SELECT moves, fen FROM chess_games WHERE chat_id = 777 AND status = 'active'").first();
 		const moves = JSON.parse(stored.moves);
 		expect(moves[0]).toBe('e4');
 		expect(moves).toHaveLength(2); // پاسخ موتور
@@ -200,9 +193,7 @@ describe('شطرنج از دید کاربر تلگرام', () => {
 		await dispatch(bot, callbackUpdate('cg:m:12-28'));
 		await dispatch(bot, callbackUpdate('cg:u'));
 
-		const stored = await env.my_database
-			.prepare("SELECT moves FROM chess_games WHERE chat_id = 777 AND status = 'active'")
-			.first();
+		const stored = await env.my_database.prepare("SELECT moves FROM chess_games WHERE chat_id = 777 AND status = 'active'").first();
 		expect(JSON.parse(stored.moves)).toEqual([]);
 	});
 
@@ -241,9 +232,7 @@ describe('شطرنج از دید کاربر تلگرام', () => {
 		await dispatch(bot, callbackUpdate('cg:s:12'));
 		await dispatch(bot, callbackUpdate('cg:m:12-28'));
 
-		const stored = await env.my_database
-			.prepare("SELECT moves FROM chess_games WHERE chat_id = 777 AND status = 'active'")
-			.first();
+		const stored = await env.my_database.prepare("SELECT moves FROM chess_games WHERE chat_id = 777 AND status = 'active'").first();
 		expect(JSON.parse(stored.moves)).toEqual(['e4']);
 		expect(lastCall('editMessageText')?.payload.text).toContain('نوبت <b>سیاه</b>');
 	});

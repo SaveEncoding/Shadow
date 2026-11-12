@@ -5,16 +5,16 @@
  *   throw new UserFacingError("bad input", "❌ فرمت لینک معتبر نیست.");
  */
 export class UserFacingError extends Error {
-  /**
-   * @param {string} message - Internal / log message
-   * @param {string} userMessage - Safe text shown to the Telegram user
-   */
-  constructor(message, userMessage) {
-    super(message);
-    this.name = "UserFacingError";
-    this.userMessage = userMessage;
-    this.reportToAdmin = false;
-  }
+	/**
+	 * @param {string} message - Internal / log message
+	 * @param {string} userMessage - Safe text shown to the Telegram user
+	 */
+	constructor(message, userMessage) {
+		super(message);
+		this.name = 'UserFacingError';
+		this.userMessage = userMessage;
+		this.reportToAdmin = false;
+	}
 }
 
 /**
@@ -23,10 +23,10 @@ export class UserFacingError extends Error {
  * Plain `Error` is also reported by default; this class makes intent explicit.
  */
 export class CriticalError extends Error {
-  /** @param {string} message */
-  constructor(message) {
-    super(message);
-    this.name = "CriticalError";
-    this.reportToAdmin = true;
-  }
+	/** @param {string} message */
+	constructor(message) {
+		super(message);
+		this.name = 'CriticalError';
+		this.reportToAdmin = true;
+	}
 }

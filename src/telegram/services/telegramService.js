@@ -1,4 +1,4 @@
-import { Api } from "grammy";
+import { Api } from 'grammy';
 
 /**
  * Both helpers below go through grammy's Api client instead of a hand-rolled
@@ -22,10 +22,7 @@ import { Api } from "grammy";
  * you interpolate (with this same escapeHtml) while keeping your own tags.
  */
 export function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+	return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /**
@@ -37,27 +34,22 @@ export function escapeHtml(str) {
  *   target chat may be topic-split, or Telegram silently drops the message
  *   into "General" instead of the topic it was actually configured from.
  */
-export async function sendMessage(
-  env,
-  chatId,
-  text,
-  { threadId = null, replyMarkup = null } = {}
-) {
-  if (!env.TELEGRAM_TOKEN) {
-    throw new Error("TELEGRAM_TOKEN is not set");
-  }
+export async function sendMessage(env, chatId, text, { threadId = null, replyMarkup = null } = {}) {
+	if (!env.TELEGRAM_TOKEN) {
+		throw new Error('TELEGRAM_TOKEN is not set');
+	}
 
-  if (!chatId) {
-    throw new Error("chatId is required");
-  }
+	if (!chatId) {
+		throw new Error('chatId is required');
+	}
 
-  const api = new Api(env.TELEGRAM_TOKEN);
+	const api = new Api(env.TELEGRAM_TOKEN);
 
-  return api.sendMessage(chatId, escapeHtml(text), {
-    parse_mode: "HTML",
-    message_thread_id: threadId ?? undefined,
-    reply_markup: replyMarkup ?? undefined,
-  });
+	return api.sendMessage(chatId, escapeHtml(text), {
+		parse_mode: 'HTML',
+		message_thread_id: threadId ?? undefined,
+		reply_markup: replyMarkup ?? undefined,
+	});
 }
 
 /**
@@ -65,49 +57,38 @@ export async function sendMessage(
  * "در حال پردازش..." status message to its final result). Mirrors
  * sendMessage's shape and, like it, HTML-escapes `text` automatically.
  */
-export async function editMessage(
-  env,
-  chatId,
-  messageId,
-  text,
-  replyMarkup = null
-) {
-  if (!env.TELEGRAM_TOKEN) {
-    throw new Error("TELEGRAM_TOKEN is not set");
-  }
+export async function editMessage(env, chatId, messageId, text, replyMarkup = null) {
+	if (!env.TELEGRAM_TOKEN) {
+		throw new Error('TELEGRAM_TOKEN is not set');
+	}
 
-  if (!chatId) {
-    throw new Error("chatId is required");
-  }
+	if (!chatId) {
+		throw new Error('chatId is required');
+	}
 
-  if (!messageId) {
-    throw new Error("messageId is required");
-  }
+	if (!messageId) {
+		throw new Error('messageId is required');
+	}
 
-  const api = new Api(env.TELEGRAM_TOKEN);
+	const api = new Api(env.TELEGRAM_TOKEN);
 
-  return api.editMessageText(chatId, messageId, escapeHtml(text), {
-    parse_mode: "HTML",
-    reply_markup: replyMarkup ?? undefined,
-  });
+	return api.editMessageText(chatId, messageId, escapeHtml(text), {
+		parse_mode: 'HTML',
+		reply_markup: replyMarkup ?? undefined,
+	});
 }
 
-export async function answerCallbackQuery(
-  env,
-  callbackQueryId,
-  text = "",
-  showAlert = false
-) {
-  if (!env.TELEGRAM_TOKEN) {
-    throw new Error("TELEGRAM_TOKEN is not set");
-  }
+export async function answerCallbackQuery(env, callbackQueryId, text = '', showAlert = false) {
+	if (!env.TELEGRAM_TOKEN) {
+		throw new Error('TELEGRAM_TOKEN is not set');
+	}
 
-  const api = new Api(env.TELEGRAM_TOKEN);
+	const api = new Api(env.TELEGRAM_TOKEN);
 
-  return api.answerCallbackQuery(callbackQueryId, {
-    text,
-    show_alert: showAlert,
-  });
+	return api.answerCallbackQuery(callbackQueryId, {
+		text,
+		show_alert: showAlert,
+	});
 }
 
 /**
@@ -120,20 +101,14 @@ export async function answerCallbackQuery(
  * @param {string} text
  * @param {Array<object>} [entities]
  */
-export async function editMessageTextWithEntities(
-  env,
-  chatId,
-  messageId,
-  text,
-  entities = []
-) {
-  if (!env.TELEGRAM_TOKEN) {
-    throw new Error("TELEGRAM_TOKEN is not set");
-  }
-  const api = new Api(env.TELEGRAM_TOKEN);
-  return api.editMessageText(chatId, messageId, text, {
-    entities: entities?.length ? entities : undefined,
-  });
+export async function editMessageTextWithEntities(env, chatId, messageId, text, entities = []) {
+	if (!env.TELEGRAM_TOKEN) {
+		throw new Error('TELEGRAM_TOKEN is not set');
+	}
+	const api = new Api(env.TELEGRAM_TOKEN);
+	return api.editMessageText(chatId, messageId, text, {
+		entities: entities?.length ? entities : undefined,
+	});
 }
 
 /**
@@ -145,20 +120,13 @@ export async function editMessageTextWithEntities(
  * @param {string} caption
  * @param {Array<object>} [captionEntities]
  */
-export async function editMessageCaptionWithEntities(
-  env,
-  chatId,
-  messageId,
-  caption,
-  captionEntities = []
-) {
-  if (!env.TELEGRAM_TOKEN) {
-    throw new Error("TELEGRAM_TOKEN is not set");
-  }
-  const api = new Api(env.TELEGRAM_TOKEN);
-  return api.editMessageCaption(chatId, messageId, {
-    caption,
-    caption_entities: captionEntities?.length ? captionEntities : undefined,
-  });
+export async function editMessageCaptionWithEntities(env, chatId, messageId, caption, captionEntities = []) {
+	if (!env.TELEGRAM_TOKEN) {
+		throw new Error('TELEGRAM_TOKEN is not set');
+	}
+	const api = new Api(env.TELEGRAM_TOKEN);
+	return api.editMessageCaption(chatId, messageId, {
+		caption,
+		caption_entities: captionEntities?.length ? captionEntities : undefined,
+	});
 }
-

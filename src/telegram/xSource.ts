@@ -19,19 +19,9 @@
  */
 
 import type { ExternalPost } from '../core/sources/types.js';
-import {
-	MAX_X_POSTS_PER_POLL,
-	newestXPostId,
-	parseXRss,
-	parseXTweets,
-	parseXUser,
-	normalizeXHandle,
-} from '../core/sources/x.js';
+import { MAX_X_POSTS_PER_POLL, newestXPostId, parseXRss, parseXTweets, parseXUser, normalizeXHandle } from '../core/sources/x.js';
 
-export type XProvider =
-	| { kind: 'official'; token: string }
-	| { kind: 'rss'; template: string }
-	| { kind: 'none' };
+export type XProvider = { kind: 'official'; token: string } | { kind: 'rss'; template: string } | { kind: 'none' };
 
 export interface XEnv {
 	X_BEARER_TOKEN?: string;
@@ -133,12 +123,7 @@ export async function fetchXTimeline(options: FetchXTimelineOptions): Promise<XT
 	return fetchViaApi(provider.token, handle, options.sinceId ?? null, options.userId ?? null, doFetch);
 }
 
-async function fetchViaRss(
-	template: string,
-	handle: string,
-	sinceId: string | null,
-	doFetch: typeof fetch,
-): Promise<XTimelineResult> {
+async function fetchViaRss(template: string, handle: string, sinceId: string | null, doFetch: typeof fetch): Promise<XTimelineResult> {
 	const url = template.replace(/\{username\}/g, encodeURIComponent(handle));
 
 	let response: Response;

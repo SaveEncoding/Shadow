@@ -149,12 +149,7 @@ describe('handleTelegramUpdate', () => {
 
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe('OK');
-		expect(reportErrorToAdminMock).toHaveBeenCalledWith(
-			fakeEnv,
-			'handleTelegramUpdate',
-			expect.any(Error),
-			222
-		);
+		expect(reportErrorToAdminMock).toHaveBeenCalledWith(fakeEnv, 'handleTelegramUpdate', expect.any(Error), 222);
 	});
 
 	it('does not report an error when the failed update has no identifiable user', async () => {
@@ -180,11 +175,6 @@ describe('handleTelegramUpdate', () => {
 
 		expect(response.status).toBe(200);
 		expect(mockWebhookHandler).not.toHaveBeenCalled();
-		expect(reportErrorToAdminMock).toHaveBeenCalledWith(
-			envWithoutSecret,
-			'handleTelegramUpdate',
-			expect.any(Error),
-			444
-		);
+		expect(reportErrorToAdminMock).toHaveBeenCalledWith(envWithoutSecret, 'handleTelegramUpdate', expect.any(Error), 444);
 	});
 });

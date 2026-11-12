@@ -25,12 +25,7 @@ describe('appendSuffixPreservingEntities', () => {
 	});
 
 	it('shifts suffixEntities by base + separator length', () => {
-		const result = appendSuffixPreservingEntities(
-			'Hi',
-			[],
-			'FOOT',
-			{ suffixEntities: [{ type: 'bold', offset: 0, length: 4 }] }
-		);
+		const result = appendSuffixPreservingEntities('Hi', [], 'FOOT', { suffixEntities: [{ type: 'bold', offset: 0, length: 4 }] });
 		expect(result.entities[0].offset).toBe(4);
 		expect(result.entities[0].length).toBe(4);
 	});
@@ -56,12 +51,7 @@ describe('appendSuffixPreservingEntities', () => {
 	});
 
 	it('skips when result would exceed maxLen (including stamp budget)', () => {
-		const result = appendSuffixPreservingEntities(
-			'x'.repeat(100),
-			[],
-			'y'.repeat(50),
-			{ maxLen: 120 }
-		);
+		const result = appendSuffixPreservingEntities('x'.repeat(100), [], 'y'.repeat(50), { maxLen: 120 });
 		expect(result.skipped).toBe('too_long');
 	});
 
@@ -173,7 +163,6 @@ describe('shouldSkipAutoSuffix', () => {
 	});
 });
 
-
 describe('suffix entities helpers', () => {
 	it('sanitizeEntities keeps url and drops junk', () => {
 		const s = sanitizeEntities([
@@ -194,12 +183,9 @@ describe('suffix entities helpers', () => {
 	});
 
 	it('appendSuffixPreservingEntities shifts suffix entities', () => {
-		const result = appendSuffixPreservingEntities(
-			'Body',
-			[{ type: 'italic', offset: 0, length: 4 }],
-			'FOOT',
-			{ suffixEntities: [{ type: 'bold', offset: 0, length: 4 }] }
-		);
+		const result = appendSuffixPreservingEntities('Body', [{ type: 'italic', offset: 0, length: 4 }], 'FOOT', {
+			suffixEntities: [{ type: 'bold', offset: 0, length: 4 }],
+		});
 		// "Body" + "\n\n" = 6
 		expect(result.entities.map((e) => e.offset)).toEqual([0, 6]);
 	});
@@ -207,8 +193,6 @@ describe('suffix entities helpers', () => {
 	it('parseEntitiesJson tolerates bad input', () => {
 		expect(parseEntitiesJson(null)).toEqual([]);
 		expect(parseEntitiesJson('not-json')).toEqual([]);
-		expect(parseEntitiesJson('[{"type":"bold","offset":0,"length":1}]')).toEqual([
-			{ type: 'bold', offset: 0, length: 1 },
-		]);
+		expect(parseEntitiesJson('[{"type":"bold","offset":0,"length":1}]')).toEqual([{ type: 'bold', offset: 0, length: 1 }]);
 	});
 });

@@ -6,8 +6,8 @@
  *                         when it was set from a topic instead of "General"
  */
 
-export const SETTING_ERROR_LOG_CHAT_ID = "error_log_chat_id";
-export const SETTING_ERROR_LOG_THREAD_ID = "error_log_thread_id";
+export const SETTING_ERROR_LOG_CHAT_ID = 'error_log_chat_id';
+export const SETTING_ERROR_LOG_THREAD_ID = 'error_log_thread_id';
 
 /**
  * @param {D1Database} db
@@ -15,14 +15,11 @@ export const SETTING_ERROR_LOG_THREAD_ID = "error_log_thread_id";
  * @returns {Promise<string|null>}
  */
 export async function getSetting(db, key) {
-  /** @type {{ value: string } | null} */
-  const row = await db
-    .prepare("SELECT value FROM bot_settings WHERE key = ?")
-    .bind(key)
-    .first();
-    
-  if (row == null || row.value == null) return null;
-  return String(row.value);
+	/** @type {{ value: string } | null} */
+	const row = await db.prepare('SELECT value FROM bot_settings WHERE key = ?').bind(key).first();
+
+	if (row == null || row.value == null) return null;
+	return String(row.value);
 }
 
 /**
@@ -31,16 +28,18 @@ export async function getSetting(db, key) {
  * @param {string} value
  */
 export async function setSetting(db, key, value) {
-  await db
-    .prepare(`
+	await db
+		.prepare(
+			`
       INSERT INTO bot_settings (key, value, updated_at)
       VALUES (?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(key) DO UPDATE SET
         value = excluded.value,
         updated_at = CURRENT_TIMESTAMP
-    `)
-    .bind(key, String(value))
-    .run();
+    `,
+		)
+		.bind(key, String(value))
+		.run();
 }
 
 /**
@@ -48,10 +47,10 @@ export async function setSetting(db, key, value) {
  * @returns {Promise<number|null>} Telegram chat id, or null if not configured
  */
 export async function getErrorLogChatId(db) {
-  const raw = await getSetting(db, SETTING_ERROR_LOG_CHAT_ID);
-  if (raw === null || raw === undefined || raw === "") return null;
-  const id = Number(raw);
-  return Number.isFinite(id) ? id : null;
+	const raw = await getSetting(db, SETTING_ERROR_LOG_CHAT_ID);
+	if (raw === null || raw === undefined || raw === '') return null;
+	const id = Number(raw);
+	return Number.isFinite(id) ? id : null;
 }
 
 /**
@@ -60,10 +59,10 @@ export async function getErrorLogChatId(db) {
  *   isn't topic-split or the log was set from the "General" topic.
  */
 export async function getErrorLogThreadId(db) {
-  const raw = await getSetting(db, SETTING_ERROR_LOG_THREAD_ID);
-  if (raw === null || raw === undefined || raw === "") return null;
-  const id = Number(raw);
-  return Number.isFinite(id) ? id : null;
+	const raw = await getSetting(db, SETTING_ERROR_LOG_THREAD_ID);
+	if (raw === null || raw === undefined || raw === '') return null;
+	const id = Number(raw);
+	return Number.isFinite(id) ? id : null;
 }
 
 /**
@@ -74,11 +73,8 @@ export async function getErrorLogThreadId(db) {
  * @returns {Promise<{ chatId: number|null, threadId: number|null }>}
  */
 export async function getErrorLogTarget(db) {
-  const [chatId, threadId] = await Promise.all([
-    getErrorLogChatId(db),
-    getErrorLogThreadId(db),
-  ]);
-  return { chatId, threadId };
+	const [chatId, threadId] = await Promise.all([getErrorLogChatId(db), getErrorLogThreadId(db)]);
+	return { chatId, threadId };
 }
 
 /**
@@ -89,10 +85,6 @@ export async function getErrorLogTarget(db) {
  *   previously-stored thread id is cleared.
  */
 export async function setErrorLogChatId(db, chatId, threadId = null) {
-  await setSetting(db, SETTING_ERROR_LOG_CHAT_ID, String(chatId));
-  await setSetting(
-    db,
-    SETTING_ERROR_LOG_THREAD_ID,
-    threadId === null || threadId === undefined ? "" : String(threadId)
-  );
+	await setSetting(db, SETTING_ERROR_LOG_CHAT_ID, String(chatId));
+	await setSetting(db, SETTING_ERROR_LOG_THREAD_ID, threadId === null || threadId === undefined ? '' : String(threadId));
 }

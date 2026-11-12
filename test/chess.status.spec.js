@@ -15,7 +15,7 @@ function play(fen, sans) {
 }
 
 describe('game status', () => {
-	it('detects checkmate (fool\'s mate)', () => {
+	it("detects checkmate (fool's mate)", () => {
 		const pos = play('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', ['f3', 'e5', 'g4', 'Qh4#']);
 		const status = getStatus(pos);
 		expect(status.over).toBe(true);

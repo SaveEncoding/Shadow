@@ -26,10 +26,7 @@ describe('refreshChannelAdmins', () => {
 	it('syncs every channel in the batch using one getChatAdministrators call each', async () => {
 		const { refreshChannelAdmins } = await import('../src/telegram/channelAdminSync.js');
 
-		getChannelsNeedingAdminSyncMock.mockResolvedValueOnce([
-			{ channel_id: -100001 },
-			{ channel_id: -100002 },
-		]);
+		getChannelsNeedingAdminSyncMock.mockResolvedValueOnce([{ channel_id: -100001 }, { channel_id: -100002 }]);
 		getChatAdministratorsMock
 			.mockResolvedValueOnce([{ user: { id: 1 } }, { user: { id: 2 } }])
 			.mockResolvedValueOnce([{ user: { id: 3 } }]);
@@ -47,9 +44,7 @@ describe('refreshChannelAdmins', () => {
 		const { refreshChannelAdmins } = await import('../src/telegram/channelAdminSync.js');
 
 		getChannelsNeedingAdminSyncMock.mockResolvedValueOnce([{ channel_id: -100003 }, { channel_id: -100004 }]);
-		getChatAdministratorsMock
-			.mockRejectedValueOnce(new Error('Bad Request: chat not found'))
-			.mockResolvedValueOnce([{ user: { id: 5 } }]);
+		getChatAdministratorsMock.mockRejectedValueOnce(new Error('Bad Request: chat not found')).mockResolvedValueOnce([{ user: { id: 5 } }]);
 		syncChannelAdminsMock.mockResolvedValueOnce({ added: 1, removed: 0 });
 
 		const result = await refreshChannelAdmins(fakeEnv);
