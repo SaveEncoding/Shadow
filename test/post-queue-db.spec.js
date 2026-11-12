@@ -13,6 +13,7 @@ import {
 	findCaptureSession,
 	findCollectingPost,
 	findEditSession,
+	findUserSessions,
 	findItemBySourceMessage,
 	getLastPublished,
 	getPost,
@@ -37,6 +38,7 @@ import {
 } from '../src/telegram/db/postQueue.js';
 
 import { createScheduleTables, resetScheduleTables } from './helpers/scheduleSchema.js';
+import { countingDb } from './helpers/countingDb.js';
 
 const NOW = 1_800_000_000;
 const TARGET = -1001234567890;
@@ -458,6 +460,39 @@ describe('sessions and cleanup', () => {
 		});
 		await clearEditSession(db, 42);
 		expect(await findEditSession(db, 42, NOW)).toBeNull();
+	});
+
+	it('fetches both pending sessions of a user in a single query', async () => {
+		const db = env.my_database;
+		await startEditSession(db, {
+			postId: 9,
+			userId: 42,
+			chatId: 42,
+			messageId: 1,
+			field: 'caption',
+			targetMessageId: 11,
+			expiresAt: NOW + 900,
+		});
+		await startCaptureSession(db, { userId: 42, targetChannelId: TARGET, mode: 'public', delayMinutes: 15, expiresAt: NOW + 900 });
+
+		const { db: counted, counter } = countingDb(env.my_database);
+		const both = await findUserSessions(counted, 42, NOW);
+
+		expect(counter.total).toBe(1);
+		expect(both.edit).toMatchObject({ postId: 9, field: 'caption', targetMessageId: 11 });
+		expect(both.capture).toEqual({ targetChannelId: TARGET, mode: 'public', delayMinutes: 15, expiresAt: NOW + 900 });
+
+		// هیچ‌کدام / هر دو / منقضی — همه از همان یک کوئری درست برمی‌گردند
+		await clearCaptureSession(db, 42);
+		const onlyEdit = await findUserSessions(db, 42, NOW);
+		expect(onlyEdit.edit).not.toBeNull();
+		expect(onlyEdit.capture).toBeNull();
+
+		const expired = await findUserSessions(db, 42, NOW + 901);
+		expect(expired).toEqual({ edit: null, capture: null });
+
+		const nobody = await findUserSessions(db, 7, NOW);
+		expect(nobody).toEqual({ edit: null, capture: null });
 	});
 
 	it('prunes old seen records only', async () => {

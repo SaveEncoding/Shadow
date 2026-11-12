@@ -7,6 +7,7 @@ import { CHANNEL_ADMINS_TABLE, CHANNELS_TABLE, createScheduleTables, resetSchedu
 import { getPollSource, listRulesForTarget } from '../src/telegram/db/postQueue.js';
 import { publicSourceChannelId } from '../src/core/schedule/publicFeed.js';
 import { feedPage } from './helpers/feedFixture.js';
+import { countingDb } from './helpers/countingDb.js';
 
 /**
  * تست یکپارچه‌ی «بات واقعی + فیچر زمان‌بندی پست».
@@ -301,6 +302,28 @@ describe('adding a source channel', () => {
 
 		expect(allTexts().some((t) => t.includes('فوروارد'))).toBe(true);
 		expect(await getSourceRule(env.my_database, SOURCE)).toBeNull();
+	});
+});
+
+describe('per-message cost', () => {
+	it('looks up both pending sessions with a single query per private message', async () => {
+		const { db: counted, counter } = countingDb(env.my_database);
+		const envWithCounter = { ...env, my_database: counted };
+		const bot = createBot({ ...envWithCounter, TELEGRAM_TOKEN: '123:test', TELEGRAM_WEBHOOK_SECRET: 'secret' });
+		postSchedulerFeature(bot, envWithCounter);
+		bot.api.config.use((prev, method, payload) => {
+			calls.push({ method, payload });
+			return Promise.resolve({ ok: true, result: fakeResult(method, payload) });
+		});
+		await bot.init();
+
+		counter.reset();
+		await dispatch(bot, messageUpdate('یک پیام معمولی'));
+		const sessionQueries = counter.log.filter((sql) => sql.includes('post_edit_sessions') || sql.includes('post_capture_sessions'));
+
+		// قبلاً دو کوئری بود (یکی برای ویرایش، یکی برای فوروارد)؛ حالا یکی با UNION ALL
+		expect(sessionQueries).toHaveLength(1);
+		expect(sessionQueries[0]).toContain('UNION ALL');
 	});
 });
 

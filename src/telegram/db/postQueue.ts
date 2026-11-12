@@ -932,6 +932,80 @@ export async function findEditSession(db: D1Database, userId: number, now: numbe
 	};
 }
 
+/** جلسه‌ی «منتظر فوروارد/یوزرنیم» (همان شکلی که `findCaptureSession` برمی‌گرداند) */
+export interface CaptureSession {
+	targetChannelId: number;
+	mode: 'manual' | 'source' | 'public' | 'x';
+	delayMinutes: number;
+	expiresAt: number;
+}
+
+/**
+ * هر دو جلسه‌ی «منتظر ورودی» در **یک** کوئری.
+ *
+ * هر پیام خصوصی از دو هندلر رد می‌شود: اول «ویرایش متن»، بعد «فوروارد/دستور».
+ * هر کدام جدا سراغ جدول خودش می‌رفت، یعنی هر پیام دو کوئری. این تابع هر دو را با
+ * یک `UNION ALL` می‌آورد و `postScheduler` نتیجه را برای هر دو هندلر استفاده
+ * می‌کند (بدون کش سراسری؛ کش به همان update گره می‌خورد).
+ */
+export async function findUserSessions(
+	db: D1Database,
+	userId: number,
+	now: number,
+): Promise<{ edit: EditSession | null; capture: CaptureSession | null }> {
+	const { results } = await db
+		.prepare(
+			`SELECT 'edit' AS kind, id, post_id, user_id, chat_id, message_id, field, target_message_id, NULL AS target_channel_id, NULL AS mode, NULL AS delay_minutes, expires_at
+			   FROM post_edit_sessions WHERE user_id = ? AND expires_at > ?
+			 UNION ALL
+			 SELECT 'capture' AS kind, NULL, NULL, user_id, NULL, NULL, NULL, NULL, target_channel_id, mode, delay_minutes, expires_at
+			   FROM post_capture_sessions WHERE user_id = ? AND expires_at > ?`,
+		)
+		.bind(userId, now, userId, now)
+		.all<{
+			kind: string;
+			id: number | null;
+			post_id: number | null;
+			chat_id: number | null;
+			message_id: number | null;
+			field: string | null;
+			target_message_id: number | null;
+			target_channel_id: number | null;
+			mode: string | null;
+			delay_minutes: number | null;
+			expires_at: number;
+		}>();
+
+	let edit: EditSession | null = null;
+	let capture: CaptureSession | null = null;
+
+	for (const row of results ?? []) {
+		if (row.kind === 'edit' && !edit) {
+			edit = {
+				id: Number(row.id),
+				postId: Number(row.post_id),
+				userId: Number(userId),
+				chatId: Number(row.chat_id),
+				messageId: Number(row.message_id),
+				field: row.field === 'caption' ? 'caption' : 'text',
+				targetMessageId: Number(row.target_message_id),
+				expiresAt: Number(row.expires_at),
+			};
+			continue;
+		}
+		if (row.kind === 'capture' && !capture) {
+			capture = {
+				targetChannelId: Number(row.target_channel_id),
+				mode: row.mode === 'source' ? 'source' : row.mode === 'public' ? 'public' : row.mode === 'x' ? 'x' : 'manual',
+				delayMinutes: Number(row.delay_minutes ?? 30),
+				expiresAt: Number(row.expires_at),
+			};
+		}
+	}
+
+	return { edit, capture };
+}
+
 export async function clearEditSession(db: D1Database, userId: number): Promise<void> {
 	await db.prepare('DELETE FROM post_edit_sessions WHERE user_id = ?').bind(userId).run();
 }
@@ -960,11 +1034,7 @@ export async function startCaptureSession(
 		.run();
 }
 
-export async function findCaptureSession(
-	db: D1Database,
-	userId: number,
-	now: number,
-): Promise<{ targetChannelId: number; mode: 'manual' | 'source' | 'public' | 'x'; delayMinutes: number; expiresAt: number } | null> {
+export async function findCaptureSession(db: D1Database, userId: number, now: number): Promise<CaptureSession | null> {
 	const row = await db
 		.prepare('SELECT * FROM post_capture_sessions WHERE user_id = ? AND expires_at > ?')
 		.bind(userId, now)
