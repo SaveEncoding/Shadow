@@ -13,6 +13,7 @@
  */
 
 import { ALBUM_GRACE_SECONDS, MAX_PUBLISH_PER_TICK, computePublishAt, retryDelaySeconds } from '../core/schedule/timing.js';
+import { DEFAULT_NETWORK_CONCURRENCY, mapLimit } from '../core/util/concurrency.js';
 import type { PostItem } from '../core/schedule/types.js';
 import { MAX_FEED_MEDIA, type FeedPost } from '../core/schedule/publicFeed.js';
 import { appendItem, createQueuedPost, finalizePost, markMessageSeen, recordPollResult } from './db/postQueue.js';
@@ -211,28 +212,39 @@ export async function pollDueSources(
 	let skipped = 0;
 	let failed = 0;
 
-	for (const source of options.sources.slice(0, MAX_PUBLISH_PER_TICK)) {
-		if (!shouldPoll(source, options.now)) continue;
+	// فقط منابعی که نوبتشان است؛ بقیه در شمارش نمی‌آیند (مثل قبل).
+	const due = options.sources.slice(0, MAX_PUBLISH_PER_TICK).filter((source) => shouldPoll(source, options.now));
 
+	// حداکثر ۳ منبع هم‌زمان: مجموع انتظار شبکه کم می‌شود، ولی زیر سقف ۶ اتصال
+	// بازِ هم‌زمانِ Workers می‌مانیم. خروجی به ترتیب ورودی برمی‌گردد.
+	const outcomes = await mapLimit(due, DEFAULT_NETWORK_CONCURRENCY, async (source) => {
 		try {
 			const outcome = await pollOneSource(
 				{ db: env.my_database, api: options.api, now: options.now, fetchImpl: options.fetchImpl },
 				source,
 			);
-			polled++;
-			queued += outcome.queued;
-			skipped += outcome.skipped;
-			if (outcome.error) failed++;
+			return { outcome, error: null };
 		} catch (err) {
 			// یک منبع خراب نباید بقیه را متوقف کند
 			console.error(`[pollSources] source ${source.username} crashed:`, err);
-			failed++;
 			await recordPollResult(env.my_database, {
 				ruleId: source.ruleId,
 				now: options.now,
 				error: (err as Error)?.message ?? 'خطای نامشخص',
 			}).catch(() => undefined);
+			return { outcome: null, error: err };
 		}
+	});
+
+	for (const { outcome, error } of outcomes) {
+		if (error || !outcome) {
+			failed++;
+			continue;
+		}
+		polled++;
+		queued += outcome.queued;
+		skipped += outcome.skipped;
+		if (outcome.error) failed++;
 	}
 
 	if (queued || failed) {

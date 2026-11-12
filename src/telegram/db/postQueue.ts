@@ -570,23 +570,27 @@ export async function appendItem(
 	extraPatch: Record<string, unknown> | null = null,
 ): Promise<boolean> {
 	const extra = extraPatch ? { ...(item.extra ?? {}), ...extraPatch } : item.extra;
-	const result = await db
-		.prepare(
-			`INSERT OR IGNORE INTO post_queue_items (queue_id, source_message_id, kind, file_id, text, entities, extra)
-			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		)
-		.bind(
-			queueId,
-			item.sourceMessageId,
-			item.kind,
-			item.fileId,
-			item.text,
-			item.entities ? JSON.stringify(item.entities) : null,
-			extra ? JSON.stringify(extra) : null,
-		)
-		.run();
-	await db.prepare('UPDATE post_queue SET updated_at = ?, finalize_at = ? WHERE id = ?').bind(now, finalizeAt, queueId).run();
-	return Number(result.meta?.changes ?? 0) > 0;
+	// دو statement، ولی **یک** رفت‌وبرگشت: `batch` در D1 اتمیک و تک‌درخواستی است.
+	// ترتیب مهم است: اگر INSERT تکراری بود (changes = 0) هم UPDATE باید اجرا شود،
+	// چون مهلت جمع‌آوری آلبوم با هر آیتم تازه تمدید می‌شود.
+	const [insert] = await db.batch([
+		db
+			.prepare(
+				`INSERT OR IGNORE INTO post_queue_items (queue_id, source_message_id, kind, file_id, text, entities, extra)
+				 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			)
+			.bind(
+				queueId,
+				item.sourceMessageId,
+				item.kind,
+				item.fileId,
+				item.text,
+				item.entities ? JSON.stringify(item.entities) : null,
+				extra ? JSON.stringify(extra) : null,
+			),
+		db.prepare('UPDATE post_queue SET updated_at = ?, finalize_at = ? WHERE id = ?').bind(now, finalizeAt, queueId),
+	]);
+	return Number(insert.meta?.changes ?? 0) > 0;
 }
 
 /**
@@ -594,21 +598,26 @@ export async function appendItem(
  * پست خالی (بدون آیتم) حذف می‌شود تا صف زامبی نداشته باشیم.
  */
 export async function finalizePost(db: D1Database, queueId: number, publishAt: number, now: number): Promise<boolean> {
-	const count = await db.prepare('SELECT COUNT(*) AS n FROM post_queue_items WHERE queue_id = ?').bind(queueId).first<{ n: number }>();
-	if (!count || Number(count.n) === 0) {
-		await db.prepare('DELETE FROM post_queue WHERE id = ?').bind(queueId).run();
-		return false;
-	}
-
-	await db
+	// مسیر عادی یک statement است: وجود آیتم‌ها با EXISTS داخل همان UPDATE بررسی
+	// می‌شود (قبلاً یک COUNT و بعد یک UPDATE بود). فقط در حالت «پست بدون آیتم»
+	// یک DELETE دوم لازم است تا صف زامبی نداشته باشیم.
+	const result = await db
 		.prepare(
 			`UPDATE post_queue
 			 SET status = 'scheduled', publish_at = ?, finalize_at = NULL, updated_at = ?
-			 WHERE id = ? AND status = 'collecting'`,
+			 WHERE id = ? AND status = 'collecting'
+			   AND EXISTS (SELECT 1 FROM post_queue_items WHERE queue_id = ?)`,
 		)
-		.bind(publishAt, now, queueId)
+		.bind(publishAt, now, queueId, queueId)
 		.run();
-	return true;
+	if (Number(result.meta?.changes ?? 0) > 0) return true;
+
+	// یا آیتمی ندارد (باید پاک شود) یا دیگر collecting نیست (تیک دیگری زودتر بست)
+	await db
+		.prepare('DELETE FROM post_queue WHERE id = ? AND status = ? AND NOT EXISTS (SELECT 1 FROM post_queue_items WHERE queue_id = ?)')
+		.bind(queueId, 'collecting', queueId)
+		.run();
+	return false;
 }
 
 /** پست‌های آماده (وقت انتشار رسیده یا آلبوم تمام‌شده) */
@@ -622,6 +631,73 @@ export async function listReadyPosts(db: D1Database, now: number, limit: number)
 			 LIMIT ?`,
 		)
 		.bind(now, now, limit)
+		.all<{ id: number }>();
+	return (results ?? []).map((r) => Number(r.id));
+}
+
+/**
+ * چند پست با هم، در دو کوئری ثابت (نه دو کوئری برای هر پست).
+ * ترتیب ورودی حفظ می‌شود تا صفحه‌ی صف همان ترتیب `publish_at` را ببیند.
+ */
+export async function getPostsByIds(db: D1Database, ids: number[]): Promise<QueuePost[]> {
+	if (ids.length === 0) return [];
+	const placeholders = ids.map(() => '?').join(', ');
+	const { results } = await db
+		.prepare(`SELECT * FROM post_queue WHERE id IN (${placeholders})`)
+		.bind(...ids)
+		.all<PostRow>();
+	return buildPosts(db, results ?? [], ids);
+}
+
+/**
+ * ساختن `QueuePost` از ردیف‌هایی که از قبل خوانده شده‌اند؛ فقط آیتم‌ها یک کوئری
+ * جدا می‌خواهند. این‌طور `listPendingPosts` لازم نیست ردیف‌ها را دوباره بخواند.
+ */
+async function buildPosts(db: D1Database, rows: PostRow[], order: number[]): Promise<QueuePost[]> {
+	if (rows.length === 0) return [];
+
+	const items = await db
+		.prepare(`SELECT * FROM post_queue_items WHERE queue_id IN (${order.map(() => '?').join(', ')}) ORDER BY source_message_id ASC`)
+		.bind(...order)
+		.all<ItemRow>();
+
+	const itemsByPost = new Map<number, PostItem[]>();
+	for (const row of items.results ?? []) {
+		const key = Number(row.queue_id);
+		const list = itemsByPost.get(key);
+		if (list) list.push(rowToItem(row));
+		else itemsByPost.set(key, [rowToItem(row)]);
+	}
+
+	const byId = new Map<number, QueuePost>();
+	for (const row of rows) byId.set(Number(row.id), rowToPost(row, itemsByPost.get(Number(row.id)) ?? []));
+
+	return order.map((id) => byId.get(id)).filter((post): post is QueuePost => Boolean(post));
+}
+
+/** قوانین چند منبع با هم (برای محاسبه‌ی تأخیر آلبوم‌ها در یک کوئری) */
+export async function getRulesForSources(db: D1Database, sourceChannelIds: number[]): Promise<SourceRule[]> {
+	if (sourceChannelIds.length === 0) return [];
+	const placeholders = sourceChannelIds.map(() => '?').join(', ');
+	const { results } = await db
+		.prepare(
+			`SELECT s.*, p.username AS poll_username, x.handle AS x_handle FROM post_sources s
+			 LEFT JOIN post_poll_sources p ON p.rule_id = s.id
+			 LEFT JOIN post_x_sources x ON x.rule_id = s.id
+			 WHERE s.source_channel_id IN (${placeholders})`,
+		)
+		.bind(...sourceChannelIds)
+		.all<RuleRow>();
+	return (results ?? []).map(rowToRule);
+}
+
+/** از میان شناسه‌های کاندید، کدام‌ها هنوز در حال جمع‌آوری‌اند؟ (یک کوئری) */
+export async function listCollectingAmong(db: D1Database, ids: number[]): Promise<number[]> {
+	if (ids.length === 0) return [];
+	const placeholders = ids.map(() => '?').join(', ');
+	const { results } = await db
+		.prepare(`SELECT id FROM post_queue WHERE id IN (${placeholders}) AND status = 'collecting'`)
+		.bind(...ids)
 		.all<{ id: number }>();
 	return (results ?? []).map((r) => Number(r.id));
 }
@@ -767,12 +843,13 @@ export async function listPendingPosts(db: D1Database, targetChannelId: number, 
 		)
 		.bind(targetChannelId, limit)
 		.all<PostRow>();
-	const posts: QueuePost[] = [];
-	for (const row of results ?? []) {
-		const post = await getPost(db, Number(row.id));
-		if (post) posts.push(post);
-	}
-	return posts;
+	// قبلاً برای هر ردیف دو کوئری (پست + آیتم‌ها) زده می‌شد؛ حالا همیشه دو کوئری.
+	const rows = results ?? [];
+	return buildPosts(
+		db,
+		rows,
+		rows.map((row) => Number(row.id)),
+	);
 }
 
 export async function countPendingPosts(db: D1Database, targetChannelId: number): Promise<number> {
@@ -855,6 +932,80 @@ export async function findEditSession(db: D1Database, userId: number, now: numbe
 	};
 }
 
+/** جلسه‌ی «منتظر فوروارد/یوزرنیم» (همان شکلی که `findCaptureSession` برمی‌گرداند) */
+export interface CaptureSession {
+	targetChannelId: number;
+	mode: 'manual' | 'source' | 'public' | 'x';
+	delayMinutes: number;
+	expiresAt: number;
+}
+
+/**
+ * هر دو جلسه‌ی «منتظر ورودی» در **یک** کوئری.
+ *
+ * هر پیام خصوصی از دو هندلر رد می‌شود: اول «ویرایش متن»، بعد «فوروارد/دستور».
+ * هر کدام جدا سراغ جدول خودش می‌رفت، یعنی هر پیام دو کوئری. این تابع هر دو را با
+ * یک `UNION ALL` می‌آورد و `postScheduler` نتیجه را برای هر دو هندلر استفاده
+ * می‌کند (بدون کش سراسری؛ کش به همان update گره می‌خورد).
+ */
+export async function findUserSessions(
+	db: D1Database,
+	userId: number,
+	now: number,
+): Promise<{ edit: EditSession | null; capture: CaptureSession | null }> {
+	const { results } = await db
+		.prepare(
+			`SELECT 'edit' AS kind, id, post_id, user_id, chat_id, message_id, field, target_message_id, NULL AS target_channel_id, NULL AS mode, NULL AS delay_minutes, expires_at
+			   FROM post_edit_sessions WHERE user_id = ? AND expires_at > ?
+			 UNION ALL
+			 SELECT 'capture' AS kind, NULL, NULL, user_id, NULL, NULL, NULL, NULL, target_channel_id, mode, delay_minutes, expires_at
+			   FROM post_capture_sessions WHERE user_id = ? AND expires_at > ?`,
+		)
+		.bind(userId, now, userId, now)
+		.all<{
+			kind: string;
+			id: number | null;
+			post_id: number | null;
+			chat_id: number | null;
+			message_id: number | null;
+			field: string | null;
+			target_message_id: number | null;
+			target_channel_id: number | null;
+			mode: string | null;
+			delay_minutes: number | null;
+			expires_at: number;
+		}>();
+
+	let edit: EditSession | null = null;
+	let capture: CaptureSession | null = null;
+
+	for (const row of results ?? []) {
+		if (row.kind === 'edit' && !edit) {
+			edit = {
+				id: Number(row.id),
+				postId: Number(row.post_id),
+				userId: Number(userId),
+				chatId: Number(row.chat_id),
+				messageId: Number(row.message_id),
+				field: row.field === 'caption' ? 'caption' : 'text',
+				targetMessageId: Number(row.target_message_id),
+				expiresAt: Number(row.expires_at),
+			};
+			continue;
+		}
+		if (row.kind === 'capture' && !capture) {
+			capture = {
+				targetChannelId: Number(row.target_channel_id),
+				mode: row.mode === 'source' ? 'source' : row.mode === 'public' ? 'public' : row.mode === 'x' ? 'x' : 'manual',
+				delayMinutes: Number(row.delay_minutes ?? 30),
+				expiresAt: Number(row.expires_at),
+			};
+		}
+	}
+
+	return { edit, capture };
+}
+
 export async function clearEditSession(db: D1Database, userId: number): Promise<void> {
 	await db.prepare('DELETE FROM post_edit_sessions WHERE user_id = ?').bind(userId).run();
 }
@@ -883,11 +1034,7 @@ export async function startCaptureSession(
 		.run();
 }
 
-export async function findCaptureSession(
-	db: D1Database,
-	userId: number,
-	now: number,
-): Promise<{ targetChannelId: number; mode: 'manual' | 'source' | 'public' | 'x'; delayMinutes: number; expiresAt: number } | null> {
+export async function findCaptureSession(db: D1Database, userId: number, now: number): Promise<CaptureSession | null> {
 	const row = await db
 		.prepare('SELECT * FROM post_capture_sessions WHERE user_id = ? AND expires_at > ?')
 		.bind(userId, now)

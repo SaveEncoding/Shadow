@@ -16,6 +16,7 @@
 import { ALBUM_GRACE_SECONDS, computePublishAt } from '../core/schedule/timing.js';
 import type { PostItem, SourceRule } from '../core/schedule/types.js';
 import { MAX_X_IMAGES, normalizeXHandle, xItemKey } from '../core/sources/x.js';
+import { DEFAULT_NETWORK_CONCURRENCY, mapLimit } from '../core/util/concurrency.js';
 import { appendItem, createQueuedPost, finalizePost, markMessageSeen, recordXPollResult, type XSourceRow } from './db/postQueue.js';
 import { spoolMedia } from './mediaSpool.js';
 import { notifyQueued, type SchedulerApi } from './publishQueue.js';
@@ -222,28 +223,37 @@ export async function pollDueXSources(
 	// بدون کلید/پل، هر دقیقه یک خطای تکراری در لاگ نمی‌نویسیم — فقط ساکت رد می‌شویم
 	if (provider.kind === 'none') return result;
 
-	for (const source of options.sources.slice(0, MAX_X_SOURCES_PER_TICK)) {
-		if (!shouldPollX(source, options.now)) continue;
+	const due = options.sources.slice(0, MAX_X_SOURCES_PER_TICK).filter((source) => shouldPollX(source, options.now));
 
+	// حداکثر ۳ حساب هم‌زمان (زیر سقف ۶ اتصال باز هم‌زمان Workers).
+	const outcomes = await mapLimit(due, DEFAULT_NETWORK_CONCURRENCY, async (source) => {
 		try {
 			const outcome = await pollOneXSource(
 				{ db: env.my_database, api: options.api, now: options.now, provider, fetchImpl: options.fetchImpl },
 				source,
 			);
-			result.polled++;
-			result.queued += outcome.queued;
-			result.skipped += outcome.skipped;
-			if (outcome.error) result.failed++;
+			return { outcome, error: null };
 		} catch (err) {
 			// یک حساب خراب نباید بقیه و انتشار را متوقف کند
 			console.error(`[xPoll] source ${source.handle} crashed:`, err);
-			result.failed++;
 			await recordXPollResult(env.my_database, {
 				ruleId: source.ruleId,
 				now: options.now,
 				error: (err as Error)?.message ?? 'خطای نامشخص',
 			}).catch(() => undefined);
+			return { outcome: null, error: err };
 		}
+	});
+
+	for (const { outcome, error } of outcomes) {
+		if (error || !outcome) {
+			result.failed++;
+			continue;
+		}
+		result.polled++;
+		result.queued += outcome.queued;
+		result.skipped += outcome.skipped;
+		if (outcome.error) result.failed++;
 	}
 
 	if (result.queued || result.failed) {

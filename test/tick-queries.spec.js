@@ -1,0 +1,121 @@
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { env } from 'cloudflare:test';
+import { publishDuePosts } from '../src/telegram/publishQueue.js';
+import { appendItem, createQueuedPost, finalizePost, listPendingPosts } from '../src/telegram/db/postQueue.js';
+import { CHANNELS_TABLE, createScheduleTables, resetScheduleTables } from './helpers/scheduleSchema.js';
+import { countingDb } from './helpers/countingDb.js';
+
+/**
+ * بودجه‌ی کوئری کرون.
+ *
+ * چرا تست دارد؟ چون «بهینه‌سازی» بدون عدد فقط حس است. کرون هر دقیقه اجرا می‌شود،
+ * پس هر کوئری اضافه در تیک خالی هم ۱۴۴۰ بار در روز هزینه دارد. این فایل تعداد
+ * statement ها و رفت‌وبرگشت‌های D1 را می‌شمارد و روی سقف پین می‌کند: هر تغییر
+ * آینده که کوئری اضافه کند، تست را قرمز می‌کند.
+ *
+ * (اعداد اندازه‌گیری‌شده در پیام کامیت‌های Step 2 ثبت شده‌اند.)
+ */
+
+const NOW = 1_800_000_000;
+/** NOW % 3600 === 0 است، پس تیک «ساعتگرد» هم پاک‌سازی را اجرا می‌کند */
+const TICK_WITH_PRUNE = NOW;
+const TICK_PLAIN = NOW + 60;
+
+const TARGET = -1001234567890;
+
+/** کلاینت تلگرام قلابی: هر متد یک پاسخ معتبر برمی‌گرداند */
+const api = new Proxy(
+	{},
+	{
+		get: () => async () => ({ message_id: 1 }),
+	},
+);
+
+const textItem = (id, text) => ({ sourceMessageId: id, kind: 'text', fileId: null, text, entities: null, extra: null });
+
+async function tick(now = TICK_PLAIN) {
+	const { db, counter } = countingDb(env.my_database);
+	const result = await publishDuePosts(
+		{ ...env, my_database: db },
+		{ api, now, fetchImpl: async () => new Response('{}', { status: 404 }) },
+	);
+	return { result, counter };
+}
+
+beforeAll(async () => {
+	await createScheduleTables(env.my_database);
+	await env.my_database.exec(CHANNELS_TABLE);
+});
+
+beforeEach(async () => {
+	await resetScheduleTables(env.my_database);
+	await env.my_database.exec('DELETE FROM channels;');
+});
+
+describe('cron tick query budget', () => {
+	it('keeps an idle tick at 3 statements / 3 round trips', async () => {
+		const { result, counter } = await tick();
+
+		expect(result.published).toBe(0);
+		expect(counter.total, counter.summary()).toBe(3);
+		expect(counter.roundTrips).toBe(3);
+	});
+
+	it('adds only the hourly prune on the hourly tick', async () => {
+		const { counter } = await tick(TICK_WITH_PRUNE);
+		// pruneSeen + pruneEditSessions + prunePendingInputs
+		expect(counter.total, counter.summary()).toBe(6);
+	});
+
+	it('publishes one due post within 10 statements', async () => {
+		const id = await createQueuedPost(env.my_database, {
+			sourceChannelId: -100,
+			targetChannelId: TARGET,
+			mediaGroupId: null,
+			createdBy: 5,
+			now: NOW,
+		});
+		await appendItem(env.my_database, id, textItem(1, 'سلام'), NOW);
+		await finalizePost(env.my_database, id, NOW - 5, NOW);
+
+		const { result, counter } = await tick();
+		expect(result.published).toBe(1);
+		// ۳ کوئری تیک + ۵ کوئری انتشار همین پست (claim، پست، آیتم‌ها، کانال، markPublished)
+		expect(counter.total, counter.summary()).toBeLessThanOrEqual(10);
+	});
+
+	it('finalizes a due album with a bounded number of statements', async () => {
+		const id = await createQueuedPost(env.my_database, {
+			sourceChannelId: -100,
+			targetChannelId: TARGET,
+			mediaGroupId: 'g1',
+			createdBy: 5,
+			now: NOW - 100,
+		});
+		await appendItem(env.my_database, id, textItem(1, 'آلبوم'), NOW - 100, NOW - 80);
+
+		const { result } = await tick();
+		const [post] = await listPendingPosts(env.my_database, TARGET);
+		expect(result.finalized).toBe(1);
+		expect(post.id).toBe(id);
+	});
+
+	it('loads a page of pending posts with 2 statements, not 1 + 2 per post', async () => {
+		for (let i = 0; i < 5; i++) {
+			const id = await createQueuedPost(env.my_database, {
+				sourceChannelId: -100,
+				targetChannelId: TARGET,
+				mediaGroupId: null,
+				createdBy: 5,
+				now: NOW,
+			});
+			await appendItem(env.my_database, id, textItem(i + 1, `پست ${i + 1}`), NOW);
+			await finalizePost(env.my_database, id, NOW + 600 + i, NOW);
+		}
+
+		const { db, counter } = countingDb(env.my_database);
+		const posts = await listPendingPosts(db, TARGET, 10);
+		expect(posts).toHaveLength(5);
+		expect(counter.total, counter.summary()).toBe(2);
+	});
+});

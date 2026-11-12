@@ -201,3 +201,14 @@ CREATE TABLE IF NOT EXISTS post_capture_sessions (
   delay_minutes INTEGER NOT NULL DEFAULT 30,
   expires_at INTEGER NOT NULL
 );
+
+-- «منتظر متن پسوند/نشانه‌ی رد شدن» از منو (دکمه‌های شیشه‌ای).
+-- قبلاً در یک Map داخل حافظه‌ی ایزوله بود؛ با چرخش ایزوله‌ها جریان کاربر می‌شکست.
+CREATE TABLE IF NOT EXISTS ui_pending_inputs (
+  user_id INTEGER PRIMARY KEY,
+  type TEXT NOT NULL,                         -- suffix | skip
+  channel_id INTEGER NOT NULL,
+  prompt_chat_id INTEGER,
+  prompt_message_id INTEGER,
+  expires_at INTEGER NOT NULL
+);

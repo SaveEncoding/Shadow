@@ -47,8 +47,7 @@ import {
 	countPendingPosts,
 	cancelPost,
 	deleteSourceRule,
-	findCaptureSession,
-	findEditSession,
+	findUserSessions,
 	getLastPublished,
 	getPost,
 	getSourceRule,
@@ -598,6 +597,23 @@ export function postSchedulerFeature(
 		}
 	});
 
+	/**
+	 * جلسه‌های «منتظر ورودی» همین پیام.
+	 *
+	 * هر پیام خصوصی از دو هندلر رد می‌شود (ویرایش متن، سپس فوروارد). قبلاً هر
+	 * هندلر جدا سراغ جدول خودش می‌رفت. حالا یک کوئری زده می‌شود و نتیجه فقط تا
+	 * پایان همین update در `WeakMap` می‌ماند — نه کش سراسری، نه نشت بین کاربران.
+	 */
+	const sessionCache = new WeakMap<Context, ReturnType<typeof findUserSessions>>();
+	const loadSessions = (ctx: Context, userId: number, now: number) => {
+		let pending = sessionCache.get(ctx);
+		if (!pending) {
+			pending = findUserSessions(db, userId, now);
+			sessionCache.set(ctx, pending);
+		}
+		return pending;
+	};
+
 	// ── دریافت متن ویرایش‌شده ──
 	// بعد از handler مربوط به pendingInput در menu ثبت می‌شود، پس فقط وقتی
 	// menu آن را مصرف نکند به اینجا می‌رسیم.
@@ -605,7 +621,7 @@ export function postSchedulerFeature(
 		const userId = ctx.from?.id;
 		if (!userId || ctx.chat?.type !== 'private') return next();
 
-		const session = await findEditSession(db, userId, nowSeconds());
+		const { edit: session } = await loadSessions(ctx, userId, nowSeconds());
 		if (!session) return next();
 
 		const text = ctx.message?.text ?? '';
@@ -645,7 +661,7 @@ export function postSchedulerFeature(
 		const userId = ctx.from?.id;
 		if (!userId || ctx.chat?.type !== 'private') return next();
 
-		const session = await findCaptureSession(db, userId, nowSeconds());
+		const { capture: session } = await loadSessions(ctx, userId, nowSeconds());
 		if (!session) return next();
 
 		// دستورها جلسه را نمی‌شکنند: `/cancel` جلسه را می‌بندد و بقیه‌ی دستورها
