@@ -1,20 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
-import {
-	finalizeReadyAlbums,
-	notifyQueued,
-	publishDuePosts,
-	publishOne,
-	recoverStuckPosts,
-} from '../src/telegram/publishQueue.js';
-import {
-	appendItem,
-	claimForPublish,
-	createQueuedPost,
-	finalizePost,
-	getPost,
-	saveSourceRule,
-} from '../src/telegram/db/postQueue.js';
+import { finalizeReadyAlbums, notifyQueued, publishDuePosts, publishOne, recoverStuckPosts } from '../src/telegram/publishQueue.js';
+import { appendItem, claimForPublish, createQueuedPost, finalizePost, getPost, saveSourceRule } from '../src/telegram/db/postQueue.js';
 import { CHANNELS_TABLE, createScheduleTables, resetScheduleTables } from './helpers/scheduleSchema.js';
 
 /**
@@ -95,9 +82,7 @@ class FakeApi {
 	}
 	/** فقط ارسال‌ها به کانال مقصد (اعلان‌های ادمین هم با sendMessage می‌روند) */
 	channelCalls() {
-		return this.calls.filter(
-			(c) => ['sendMessage', 'sendPhoto', 'sendMediaGroup', 'sendVideo'].includes(c.method) && c.args[0] === TARGET,
-		);
+		return this.calls.filter((c) => ['sendMessage', 'sendPhoto', 'sendMediaGroup', 'sendVideo'].includes(c.method) && c.args[0] === TARGET);
 	}
 
 	adminMessages() {

@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { decodeHtmlEntities, flatten, htmlToTextAndEntities } from '../src/core/text/htmlToEntities.js';
-import {
-	MAX_CAPTION_LENGTH,
-	MAX_MESSAGE_LENGTH,
-	sliceWithEntities,
-	splitTextWithEntities,
-} from '../src/core/text/split.js';
+import { MAX_CAPTION_LENGTH, MAX_MESSAGE_LENGTH, sliceWithEntities, splitTextWithEntities } from '../src/core/text/split.js';
 
 describe('decodeHtmlEntities', () => {
 	it('decodes named, decimal and hex entities', () => {
@@ -23,9 +18,7 @@ describe('decodeHtmlEntities', () => {
 
 describe('htmlToTextAndEntities', () => {
 	it('strips tags and keeps bold/italic/underline/strike/spoiler', () => {
-		const { text, entities } = htmlToTextAndEntities(
-			'<b>bold</b> plain <i>it</i> <u>u</u> <s>s</s> <tg-spoiler>sp</tg-spoiler>',
-		);
+		const { text, entities } = htmlToTextAndEntities('<b>bold</b> plain <i>it</i> <u>u</u> <s>s</s> <tg-spoiler>sp</tg-spoiler>');
 		expect(text).toBe('bold plain it u s sp');
 		const types = entities.map((e) => e.type).sort();
 		expect(types).toEqual(['bold', 'italic', 'spoiler', 'strikethrough', 'underline']);
@@ -35,9 +28,7 @@ describe('htmlToTextAndEntities', () => {
 	it('keeps links as text_link with the url', () => {
 		const { text, entities } = htmlToTextAndEntities('به <a href="https://example.com/x">اینجا</a> برو');
 		expect(text).toBe('به اینجا برو');
-		expect(entities).toEqual([
-			{ type: 'text_link', offset: 3, length: 5, url: 'https://example.com/x' },
-		]);
+		expect(entities).toEqual([{ type: 'text_link', offset: 3, length: 5, url: 'https://example.com/x' }]);
 	});
 
 	it('ignores non-http links (mentions/hashtags are detected by Telegram itself)', () => {
@@ -117,12 +108,18 @@ describe('flatten', () => {
 			],
 			8,
 		);
-		expect(flat.filter((e) => e.offset === 0 && e.length === 2).map((e) => e.type).sort()).toEqual(['bold', 'italic']);
-		expect(flat.filter((e) => e.offset === 2 && e.length === 2).map((e) => e.type).sort()).toEqual([
-			'bold',
-			'italic',
-			'underline',
-		]);
+		expect(
+			flat
+				.filter((e) => e.offset === 0 && e.length === 2)
+				.map((e) => e.type)
+				.sort(),
+		).toEqual(['bold', 'italic']);
+		expect(
+			flat
+				.filter((e) => e.offset === 2 && e.length === 2)
+				.map((e) => e.type)
+				.sort(),
+		).toEqual(['bold', 'italic', 'underline']);
 	});
 });
 
@@ -140,7 +137,12 @@ describe('splitTextWithEntities', () => {
 
 		expect(parts.length).toBeGreaterThan(1);
 		for (const part of parts) expect(part.text.length).toBeLessThanOrEqual(200);
-		expect(parts.map((p) => p.text).join('').replace(/\s/g, '')).toBe(text.replace(/\s/g, ''));
+		expect(
+			parts
+				.map((p) => p.text)
+				.join('')
+				.replace(/\s/g, ''),
+		).toBe(text.replace(/\s/g, ''));
 	});
 
 	it('splits entities across the boundary and keeps them valid', () => {
@@ -165,7 +167,13 @@ describe('splitTextWithEntities', () => {
 		const parts = splitTextWithEntities(text);
 		expect(parts.length).toBeGreaterThan(1);
 		for (const part of parts) expect(part.text.length).toBeLessThanOrEqual(MAX_MESSAGE_LENGTH);
-		expect(parts.map((p) => p.text).join('').replace(/\s+/g, ' ').trim()).toBe(text.replace(/\s+/g, ' ').trim());
+		expect(
+			parts
+				.map((p) => p.text)
+				.join('')
+				.replace(/\s+/g, ' ')
+				.trim(),
+		).toBe(text.replace(/\s+/g, ' ').trim());
 	});
 
 	it('slices without losing the tail', () => {

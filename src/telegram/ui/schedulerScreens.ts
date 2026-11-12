@@ -8,14 +8,7 @@
 import { InlineKeyboard } from 'grammy';
 import { escapeHtml } from '../services/telegramService.js';
 import type { PostItem, QueuePost, SourceRule } from '../../core/schedule/types.js';
-import {
-	DELAY_PRESETS,
-	formatDelay,
-	formatRemaining,
-	formatTehran,
-	previewSnippet,
-	toPersianDigits,
-} from '../../core/schedule/timing.js';
+import { DELAY_PRESETS, formatDelay, formatRemaining, formatTehran, previewSnippet, toPersianDigits } from '../../core/schedule/timing.js';
 
 const KIND_LABELS: Record<string, string> = {
 	text: '📝 متن',
@@ -144,9 +137,7 @@ export function channelScheduleText(model: ChannelScheduleModel): string {
 	lines.push(
 		'',
 		`🕒 در صف: <b>${toPersianDigits(model.pending)}</b> پست`,
-		model.lastPublishedAt
-			? `✅ آخرین انتشار: ${formatTehran(model.lastPublishedAt)}`
-			: '✅ هنوز چیزی منتشر نشده است.',
+		model.lastPublishedAt ? `✅ آخرین انتشار: ${formatTehran(model.lastPublishedAt)}` : '✅ هنوز چیزی منتشر نشده است.',
 	);
 
 	return lines.join('\n');
@@ -162,11 +153,13 @@ export function channelScheduleKeyboard(model: ChannelScheduleModel): InlineKeyb
 			.row();
 	});
 
-	kb.text('➕ افزودن منبع (بات ادمین)', `ps:src:${model.channelId}`).row()
+	kb.text('➕ افزودن منبع (بات ادمین)', `ps:src:${model.channelId}`)
+		.row()
 		.text('🌐 کانال عمومی (بدون عضویت)', `ps:pubsrc:${model.channelId}`);
 	// دکمه‌ی X فقط وقتی نمایش داده می‌شود که فیچر روشن باشد (پیش‌فرض: تعلیق)
 	if (model.xSources === true) kb.text('🐦 حساب X', `ps:xsrc:${model.channelId}`);
-	kb.row().text('📥 کپی دستی', `ps:man:${model.channelId}`)
+	kb.row()
+		.text('📥 کپی دستی', `ps:man:${model.channelId}`)
 		.row()
 		.text(`📋 صف (${toPersianDigits(model.pending)})`, `ps:q:${model.channelId}`)
 		.row()
@@ -300,10 +293,7 @@ export function xSourceAddedText(handle: string, targetTitle: string, delayMinut
  * @param scope `r<sourceChannelId>` برای یک قانون، `p<postId>` برای جابه‌جایی یک پست
  */
 export function delayPickerText(scopeKind: 'rule' | 'post', currentMinutes: number | null, now: number): string {
-	const lines = [
-		scopeKind === 'rule' ? '⏱ <b>تأخیر انتشار</b>' : '⏰ <b>زمان انتشار را تغییر بده</b>',
-		'',
-	];
+	const lines = [scopeKind === 'rule' ? '⏱ <b>تأخیر انتشار</b>' : '⏰ <b>زمان انتشار را تغییر بده</b>', ''];
 	if (scopeKind === 'rule') {
 		lines.push(
 			'هر پست جدید مبدأ، این مدت بعد منتشر می‌شود.',
@@ -360,11 +350,7 @@ export function queueKeyboard(posts: QueuePost[], channelId: number): InlineKeyb
 }
 
 export function postDetailText(post: QueuePost, channelTitle: string, now: number): string {
-	const lines = [
-		'🔎 <b>جزئیات پست</b>',
-		'',
-		`${statusLabel(post.status)} — مقصد: <b>${escapeHtml(channelTitle)}</b>`,
-	];
+	const lines = ['🔎 <b>جزئیات پست</b>', '', `${statusLabel(post.status)} — مقصد: <b>${escapeHtml(channelTitle)}</b>`];
 
 	if (post.status === 'scheduled' || post.status === 'collecting') {
 		lines.push(`⏰ ${formatTehran(post.publishAt)}`);

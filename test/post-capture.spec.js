@@ -259,11 +259,12 @@ describe('queueManualPost', () => {
 	});
 
 	it('does not create a rule (manual posts are one-off)', async () => {
-		await queueManualPost(
-			env.my_database,
-			[{ sourceMessageId: 1, kind: 'text', fileId: null, text: 'x', entities: null, extra: null }],
-			{ targetChannelId: TARGET, delayMinutes: 15, createdBy: 42, now: NOW },
-		);
+		await queueManualPost(env.my_database, [{ sourceMessageId: 1, kind: 'text', fileId: null, text: 'x', entities: null, extra: null }], {
+			targetChannelId: TARGET,
+			delayMinutes: 15,
+			createdBy: 42,
+			now: NOW,
+		});
 		expect(await getSourceRule(env.my_database, 0)).toBeNull();
 	});
 });

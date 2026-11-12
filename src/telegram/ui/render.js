@@ -9,37 +9,37 @@
  * @param {import("grammy").InlineKeyboard | object | null} [keyboard]
  */
 export async function renderScreen(ctx, text, keyboard = null) {
-  const opts = {
-    parse_mode: "HTML",
-    reply_markup: keyboard ?? undefined,
-    link_preview_options: { is_disabled: true },
-  };
+	const opts = {
+		parse_mode: 'HTML',
+		reply_markup: keyboard ?? undefined,
+		link_preview_options: { is_disabled: true },
+	};
 
-  if (ctx.callbackQuery) {
-    try {
-      await ctx.answerCallbackQuery();
-    } catch {
-      /* already answered */
-    }
-  }
+	if (ctx.callbackQuery) {
+		try {
+			await ctx.answerCallbackQuery();
+		} catch {
+			/* already answered */
+		}
+	}
 
-  if (ctx.callbackQuery?.message) {
-    try {
-      await ctx.editMessageText(text, opts);
-      return { edited: true };
-    } catch (err) {
-      const desc = String(err?.description || err?.message || "");
-      // Identical content — treat as success (no spam).
-      if (desc.includes("message is not modified")) {
-        return { edited: true, unchanged: true };
-      }
-      // Fall through to reply for rare cases (e.g. message too old).
-      console.warn("[renderScreen] edit failed, falling back to reply:", desc);
-    }
-  }
+	if (ctx.callbackQuery?.message) {
+		try {
+			await ctx.editMessageText(text, opts);
+			return { edited: true };
+		} catch (err) {
+			const desc = String(err?.description || err?.message || '');
+			// Identical content — treat as success (no spam).
+			if (desc.includes('message is not modified')) {
+				return { edited: true, unchanged: true };
+			}
+			// Fall through to reply for rare cases (e.g. message too old).
+			console.warn('[renderScreen] edit failed, falling back to reply:', desc);
+		}
+	}
 
-  await ctx.reply(text, opts);
-  return { edited: false };
+	await ctx.reply(text, opts);
+	return { edited: false };
 }
 
 /**
@@ -48,17 +48,17 @@ export async function renderScreen(ctx, text, keyboard = null) {
  * @param {string} text
  */
 export async function toast(ctx, text) {
-  try {
-    await ctx.answerCallbackQuery({ text, show_alert: false });
-  } catch {
-    /* ignore */
-  }
+	try {
+		await ctx.answerCallbackQuery({ text, show_alert: false });
+	} catch {
+		/* ignore */
+	}
 }
 
 export async function toastAlert(ctx, text) {
-  try {
-    await ctx.answerCallbackQuery({ text, show_alert: true });
-  } catch {
-    /* ignore */
-  }
+	try {
+		await ctx.answerCallbackQuery({ text, show_alert: true });
+	} catch {
+		/* ignore */
+	}
 }

@@ -16,14 +16,7 @@
 import { ALBUM_GRACE_SECONDS, computePublishAt } from '../core/schedule/timing.js';
 import type { PostItem, SourceRule } from '../core/schedule/types.js';
 import { MAX_X_IMAGES, normalizeXHandle, xItemKey } from '../core/sources/x.js';
-import {
-	appendItem,
-	createQueuedPost,
-	finalizePost,
-	markMessageSeen,
-	recordXPollResult,
-	type XSourceRow,
-} from './db/postQueue.js';
+import { appendItem, createQueuedPost, finalizePost, markMessageSeen, recordXPollResult, type XSourceRow } from './db/postQueue.js';
 import { spoolMedia } from './mediaSpool.js';
 import { notifyQueued, type SchedulerApi } from './publishQueue.js';
 import { fetchXTimeline, resolveXProvider, type XProvider } from './xSource.js';
@@ -76,10 +69,7 @@ function videoDropped(post: { videoDropped?: boolean }): boolean {
 }
 
 /** برداشتن پست‌های تازه‌ی یک حساب X و ریختنشان در صف */
-export async function pollOneXSource(
-	deps: XPollDeps,
-	row: XSourceRow & { rule: SourceRule },
-): Promise<XPollOutcome> {
+export async function pollOneXSource(deps: XPollDeps, row: XSourceRow & { rule: SourceRule }): Promise<XPollOutcome> {
 	const { db, now } = deps;
 	const outcome: XPollOutcome = { ruleId: row.ruleId, handle: row.handle, queued: 0, skipped: 0, error: null };
 

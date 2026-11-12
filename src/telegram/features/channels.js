@@ -1,21 +1,21 @@
-import { registerChannel } from "../db/channels.js";
-import { maybeOfferSuffixApply } from "./channelSuffix.js";
+import { registerChannel } from '../db/channels.js';
+import { maybeOfferSuffixApply } from './channelSuffix.js';
 
 /**
-  * If the message is a forwarded post from a channel, it returns that channel's information;
-  * otherwise, it returns `null`. A pure function independent of grammY/D1 that is easy to test.
-  */
+ * If the message is a forwarded post from a channel, it returns that channel's information;
+ * otherwise, it returns `null`. A pure function independent of grammY/D1 that is easy to test.
+ */
 export function getForwardedChannel(message) {
-  const origin = message?.forward_origin;
-  if (origin?.type !== "channel") {
-    return null;
-  }
-  return origin.chat;
+	const origin = message?.forward_origin;
+	if (origin?.type !== 'channel') {
+		return null;
+	}
+	return origin.chat;
 }
 
 /** Does the assigned membership status indicate channel ownership or admin rights? */
 export function isChannelOwner(memberStatus) {
-  return memberStatus === "administrator" || memberStatus === "creator";
+	return memberStatus === 'administrator' || memberStatus === 'creator';
 }
 
 /**
@@ -25,10 +25,10 @@ export function isChannelOwner(memberStatus) {
  * null, because channel registration must only happen through a direct chat with the bot.
  */
 export function getChannelToRegister(chatType, message) {
-  if (chatType !== "private") {
-    return null;
-  }
-  return getForwardedChannel(message);
+	if (chatType !== 'private') {
+		return null;
+	}
+	return getForwardedChannel(message);
 }
 
 /**
@@ -36,20 +36,20 @@ export function getChannelToRegister(chatType, message) {
  * we couldn't check their status at all), it describes the error based on the Telegram error message.
  */
 export function describeChannelAccessError(err) {
-  const description = (err?.description ?? "").toLowerCase();
+	const description = (err?.description ?? '').toLowerCase();
 
-  if (description.includes("chat not found")) {
-    return "❌ این کانال شناسایی نشد. لطفاً پست رو دوباره از همون کانال فوروارد کنید.";
-  }
+	if (description.includes('chat not found')) {
+		return '❌ این کانال شناسایی نشد. لطفاً پست رو دوباره از همون کانال فوروارد کنید.';
+	}
 
-  if (description.includes("not a member") || description.includes("member list is inaccessible")) {
-    return (
-      "🤖 بات هنوز به این کانال اضافه نشده.\n\n" +
-      "لطفاً اول بات رو به‌عنوان ادمین به کانال اضافه کنید، بعد همون پست رو دوباره فوروارد کنید."
-    );
-  }
+	if (description.includes('not a member') || description.includes('member list is inaccessible')) {
+		return (
+			'🤖 بات هنوز به این کانال اضافه نشده.\n\n' +
+			'لطفاً اول بات رو به‌عنوان ادمین به کانال اضافه کنید، بعد همون پست رو دوباره فوروارد کنید.'
+		);
+	}
 
-  return "⚠️ خطا در بررسی وضعیت کانال. لطفاً کمی بعد دوباره تلاش کنید.";
+	return '⚠️ خطا در بررسی وضعیت کانال. لطفاً کمی بعد دوباره تلاش کنید.';
 }
 
 /**
@@ -57,59 +57,57 @@ export function describeChannelAccessError(err) {
  * (e.g., a regular member versus someone who is not a channel member at all).
  */
 export function describeNonOwnerStatus(memberStatus) {
-  if (memberStatus === "left" || memberStatus === "kicked") {
-    return "❌ شما عضو این کانال نیستید.";
-  }
-  return "❌ فقط ادمین‌ها یا سازنده‌ی کانال می‌تونن اون رو ثبت کنن.";
+	if (memberStatus === 'left' || memberStatus === 'kicked') {
+		return '❌ شما عضو این کانال نیستید.';
+	}
+	return '❌ فقط ادمین‌ها یا سازنده‌ی کانال می‌تونن اون رو ثبت کنن.';
 }
 
 /**
-  * Registering a channel by forwarding a post from that channel, after verifying that  
-  * the user is indeed the admin/owner of that channel.
-  */
+ * Registering a channel by forwarding a post from that channel, after verifying that  
+ * the user is indeed the admin/owner of that channel.
+ */
 export function channelsFeature(bot, env) {
-    // add_channel / my_channels callbacks → features/menu.js
+	// add_channel / my_channels callbacks → features/menu.js
 
-  // This handler must be registered in `FEATURES` before `echo`; for messages that are not channel forwards (in a private chat), `next()` is called so that `echo` can process them as well.
-  bot.on("message", async (ctx, next) => {
-    const channel = getChannelToRegister(ctx.chat?.type, ctx.message);
-    if (!channel) {
-      return next();
-    }
+	// This handler must be registered in `FEATURES` before `echo`; for messages that are not channel forwards (in a private chat), `next()` is called so that `echo` can process them as well.
+	bot.on('message', async (ctx, next) => {
+		const channel = getChannelToRegister(ctx.chat?.type, ctx.message);
+		if (!channel) {
+			return next();
+		}
 
-    let member;
-    try {
-      member = await ctx.api.getChatMember(channel.id, ctx.from.id);
-    } catch (err) {
-      console.error("[channelsFeature] getChatMember failed:", err);
-      return ctx.reply(describeChannelAccessError(err));
-    }
+		let member;
+		try {
+			member = await ctx.api.getChatMember(channel.id, ctx.from.id);
+		} catch (err) {
+			console.error('[channelsFeature] getChatMember failed:', err);
+			return ctx.reply(describeChannelAccessError(err));
+		}
 
-    if (!isChannelOwner(member.status)) {
-      return ctx.reply(describeNonOwnerStatus(member.status));
-    }
+		if (!isChannelOwner(member.status)) {
+			return ctx.reply(describeNonOwnerStatus(member.status));
+		}
 
-    const isOwner = member.status === "creator";
-    const { isNewChannel } = await registerChannel(
-      env.my_database,
-      ctx.from.id,
-      {
-        id: channel.id,
-        title: channel.title,
-        username: channel.username ?? null,
-      },
-      { isOwner }
-    );
+		const isOwner = member.status === 'creator';
+		const { isNewChannel } = await registerChannel(
+			env.my_database,
+			ctx.from.id,
+			{
+				id: channel.id,
+				title: channel.title,
+				username: channel.username ?? null,
+			},
+			{ isOwner },
+		);
 
-    if (isNewChannel) {
-      await ctx.reply(`✅ کانال «${channel.title}» با موفقیت ثبت شد.`);
-    } else {
-      await ctx.reply(
-        `✅ این کانال قبلاً توسط یکی دیگه از ادمین‌ها ثبت شده بود؛ شما هم به لیست ادمین‌های «${channel.title}» اضافه شدید.`
-      );
-    }
+		if (isNewChannel) {
+			await ctx.reply(`✅ کانال «${channel.title}» با موفقیت ثبت شد.`);
+		} else {
+			await ctx.reply(`✅ این کانال قبلاً توسط یکی دیگه از ادمین‌ها ثبت شده بود؛ شما هم به لیست ادمین‌های «${channel.title}» اضافه شدید.`);
+		}
 
-    // If an official suffix is configured, offer one-tap apply on this forwarded post.
-    await maybeOfferSuffixApply(ctx, env, channel);
-  });
+		// If an official suffix is configured, offer one-tap apply on this forwarded post.
+		await maybeOfferSuffixApply(ctx, env, channel);
+	});
 }

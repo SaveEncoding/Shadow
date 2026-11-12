@@ -106,11 +106,7 @@ export function screenFor(row, { selected = null, targets = [] } = {}) {
 	if (status.over || row.game.result) {
 		return {
 			text: gameOverText({ position, game: row.game, mode: row.mode }),
-			keyboard: new InlineKeyboard()
-				.text('♟ بازی جدید', 'cg:n')
-				.text('📄 PGN', 'cg:p')
-				.row()
-				.text('🏠 منو', 'm:h'),
+			keyboard: new InlineKeyboard().text('♟ بازی جدید', 'cg:n').text('📄 PGN', 'cg:p').row().text('🏠 منو', 'm:h'),
 			position,
 			status,
 		};
@@ -219,11 +215,7 @@ export function chessFeature(bot, env) {
 		const { userId } = chessContext(ctx);
 		const stats = userId ? await getChessStats(db, userId) : null;
 		if (!stats) return toast(ctx, 'آماری موجود نیست.');
-		return renderScreen(
-			ctx,
-			chessStatsText(stats),
-			new InlineKeyboard().text('🔙 بازگشت', 'cg:h'),
-		);
+		return renderScreen(ctx, chessStatsText(stats), new InlineKeyboard().text('🔙 بازگشت', 'cg:h'));
 	});
 
 	bot.callbackQuery('cg:n', openHome);
@@ -265,7 +257,7 @@ export function chessFeature(bot, env) {
 		const square = Number(ctx.match[1]);
 		const position = positionOf(row.game);
 		const piece = position.board[square];
-		const mine = piece !== 0 && (piece > 0) === (position.turn === 'w');
+		const mine = piece !== 0 && piece > 0 === (position.turn === 'w');
 
 		if (!mine) return toast(ctx, 'این مهره از نوبت شما نیست.');
 

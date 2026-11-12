@@ -142,7 +142,9 @@ async function setCursor(cursorId, extra = {}) {
 	const rule = await getSourceRule(env.my_database, xSourceChannelId(HANDLE));
 	await upsertXSource(env.my_database, { ruleId: rule.id, handle: HANDLE, now: NOW, cursorId });
 	if (Object.keys(extra).length > 0) {
-		const sets = Object.keys(extra).map((key) => `${key} = ?`).join(', ');
+		const sets = Object.keys(extra)
+			.map((key) => `${key} = ?`)
+			.join(', ');
 		await env.my_database
 			.prepare(`UPDATE post_x_sources SET ${sets} WHERE rule_id = ?`)
 			.bind(...Object.values(extra), rule.id)
@@ -196,7 +198,16 @@ describe('registration', () => {
 });
 
 describe('shouldPollX', () => {
-	const row = (over) => ({ ruleId: 1, handle: HANDLE, userId: null, cursorId: null, lastPolledAt: null, lastError: null, failures: 0, ...over });
+	const row = (over) => ({
+		ruleId: 1,
+		handle: HANDLE,
+		userId: null,
+		cursorId: null,
+		lastPolledAt: null,
+		lastError: null,
+		failures: 0,
+		...over,
+	});
 
 	it('never polls the same account more often than the cost guard allows', () => {
 		expect(shouldPollX(row({ lastPolledAt: null }), NOW)).toBe(true);
@@ -345,10 +356,7 @@ describe('pollOneXSource', () => {
 		timeline = [tweet('601', 'توییت')];
 
 		const [source] = await listActiveXSources(env.my_database, { limit: 5 });
-		const outcome = await pollOneXSource(
-			{ db: env.my_database, api, now: NOW, provider: { kind: 'none' }, fetchImpl: fakeFetch },
-			source,
-		);
+		const outcome = await pollOneXSource({ db: env.my_database, api, now: NOW, provider: { kind: 'none' }, fetchImpl: fakeFetch }, source);
 
 		expect(outcome.error).toContain('پیکربندی نشده');
 		expect(await listPendingPosts(env.my_database, TARGET)).toHaveLength(0);

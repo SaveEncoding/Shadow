@@ -165,10 +165,7 @@ export async function saveSourceRule(
 		)
 		.run();
 
-	const ruleId =
-		Number(result.meta?.last_row_id ?? 0) ||
-		(await findRuleIdBySourceChannel(db, input.sourceChannelId)) ||
-		0;
+	const ruleId = Number(result.meta?.last_row_id ?? 0) || (await findRuleIdBySourceChannel(db, input.sourceChannelId)) || 0;
 
 	if (input.pollUsername) {
 		await upsertPollSource(db, { ruleId, username: input.pollUsername, now: input.now });
@@ -186,10 +183,7 @@ export async function saveSourceRule(
 }
 
 async function findRuleIdBySourceChannel(db: D1Database, sourceChannelId: number): Promise<number | null> {
-	const row = await db
-		.prepare('SELECT id FROM post_sources WHERE source_channel_id = ?')
-		.bind(sourceChannelId)
-		.first<{ id: number }>();
+	const row = await db.prepare('SELECT id FROM post_sources WHERE source_channel_id = ?').bind(sourceChannelId).first<{ id: number }>();
 	return row ? Number(row.id) : null;
 }
 
@@ -283,17 +277,14 @@ export async function upsertPollSource(
 }
 
 export async function getPollSource(db: D1Database, ruleId: number): Promise<PollSourceRow | null> {
-	const row = await db
-		.prepare('SELECT * FROM post_poll_sources WHERE rule_id = ?')
-		.bind(ruleId)
-		.first<{
-			rule_id: number;
-			username: string;
-			cursor_message_id: number;
-			last_polled_at: number | null;
-			last_error: string | null;
-			failures: number;
-		}>();
+	const row = await db.prepare('SELECT * FROM post_poll_sources WHERE rule_id = ?').bind(ruleId).first<{
+		rule_id: number;
+		username: string;
+		cursor_message_id: number;
+		last_polled_at: number | null;
+		last_error: string | null;
+		failures: number;
+	}>();
 	if (!row) return null;
 	return {
 		ruleId: Number(row.rule_id),
@@ -411,18 +402,15 @@ function rowToXSource(row: {
 }
 
 export async function getXSource(db: D1Database, ruleId: number): Promise<XSourceRow | null> {
-	const row = await db
-		.prepare('SELECT * FROM post_x_sources WHERE rule_id = ?')
-		.bind(ruleId)
-		.first<{
-			rule_id: number;
-			handle: string;
-			user_id: string | null;
-			cursor_id: string | null;
-			last_polled_at: number | null;
-			last_error: string | null;
-			failures: number;
-		}>();
+	const row = await db.prepare('SELECT * FROM post_x_sources WHERE rule_id = ?').bind(ruleId).first<{
+		rule_id: number;
+		handle: string;
+		user_id: string | null;
+		cursor_id: string | null;
+		last_polled_at: number | null;
+		last_error: string | null;
+		failures: number;
+	}>();
 	return row ? rowToXSource(row) : null;
 }
 
@@ -506,12 +494,7 @@ export async function recordXPollResult(
  * خروجی false یعنی این پیام قبلاً پردازش شده است (retry وبهوک یا آلبوم تکراری)
  * و هیچ ردیفی نباید ساخته شود.
  */
-export async function markMessageSeen(
-	db: D1Database,
-	sourceChannelId: number,
-	sourceMessageId: number,
-	now: number,
-): Promise<boolean> {
+export async function markMessageSeen(db: D1Database, sourceChannelId: number, sourceMessageId: number, now: number): Promise<boolean> {
 	const result = await db
 		.prepare('INSERT OR IGNORE INTO post_seen (source_channel_id, source_message_id, created_at) VALUES (?, ?, ?)')
 		.bind(sourceChannelId, sourceMessageId, now)
@@ -555,11 +538,7 @@ export async function createQueuedPost(
 }
 
 /** پست در حال جمع‌آوری برای همین آلبوم (اگر وجود دارد) */
-export async function findCollectingPost(
-	db: D1Database,
-	sourceChannelId: number,
-	mediaGroupId: string,
-): Promise<number | null> {
+export async function findCollectingPost(db: D1Database, sourceChannelId: number, mediaGroupId: string): Promise<number | null> {
 	const row = await db
 		.prepare(
 			`SELECT id FROM post_queue
@@ -600,10 +579,7 @@ export async function appendItem(
 			extra ? JSON.stringify(extra) : null,
 		)
 		.run();
-	await db
-		.prepare('UPDATE post_queue SET updated_at = ?, finalize_at = ? WHERE id = ?')
-		.bind(now, finalizeAt, queueId)
-		.run();
+	await db.prepare('UPDATE post_queue SET updated_at = ?, finalize_at = ? WHERE id = ?').bind(now, finalizeAt, queueId).run();
 	return Number(result.meta?.changes ?? 0) > 0;
 }
 
@@ -612,10 +588,7 @@ export async function appendItem(
  * پست خالی (بدون آیتم) حذف می‌شود تا صف زامبی نداشته باشیم.
  */
 export async function finalizePost(db: D1Database, queueId: number, publishAt: number, now: number): Promise<boolean> {
-	const count = await db
-		.prepare('SELECT COUNT(*) AS n FROM post_queue_items WHERE queue_id = ?')
-		.bind(queueId)
-		.first<{ n: number }>();
+	const count = await db.prepare('SELECT COUNT(*) AS n FROM post_queue_items WHERE queue_id = ?').bind(queueId).first<{ n: number }>();
 	if (!count || Number(count.n) === 0) {
 		await db.prepare('DELETE FROM post_queue WHERE id = ?').bind(queueId).run();
 		return false;
@@ -654,10 +627,7 @@ export async function getPost(db: D1Database, id: number): Promise<QueuePost | n
 		.prepare('SELECT * FROM post_queue_items WHERE queue_id = ? ORDER BY source_message_id ASC')
 		.bind(id)
 		.all<ItemRow>();
-	return rowToPost(
-		row,
-		(results ?? []).map(rowToItem),
-	);
+	return rowToPost(row, (results ?? []).map(rowToItem));
 }
 
 /**
@@ -679,12 +649,7 @@ export async function claimForPublish(db: D1Database, id: number, now: number): 
 	return Number(fromCollecting.meta?.changes ?? 0) > 0;
 }
 
-export async function markPublished(
-	db: D1Database,
-	id: number,
-	messageId: number | null,
-	now: number,
-): Promise<void> {
+export async function markPublished(db: D1Database, id: number, messageId: number | null, now: number): Promise<void> {
 	await db
 		.prepare(
 			`UPDATE post_queue
@@ -742,16 +707,8 @@ export async function reschedulePost(db: D1Database, id: number, publishAt: numb
 		.run();
 }
 
-export async function setPreviewMessage(
-	db: D1Database,
-	id: number,
-	chatId: number,
-	messageId: number,
-): Promise<void> {
-	await db
-		.prepare('UPDATE post_queue SET preview_chat_id = ?, preview_message_id = ? WHERE id = ?')
-		.bind(chatId, messageId, id)
-		.run();
+export async function setPreviewMessage(db: D1Database, id: number, chatId: number, messageId: number): Promise<void> {
+	await db.prepare('UPDATE post_queue SET preview_chat_id = ?, preview_message_id = ? WHERE id = ?').bind(chatId, messageId, id).run();
 }
 
 /** به‌روزرسانی متن/کپشن یک آیتم (ویرایش ادمین) */
@@ -763,9 +720,7 @@ export async function updateItemContent(
 	now: number,
 ): Promise<void> {
 	await db
-		.prepare(
-			`UPDATE post_queue_items SET text = ?, entities = ? WHERE queue_id = ? AND source_message_id = ?`,
-		)
+		.prepare(`UPDATE post_queue_items SET text = ?, entities = ? WHERE queue_id = ? AND source_message_id = ?`)
 		.bind(content.text, content.entities ? JSON.stringify(content.entities) : null, queueId, sourceMessageId)
 		.run();
 	await db.prepare('UPDATE post_queue SET edited = 1, updated_at = ? WHERE id = ?').bind(now, queueId).run();
@@ -868,19 +823,16 @@ export async function startEditSession(
 }
 
 export async function findEditSession(db: D1Database, userId: number, now: number): Promise<EditSession | null> {
-	const row = await db
-		.prepare('SELECT * FROM post_edit_sessions WHERE user_id = ? AND expires_at > ?')
-		.bind(userId, now)
-		.first<{
-			id: number;
-			post_id: number;
-			user_id: number;
-			chat_id: number;
-			message_id: number;
-			field: string;
-			target_message_id: number;
-			expires_at: number;
-		}>();
+	const row = await db.prepare('SELECT * FROM post_edit_sessions WHERE user_id = ? AND expires_at > ?').bind(userId, now).first<{
+		id: number;
+		post_id: number;
+		user_id: number;
+		chat_id: number;
+		message_id: number;
+		field: string;
+		target_message_id: number;
+		expires_at: number;
+	}>();
 	if (!row) return null;
 	return {
 		id: Number(row.id),
@@ -934,14 +886,7 @@ export async function findCaptureSession(
 	if (!row) return null;
 	return {
 		targetChannelId: Number(row.target_channel_id),
-		mode:
-			row.mode === 'source'
-				? 'source'
-				: row.mode === 'public'
-					? 'public'
-					: row.mode === 'x'
-						? 'x'
-						: 'manual',
+		mode: row.mode === 'source' ? 'source' : row.mode === 'public' ? 'public' : row.mode === 'x' ? 'x' : 'manual',
 		delayMinutes: Number(row.delay_minutes ?? 30),
 		expiresAt: Number(row.expires_at),
 	};

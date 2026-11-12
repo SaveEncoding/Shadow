@@ -206,7 +206,10 @@ export function isValidChannelUsername(raw: string): boolean {
 
 /** نرمال‌سازی: بدون @ و با حروف کوچک */
 export function normalizeUsername(raw: string): string {
-	return String(raw ?? '').trim().replace(/^@/, '').toLowerCase();
+	return String(raw ?? '')
+		.trim()
+		.replace(/^@/, '')
+		.toLowerCase();
 }
 
 /** حداکثر تعداد رسانه در یک پست/آلبوم (سقف تلگرام) */

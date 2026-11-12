@@ -1,15 +1,10 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
-import {
-	setErrorLogChatId,
-	getErrorLogChatId,
-	getErrorLogThreadId,
-	getErrorLogTarget,
-} from '../src/telegram/db/settings.js';
+import { setErrorLogChatId, getErrorLogChatId, getErrorLogThreadId, getErrorLogTarget } from '../src/telegram/db/settings.js';
 
 beforeAll(async () => {
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS bot_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));'
+		'CREATE TABLE IF NOT EXISTS bot_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));',
 	);
 });
 

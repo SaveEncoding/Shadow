@@ -43,7 +43,12 @@ function fakeResult(method, payload) {
 		case 'getChatMember':
 			return { status: memberStatus, user: BOT_INFO, can_post_messages: true };
 		case 'sendMessage':
-			return { message_id: 50, date: 0, chat: { id: payload.chat_id, type: payload.chat_id === USER.id ? 'private' : 'channel' }, text: payload.text };
+			return {
+				message_id: 50,
+				date: 0,
+				chat: { id: payload.chat_id, type: payload.chat_id === USER.id ? 'private' : 'channel' },
+				text: payload.text,
+			};
 		case 'editMessageText':
 			if (editFails) {
 				const err = new Error('Bad Request: message to edit not found');
@@ -97,7 +102,11 @@ function messageUpdate(text, extra = {}) {
 }
 
 /** فوروارد یک پست کانال به چت خصوصی بات */
-function forwardedUpdate({ from = { id: SOURCE, title: 'کانال مبدأ', username: 'source_chan', type: 'channel' }, text = 'پست کانال', messageId = 101 } = {}) {
+function forwardedUpdate({
+	from = { id: SOURCE, title: 'کانال مبدأ', username: 'source_chan', type: 'channel' },
+	text = 'پست کانال',
+	messageId = 101,
+} = {}) {
 	return {
 		update_id: updateId++,
 		message: {
@@ -143,24 +152,21 @@ function callbackUpdate(data, from = USER) {
 
 async function dispatch(bot, update) {
 	const pending = [];
-	await executionCtxStorage.run(
-		{ waitUntil: (promise) => pending.push(promise), passThroughOnException: () => {} },
-		() => bot.handleUpdate(update),
+	await executionCtxStorage.run({ waitUntil: (promise) => pending.push(promise), passThroughOnException: () => {} }, () =>
+		bot.handleUpdate(update),
 	);
 	await Promise.all(pending);
 }
 
 const lastCall = (method) => [...calls].reverse().find((c) => c.method === method);
-const allTexts = () =>
-	calls.filter((c) => c.method === 'sendMessage' || c.method === 'editMessageText').map((c) => c.payload.text ?? '');
+const allTexts = () => calls.filter((c) => c.method === 'sendMessage' || c.method === 'editMessageText').map((c) => c.payload.text ?? '');
 const lastScreenText = () => {
 	const call = lastCall('editMessageText') ?? lastCall('sendMessage');
 	return call?.payload.text ?? '';
 };
 const callbacksOf = (payload) => (payload?.reply_markup?.inline_keyboard ?? []).flat().map((b) => b.callback_data);
 const lastCallbacks = () => callbacksOf(lastCall('editMessageText')?.payload ?? lastCall('sendMessage')?.payload);
-const toasts = () =>
-	calls.filter((c) => c.method === 'answerCallbackQuery').map((c) => c.payload.text ?? '');
+const toasts = () => calls.filter((c) => c.method === 'answerCallbackQuery').map((c) => c.payload.text ?? '');
 const channelMessages = () => calls.filter((c) => c.method === 'sendMessage' && c.payload.chat_id === TARGET);
 
 /** صفحه‌ی پیش‌نمایش وب؛ تست می‌تواند عوضش کند */
@@ -198,10 +204,7 @@ beforeEach(async () => {
 		.prepare('INSERT INTO channels (channel_id, title, username) VALUES (?, ?, ?)')
 		.bind(TARGET, 'کانال من', 'my_channel')
 		.run();
-	await env.my_database
-		.prepare('INSERT INTO channel_admins (channel_id, user_id) VALUES (?, ?)')
-		.bind(TARGET, USER.id)
-		.run();
+	await env.my_database.prepare('INSERT INTO channel_admins (channel_id, user_id) VALUES (?, ?)').bind(TARGET, USER.id).run();
 
 	fetchCalls = [];
 	stubFeed(feedPage([{ channel: 'my_pub_chan', id: 5, html: 'آخرین پست' }]));
@@ -337,7 +340,7 @@ describe('editing before publish', () => {
 		const bot = await addSourceRule();
 		await dispatch(bot, channelPostUpdate({ text: 'متن اولیه' }));
 
-		const post = (await env.my_database.prepare('SELECT id FROM post_queue ORDER BY id DESC LIMIT 1').first());
+		const post = await env.my_database.prepare('SELECT id FROM post_queue ORDER BY id DESC LIMIT 1').first();
 		const postId = Number(post.id);
 
 		await dispatch(bot, callbackUpdate(`ps:txt:${postId}`));
@@ -531,14 +534,19 @@ describe('public channel (bot is not a member)', () => {
 			createdBy: USER.id,
 			now: 1_800_000_000,
 		});
-		await appendItem(db, postId, {
-			sourceMessageId: feedItemKey(77, 0),
-			kind: 'text',
-			fileId: null,
-			text: 'پست وب',
-			entities: null,
-			extra: null,
-		}, 1_800_000_000);
+		await appendItem(
+			db,
+			postId,
+			{
+				sourceMessageId: feedItemKey(77, 0),
+				kind: 'text',
+				fileId: null,
+				text: 'پست وب',
+				entities: null,
+				extra: null,
+			},
+			1_800_000_000,
+		);
 		await finalizePost(db, postId, 1_800_001_800, 1_800_000_000);
 
 		await dispatch(bot, callbackUpdate(`ps:view:${postId}`));

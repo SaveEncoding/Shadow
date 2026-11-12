@@ -5,17 +5,17 @@ import { Role } from '../src/telegram/constants/roles.js';
 
 beforeAll(async () => {
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, first_name TEXT NOT NULL, last_name TEXT, language_code TEXT, role INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));'
+		'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, first_name TEXT NOT NULL, last_name TEXT, language_code TEXT, role INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));',
 	);
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS user_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, action TEXT NOT NULL, details TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (user_id) REFERENCES users(id));'
+		'CREATE TABLE IF NOT EXISTS user_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, action TEXT NOT NULL, details TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (user_id) REFERENCES users(id));',
 	);
 	// Channel tables so deleteInactiveUsers FK handling can be exercised.
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, username TEXT, owner_id INTEGER, registered_by INTEGER NOT NULL, admins_synced_at TEXT, official_suffix TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (registered_by) REFERENCES users(id), FOREIGN KEY (owner_id) REFERENCES users(id));'
+		'CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, username TEXT, owner_id INTEGER, registered_by INTEGER NOT NULL, admins_synced_at TEXT, official_suffix TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (registered_by) REFERENCES users(id), FOREIGN KEY (owner_id) REFERENCES users(id));',
 	);
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS channel_admins (channel_id INTEGER NOT NULL, user_id INTEGER NOT NULL, added_at TEXT DEFAULT (CURRENT_TIMESTAMP), PRIMARY KEY (channel_id, user_id), FOREIGN KEY (channel_id) REFERENCES channels(channel_id), FOREIGN KEY (user_id) REFERENCES users(id));'
+		'CREATE TABLE IF NOT EXISTS channel_admins (channel_id INTEGER NOT NULL, user_id INTEGER NOT NULL, added_at TEXT DEFAULT (CURRENT_TIMESTAMP), PRIMARY KEY (channel_id, user_id), FOREIGN KEY (channel_id) REFERENCES channels(channel_id), FOREIGN KEY (user_id) REFERENCES users(id));',
 	);
 });
 
@@ -25,7 +25,7 @@ async function insertUser(id, { daysAgo = 0, role = Role.NORMAL } = {}) {
 			`
       INSERT INTO users (id, first_name, role, updated_at)
       VALUES (?, ?, ?, datetime('now', ?))
-    `
+    `,
 		)
 		.bind(id, `user-${id}`, role, `-${daysAgo} days`)
 		.run();
@@ -63,10 +63,7 @@ describe('UserService.deleteInactiveUsers', () => {
 
 		await userService.deleteInactiveUsers(30);
 
-		const { results } = await env.my_database
-			.prepare('SELECT * FROM user_logs WHERE user_id = ?')
-			.bind(10)
-			.all();
+		const { results } = await env.my_database.prepare('SELECT * FROM user_logs WHERE user_id = ?').bind(10).all();
 		expect(results.length).toBe(0);
 	});
 
@@ -164,7 +161,7 @@ describe('UserService.setRole', () => {
 		await expect(
 			userService.setRole(founderId, 211, Role.FOUNDER, {
 				FOUNDER_TELEGRAM_ID: String(founderId),
-			})
+			}),
 		).rejects.toThrow();
 	});
 
@@ -172,9 +169,7 @@ describe('UserService.setRole', () => {
 		const userService = new UserService(env.my_database);
 		await insertUser(220, { role: Role.NORMAL });
 		await insertUser(221, { role: Role.NORMAL });
-		await expect(
-			userService.setRole(220, 221, Role.VIP, { FOUNDER_TELEGRAM_ID: '999' })
-		).rejects.toThrow();
+		await expect(userService.setRole(220, 221, Role.VIP, { FOUNDER_TELEGRAM_ID: '999' })).rejects.toThrow();
 	});
 
 	it('rejects assigning a role >= actor role for non-founder admins', async () => {
@@ -184,7 +179,7 @@ describe('UserService.setRole', () => {
 		await expect(
 			userService.setRole(230, 231, Role.EXEC_ADMIN, {
 				FOUNDER_TELEGRAM_ID: '999',
-			})
+			}),
 		).rejects.toThrow();
 	});
 });
@@ -217,15 +212,11 @@ describe('UserService.deleteInactiveUsers FK safety', () => {
 		await insertUser(501, { daysAgo: 60, role: Role.NORMAL });
 
 		await env.my_database
-			.prepare(
-				`INSERT INTO channels (channel_id, title, registered_by) VALUES (?, ?, ?)`
-			)
+			.prepare(`INSERT INTO channels (channel_id, title, registered_by) VALUES (?, ?, ?)`)
 			.bind(-100501, 'FK Chan', 500)
 			.run();
 		await env.my_database
-			.prepare(
-				`INSERT INTO channel_admins (channel_id, user_id) VALUES (?, ?), (?, ?)`
-			)
+			.prepare(`INSERT INTO channel_admins (channel_id, user_id) VALUES (?, ?), (?, ?)`)
 			.bind(-100501, 500, -100501, 501)
 			.run();
 
@@ -246,17 +237,10 @@ describe('UserService.deleteInactiveUsers FK safety', () => {
 		await insertUser(510, { daysAgo: 90, role: Role.NORMAL });
 
 		await env.my_database
-			.prepare(
-				`INSERT INTO channels (channel_id, title, registered_by) VALUES (?, ?, ?)`
-			)
+			.prepare(`INSERT INTO channels (channel_id, title, registered_by) VALUES (?, ?, ?)`)
 			.bind(-100510, 'Owned Chan', 510)
 			.run();
-		await env.my_database
-			.prepare(
-				`INSERT INTO channel_admins (channel_id, user_id) VALUES (?, ?)`
-			)
-			.bind(-100510, 510)
-			.run();
+		await env.my_database.prepare(`INSERT INTO channel_admins (channel_id, user_id) VALUES (?, ?)`).bind(-100510, 510).run();
 
 		const result = await userService.deleteInactiveUsers(30);
 		expect(result.deletedIds).not.toContain(510);

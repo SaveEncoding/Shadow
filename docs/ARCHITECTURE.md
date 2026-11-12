@@ -13,12 +13,12 @@ Shadow امروز یک Worker واحد است که هم وب‌سایت را س�
 (مدیریت کانال، پسوند خودکار، پنل) کافی است، اما برای سه فیچر بعدی — **مدیریت چت‌ها، شبیه‌سازی شطرنج،
 و ادغام زیرنویس با ویدیو** — کافی نیست، چون این سه از سه دنیای متفاوت‌اند:
 
-| فیچر | جنس بار کاری | گلوگاه اصلی |
-|---|---|---|
-| مدیریت کانال/چت | I/O + منطق مجوز | نرخ درخواست Telegram API |
-| شطرنج | CPU + حالتِ زنده‌ی per-game | همزمانی، تایمر نوبت، ترتیب حرکت‌ها |
+| فیچر                              | جنس بار کاری                      | گلوگاه اصلی                                                                      |
+| --------------------------------- | --------------------------------- | -------------------------------------------------------------------------------- |
+| مدیریت کانال/چت                   | I/O + منطق مجوز                   | نرخ درخواست Telegram API                                                         |
+| شطرنج                             | CPU + حالتِ زنده‌ی per-game        | همزمانی، تایمر نوبت، ترتیب حرکت‌ها                                               |
 | زمان‌بندی پست (کپی از کانال مبدأ) | I/O سبک + **یک ساعت قابل‌اعتماد** | Bot API زمان‌بندی ندارد؛ پس صف در D1 + کرون دقیقه‌ای (باید بدون پست تکراری باشد) |
-| ادغام SRT + ویدیو | **CPU سنگین + فایل بزرگ** | نه CPU سقف‌دار Worker، نه سقف ۲۰MB دانلود |
+| ادغام SRT + ویدیو                 | **CPU سنگین + فایل بزرگ**         | نه CPU سقف‌دار Worker، نه سقف ۲۰MB دانلود                                        |
 
 بنابراین معماری هدف سه چیز را از هم **جدا** می‌کند که امروز قاطی‌اند:
 
@@ -29,21 +29,21 @@ Shadow امروز یک Worker واحد است که هم وب‌سایت را س�
 و یک قاعده‌ی آهنین روی همه:
 
 > **قاعده‌ی طلایی:** Worker هرگز روی بایت‌های فایل مدیا نمی‌نشیند و هرگز کار CPU-سنگین نمی‌کند.
-> Worker فقط *تصمیم می‌گیرد، هماهنگ می‌کند، و به کاربر خبر می‌دهد*.
+> Worker فقط _تصمیم می‌گیرد، هماهنگ می‌کند، و به کاربر خبر می‌دهد_.
 
 خروجی این سند یک ساختار پوشه‌ی مشخص، تعدادی قرارداد (interface) مشخص، یک اسکیمای داده‌ی مشخص،
-و یک لیست از بدهی‌های فنی *واقعی* موجود در کد فعلی است.
+و یک لیست از بدهی‌های فنی _واقعی_ موجود در کد فعلی است.
 
 ### اصول راهنما (۶ اصل)
 
-| # | اصل | یعنی چه |
-|---|---|---|
-| ۱ | **هسته‌ی خالص** | `src/core` هیچ import ای از `grammy`، `D1`، `Hono`، `node:*` ندارد. فقط TypeScript خالص. تست‌پذیر در میلی‌ثانیه. |
-| ۲ | **مرزِ وابستگی یک‌طرفه** | `core → app → ports → adapters`. هیچ‌وقت برعکس. (هیچ `import` از `adapters` داخل `core`.) |
-| ۳ | **قابل‌جای‌گزینی سطح اجرا** | «اجرای رسانه» یک پورت است با چند پیاده‌سازی: نود بیرونی، Cloudflare Container، کلاینت. فیچر نمی‌داند کدام است. |
-| ۴ | **حالت کاربر جای درستی دارد** | حالت گفت‌وگو per-user در Durable Object، نه در `Map` درون‌ایزوله. حالت بازی per-game در DO. داده‌ی رابطه‌ای در D1. فایل در R2. |
-| ۵ | **هر فیچر یک پلاگین خودتوصیف** | هر فیچر `manifest` دارد: منو، دسترسی، دستور، مهاجرت، کرون، flag. افزودن فیچر = افزودن یک پوشه + یک خط در رجیستری. |
-| ۶ | **شکست‌ها جزو طراحی‌اند** | idempotency، lease، retry، تایم‌اوت، سهمیه‌ی کاربر، پیام خطای انسانی — از روز اول، نه بعداً. |
+| #   | اصل                            | یعنی چه                                                                                                                        |
+| --- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| ۱   | **هسته‌ی خالص**                | `src/core` هیچ import ای از `grammy`، `D1`، `Hono`، `node:*` ندارد. فقط TypeScript خالص. تست‌پذیر در میلی‌ثانیه.               |
+| ۲   | **مرزِ وابستگی یک‌طرفه**        | `core → app → ports → adapters`. هیچ‌وقت برعکس. (هیچ `import` از `adapters` داخل `core`.)                                      |
+| ۳   | **قابل‌جای‌گزینی سطح اجرا**    | «اجرای رسانه» یک پورت است با چند پیاده‌سازی: نود بیرونی، Cloudflare Container، کلاینت. فیچر نمی‌داند کدام است.                 |
+| ۴   | **حالت کاربر جای درستی دارد**  | حالت گفت‌وگو per-user در Durable Object، نه در `Map` درون‌ایزوله. حالت بازی per-game در DO. داده‌ی رابطه‌ای در D1. فایل در R2. |
+| ۵   | **هر فیچر یک پلاگین خودتوصیف** | هر فیچر `manifest` دارد: منو، دسترسی، دستور، مهاجرت، کرون، flag. افزودن فیچر = افزودن یک پوشه + یک خط در رجیستری.              |
+| ۶   | **شکست‌ها جزو طراحی‌اند**      | idempotency، lease، retry، تایم‌اوت، سهمیه‌ی کاربر، پیام خطای انسانی — از روز اول، نه بعداً.                                    |
 
 ---
 
@@ -87,11 +87,11 @@ Shadow امروز یک Worker واحد است که هم وب‌سایت را س�
 
 سه سطح، سه مسئولیت:
 
-| سطح | چه چیزی | چه چیزی نه | مقیاس |
-|---|---|---|---|
-| **کنترل** (Worker) | مسیریابی، احراز هویت، سهمیه، وضعیت job، پیام‌های UI، لاگ، کرون | ffmpeg، فایل بزرگ، حلقه‌ی طولانی | افقی، بی‌حالت |
-| **داده** | D1 رکورد رابطه‌ای، DO هماهنگی، R2 بایت، KV موقت | منطق تصمیم‌گیری | مدیریت‌شده |
-| **اجرا** | CPU سنگین، دیسک، شبکه‌ی فایل، دسترسی به Telegram API محلی | تصمیم محصول، احراز هویت کاربر | افقی، قابل‌اضافه‌کردن |
+| سطح                | چه چیزی                                                        | چه چیزی نه                       | مقیاس                 |
+| ------------------ | -------------------------------------------------------------- | -------------------------------- | --------------------- |
+| **کنترل** (Worker) | مسیریابی، احراز هویت، سهمیه، وضعیت job، پیام‌های UI، لاگ، کرون | ffmpeg، فایل بزرگ، حلقه‌ی طولانی | افقی، بی‌حالت         |
+| **داده**           | D1 رکورد رابطه‌ای، DO هماهنگی، R2 بایت، KV موقت                | منطق تصمیم‌گیری                  | مدیریت‌شده            |
+| **اجرا**           | CPU سنگین، دیسک، شبکه‌ی فایل، دسترسی به Telegram API محلی      | تصمیم محصول، احراز هویت کاربر    | افقی، قابل‌اضافه‌کردن |
 
 ---
 
@@ -99,22 +99,22 @@ Shadow امروز یک Worker واحد است که هم وب‌سایت را س�
 
 اینها محدودیت‌های رسمی امروزند، نه حدس:
 
-| محدودیت | مقدار | تأثیر معماری |
-|---|---|---|
-| حافظه‌ی هر ایزوله Worker | **۱۲۸ MB** — [`developers.cloudflare.com/workers/platform/limits`](https://developers.cloudflare.com/workers/platform/limits/) | بافر کردن یک ویدیوی ۲۰۰MB در Worker غیرممکن است → استریم اجباری یا عبور از Worker |
-| CPU هر درخواست | ۱۰ms رایگان / ۳۰s پیش‌فرض پلن پرداختی (تا ۵ دقیقه قابل افزایش) | ترنسکد ویدیو غیرممکن؛ حتی رندر SVG سنگین هم باید حساب شود |
-| مدت اجرای Cron | ۱۵ دقیقه | پاکسازی‌های بلندمدت باید بچ‌بچ شوند (الگوی موجود در `channelAdminSync.js` درست است) |
-| اندازه‌ی باندل Worker | ۶۴ MiB (فشرده‌نشده) | کل باینری ffmpeg.wasm (~۳۰MB) *از نظر اندازه* جا می‌شود ولی *از نظر CPU و نبود دیسک* کار نمی‌کند |
-| دانلود فایل از تلگرام (`getFile`) | **۲۰ MB** | بدون سرور Bot API محلی، هیچ فایل جدی‌ای قابل پردازش نیست |
-| آپلود فایل به تلگرام (multipart) | ۵۰ MB | خروجی mux اغلب بزرگ‌تر است |
-| `callback_data` | ۶۴ بایت | شناسه‌ها باید کوتاه و کدگذاری‌شده باشند (امروز در `m:c:<id>` رعایت شده) |
-| طول متن / کپشن | ۴۰۹۶ / ۱۰۲۴ کاراکتر | خروجی‌های AI و گزارش‌ها باید chunk شوند |
-| نرخ کلی ارسال | ~۳۰ پیام/ثانیه به‌طور کلی، سخت‌گیرانه‌تر per-chat | نیاز به throttler + auto-retry (امروز **نداریم**) |
-| اجرای DO | درخواست/همزمانی نامحدود تا وقتی caller وصل است؛ alarm تا ۱۵ دقیقه | «حالت زنده» و هماهنگی job باید در DO باشد، نه در Cron |
+| محدودیت                           | مقدار                                                                                                                          | تأثیر معماری                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| حافظه‌ی هر ایزوله Worker          | **۱۲۸ MB** — [`developers.cloudflare.com/workers/platform/limits`](https://developers.cloudflare.com/workers/platform/limits/) | بافر کردن یک ویدیوی ۲۰۰MB در Worker غیرممکن است → استریم اجباری یا عبور از Worker                |
+| CPU هر درخواست                    | ۱۰ms رایگان / ۳۰s پیش‌فرض پلن پرداختی (تا ۵ دقیقه قابل افزایش)                                                                 | ترنسکد ویدیو غیرممکن؛ حتی رندر SVG سنگین هم باید حساب شود                                        |
+| مدت اجرای Cron                    | ۱۵ دقیقه                                                                                                                       | پاکسازی‌های بلندمدت باید بچ‌بچ شوند (الگوی موجود در `channelAdminSync.js` درست است)              |
+| اندازه‌ی باندل Worker             | ۶۴ MiB (فشرده‌نشده)                                                                                                            | کل باینری ffmpeg.wasm (~۳۰MB) _از نظر اندازه_ جا می‌شود ولی _از نظر CPU و نبود دیسک_ کار نمی‌کند |
+| دانلود فایل از تلگرام (`getFile`) | **۲۰ MB**                                                                                                                      | بدون سرور Bot API محلی، هیچ فایل جدی‌ای قابل پردازش نیست                                         |
+| آپلود فایل به تلگرام (multipart)  | ۵۰ MB                                                                                                                          | خروجی mux اغلب بزرگ‌تر است                                                                       |
+| `callback_data`                   | ۶۴ بایت                                                                                                                        | شناسه‌ها باید کوتاه و کدگذاری‌شده باشند (امروز در `m:c:<id>` رعایت شده)                          |
+| طول متن / کپشن                    | ۴۰۹۶ / ۱۰۲۴ کاراکتر                                                                                                            | خروجی‌های AI و گزارش‌ها باید chunk شوند                                                          |
+| نرخ کلی ارسال                     | ~۳۰ پیام/ثانیه به‌طور کلی، سخت‌گیرانه‌تر per-chat                                                                              | نیاز به throttler + auto-retry (امروز **نداریم**)                                                |
+| اجرای DO                          | درخواست/همزمانی نامحدود تا وقتی caller وصل است؛ alarm تا ۱۵ دقیقه                                                              | «حالت زنده» و هماهنگی job باید در DO باشد، نه در Cron                                            |
 
 **نتیجه‌ی مستقیم:** «ffmpeg روی Worker» یک بن‌بست است (نه دیسک، نه process، نه CPU کافی).
 پس یا باید بیرون از Worker اجرا شود، یا سمت کلاینت. این تصمیم در بخش ۹ به یک پورت
-(`MediaRunner`) تبدیل می‌شود تا *هر سه* گزینه قابل‌جای‌گزینی باشند — چیزی که شما خواستید.
+(`MediaRunner`) تبدیل می‌شود تا _هر سه_ گزینه قابل‌جای‌گزینی باشند — چیزی که شما خواستید.
 
 ---
 
@@ -195,17 +195,17 @@ core ◀── app ◀── ports ◀── adapters ◀── platform
 
 ### ۴.۱ شطرنج (`core/chess`)
 
-| فایل | مسئولیت | چرا خالص |
-|---|---|---|
-| `position.ts` | نمایش حالت: آرایه‌ی ۶۴ خانه + نوبت + حقوق قلعه + مربع en-passant + ساعت‌ها | سریال‌پذیر به FEN، قابل‌ذخیره در D1 و DO |
-| `movegen.ts` | تولید حرکت شبه‌قانونی + فیلتر قانونی (کیش/شاخ/پین بهینه) | سنگین‌ترین بخش؛ باید قابل پروفایل باشد |
-| `make-move.ts` | اعمال حرکت + undo (برای جست‌وجوی موتور) | بدون تخصیص حافظه‌ی اضافه → سریع در بودجه‌ی CPU |
-| `san.ts` | خواندن/نوشتن SAN با رفع ابهام (Nbd2، exd5، e8=Q+) | نمایش به کاربر و ذخیره‌ی PGN |
-| `rules.ts` | کیش‌ومات، پات، بی‌ماده‌بودن، قاعده‌ی ۵۰ حرکت، تکرار سه‌باره، تساوی توافقی، باخت به‌خاطر وقت | تصمیم نهایی بازی اینجاست، نه در DO |
-| `pgn.ts` | سریال‌سازی بازی، هدرها، کامنت‌ها، ساعت | خروجی ماندگار و قابل‌اشتراک |
-| `render-text.ts` | تخته‌ی یونیکد برای `<pre>` تلگرام، با برچسب فارسی و چرخش بر اساس رنگ کاربر | بدون تصویر = بدون CPU، بدون وابستگی |
-| `engine/` | `search.ts` (negamax + alpha-beta + جدول جابه‌جایی + quiescence + iterative deepening)، `eval.ts` (ماده + PST)، `book.ts` (کتاب شروع کوچک JSON) | تنها بخش CPU-بر است؛ باید مستقل و محدود به بودجه باشد |
-| `notation-fa.ts` | نام فارسی مهره‌ها (ش، ف، ر، س، و، ط) برای نمایش، در حالی که PGN استاندارد می‌ماند | رعایت UX فارسی بدون شکستن استاندارد |
+| فایل             | مسئولیت                                                                                                                                         | چرا خالص                                              |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `position.ts`    | نمایش حالت: آرایه‌ی ۶۴ خانه + نوبت + حقوق قلعه + مربع en-passant + ساعت‌ها                                                                      | سریال‌پذیر به FEN، قابل‌ذخیره در D1 و DO              |
+| `movegen.ts`     | تولید حرکت شبه‌قانونی + فیلتر قانونی (کیش/شاخ/پین بهینه)                                                                                        | سنگین‌ترین بخش؛ باید قابل پروفایل باشد                |
+| `make-move.ts`   | اعمال حرکت + undo (برای جست‌وجوی موتور)                                                                                                         | بدون تخصیص حافظه‌ی اضافه → سریع در بودجه‌ی CPU        |
+| `san.ts`         | خواندن/نوشتن SAN با رفع ابهام (Nbd2، exd5، e8=Q+)                                                                                               | نمایش به کاربر و ذخیره‌ی PGN                          |
+| `rules.ts`       | کیش‌ومات، پات، بی‌ماده‌بودن، قاعده‌ی ۵۰ حرکت، تکرار سه‌باره، تساوی توافقی، باخت به‌خاطر وقت                                                     | تصمیم نهایی بازی اینجاست، نه در DO                    |
+| `pgn.ts`         | سریال‌سازی بازی، هدرها، کامنت‌ها، ساعت                                                                                                          | خروجی ماندگار و قابل‌اشتراک                           |
+| `render-text.ts` | تخته‌ی یونیکد برای `<pre>` تلگرام، با برچسب فارسی و چرخش بر اساس رنگ کاربر                                                                      | بدون تصویر = بدون CPU، بدون وابستگی                   |
+| `engine/`        | `search.ts` (negamax + alpha-beta + جدول جابه‌جایی + quiescence + iterative deepening)، `eval.ts` (ماده + PST)، `book.ts` (کتاب شروع کوچک JSON) | تنها بخش CPU-بر است؛ باید مستقل و محدود به بودجه باشد |
+| `notation-fa.ts` | نام فارسی مهره‌ها (ش، ف، ر، س، و، ط) برای نمایش، در حالی که PGN استاندارد می‌ماند                                                               | رعایت UX فارسی بدون شکستن استاندارد                   |
 
 **راهبرد تست:** شطرنج تنها جایی است که یک شاخص مطلق داریم — **perft**. اگر تولید حرکت اشتباه
 باشد، perft شکست می‌خورد. این جدول را به‌عنوان تست طلایی می‌گذاریم:
@@ -216,6 +216,7 @@ Kiwipete:  perft(1)=48   perft(2)=2039  perft(3)=97862  perft(4)=4085603
 Position3: perft(1)=14   perft(2)=191   perft(3)=2812   perft(4)=43238
 Position4: perft(1)=6    perft(2)=264   perft(3)=9467   perft(4)=422333
 ```
+
 اینجا هدف پوشش کد نیست؛ هدف **درست بودن قواعد** است.
 
 **صادقانه درباره‌ی قدرت موتور:** یک negamax با PST + quiescence در depth ۴–۶ روی JS، روی Worker
@@ -238,46 +239,46 @@ Position4: perft(1)=6    perft(2)=264   perft(3)=9467   perft(4)=422333
 
 اینجا مهم‌ترین تصمیم طراحی این فیچر است:
 
-> **نقشه از اجرا جدا است.** Worker *نقشه* را می‌سازد (خالص، تست‌پذیر، میلی‌ثانیه‌ای)؛
-> نود فقط آن را *اجرا* می‌کند. یعنی اگر فردا ffmpeg را با mkvmerge عوض کنید، یا اجرا را
+> **نقشه از اجرا جدا است.** Worker _نقشه_ را می‌سازد (خالص، تست‌پذیر، میلی‌ثانیه‌ای)؛
+> نود فقط آن را _اجرا_ می‌کند. یعنی اگر فردا ffmpeg را با mkvmerge عوض کنید، یا اجرا را
 > به Cloudflare Container ببرید، یا به مرورگر، **هیچ منطق محصولی تغییر نمی‌کند.**
 
 ```ts
 // core/media/plan.ts  (تایپ‌های نمونه — پیاده‌سازی در فاز ۳)
 export interface MuxRequest {
-  video:   MediaInput;                    // مسیر/مرجع ورودی اول
-  audio?:  MediaInput[];                  // ورودی‌های صوتی اضافی
-  subtitles: SubtitleInput[];             // زبان، عنوان، default/forced، srt|ass|vtt
-  output:  { container: "mkv" | "mp4"; filename?: string };
-  policy:  "copy" | "burn" | "transcode"; // copy = بدون کدگذاری مجدد (سریع، بی‌اتلاف)
-  offsetMs?: number;                      // هم‌زمان‌سازی
-  chapters?: Chapter[];
-  attachments?: Attachment[];             // فونت‌ها برای ASS
+	video: MediaInput; // مسیر/مرجع ورودی اول
+	audio?: MediaInput[]; // ورودی‌های صوتی اضافی
+	subtitles: SubtitleInput[]; // زبان، عنوان، default/forced، srt|ass|vtt
+	output: { container: 'mkv' | 'mp4'; filename?: string };
+	policy: 'copy' | 'burn' | 'transcode'; // copy = بدون کدگذاری مجدد (سریع، بی‌اتلاف)
+	offsetMs?: number; // هم‌زمان‌سازی
+	chapters?: Chapter[];
+	attachments?: Attachment[]; // فونت‌ها برای ASS
 }
 
 export interface MuxPlan {
-  version: 1;
-  tool: "ffmpeg" | "mkvmerge";
-  steps: PlanStep[];                      // probe → mux → verify
-  expected: { container: string; tracks: TrackSpec[] };
-  warnings: PlanWarning[];                // «MKV را پلیر تلگرام پخش نمی‌کند» و مانند آن
+	version: 1;
+	tool: 'ffmpeg' | 'mkvmerge';
+	steps: PlanStep[]; // probe → mux → verify
+	expected: { container: string; tracks: TrackSpec[] };
+	warnings: PlanWarning[]; // «MKV را پلیر تلگرام پخش نمی‌کند» و مانند آن
 }
 
 export function planMux(req: MuxRequest, probe: ProbeResult): MuxPlan;
-export function renderArgv(step: PlanStep): string[];   // argv آماده‌ی exec، بدون shell
+export function renderArgv(step: PlanStep): string[]; // argv آماده‌ی exec، بدون shell
 ```
 
 سه خروجی برای یک درخواست مَشتری («این فیلم + این زیرنویس»):
 
-| حالت | ابزار | زمان تقریبی (۱۰۰MB، ۲ vCPU) | نتیجه |
-|---|---|---|---|
-| **soft-sub در MKV** (`policy: copy`) | mkvmerge یا `ffmpeg -c copy` | ۵–۲۰ ثانیه | بی‌اتلاف، زیرنویس خاموش/روشن، فونت‌ها ضمیمه |
-| **هاردساب در MP4** (`policy: burn`) | ffmpeg + libx264/NVENC | ۰.۳–۱ برابر زمان واقعی ویدیو (۳۰ دقیقه ویدیو ≈ ۱۰–۶۰ دقیقه) | در پلیر تلگرام و واتساپ دیده می‌شود |
-| **MP4 + فایل SRT جدا** | بدون کدگذاری | ثانیه‌ای | سبک؛ کاربر با پلیر خودش استفاده می‌کند |
+| حالت                                 | ابزار                        | زمان تقریبی (۱۰۰MB، ۲ vCPU)                                 | نتیجه                                       |
+| ------------------------------------ | ---------------------------- | ----------------------------------------------------------- | ------------------------------------------- |
+| **soft-sub در MKV** (`policy: copy`) | mkvmerge یا `ffmpeg -c copy` | ۵–۲۰ ثانیه                                                  | بی‌اتلاف، زیرنویس خاموش/روشن، فونت‌ها ضمیمه |
+| **هاردساب در MP4** (`policy: burn`)  | ffmpeg + libx264/NVENC       | ۰.۳–۱ برابر زمان واقعی ویدیو (۳۰ دقیقه ویدیو ≈ ۱۰–۶۰ دقیقه) | در پلیر تلگرام و واتساپ دیده می‌شود         |
+| **MP4 + فایل SRT جدا**               | بدون کدگذاری                 | ثانیه‌ای                                                    | سبک؛ کاربر با پلیر خودش استفاده می‌کند      |
 
 `warnings` نکته‌ی کلیدی UX است: پلیرهای تلگرام عموماً زیرنویس نرم را نمایش نمی‌دهند؛ پس اگر کاربر
 هدفش «دیدن در تلگرام» است، باید از قبل به او بگوییم MKV برای آرشیو و پلیر بیرونی است و برای تلگرام
-هاردساب لازم است. این تصمیم *در هسته* گرفته می‌شود و در *UI* فقط نمایش داده می‌شود.
+هاردساب لازم است. این تصمیم _در هسته_ گرفته می‌شود و در _UI_ فقط نمایش داده می‌شود.
 
 ### ۴.۴ دسترسی (`core/access`)
 
@@ -286,14 +287,23 @@ export function renderArgv(step: PlanStep): string[];   // argv آماده‌ی 
 
 ```ts
 export type Capability =
-  | "space:manage" | "space:suffix" | "space:moderate"
-  | "media:mux"    | "media:burn"   | "media:large-file"
-  | "chess:play"   | "chess:engine-match" | "chess:rated"
-  | "ai:ask"       | "admin:roles"  | "admin:broadcast";
+	| 'space:manage'
+	| 'space:suffix'
+	| 'space:moderate'
+	| 'media:mux'
+	| 'media:burn'
+	| 'media:large-file'
+	| 'chess:play'
+	| 'chess:engine-match'
+	| 'chess:rated'
+	| 'ai:ask'
+	| 'admin:roles'
+	| 'admin:broadcast';
 
 export function capabilitiesFor(role: Role, flags: UserFlag[]): Set<Capability>;
 export function can(actor: AccessContext, cap: Capability, resource: ResourceRef): boolean;
 ```
+
 سود فوری: افزودن «سهمیه» و «flag آزمایشی» بدون دست‌زدن به ۲۰ فایل، و پاسخ‌دادن به این سؤال که
 «چرا این کاربر دکمه را می‌بیند ولی خطا می‌گیرد؟» با یک تابع خالص.
 
@@ -312,8 +322,8 @@ export function can(actor: AccessContext, cap: Capability, resource: ResourceRef
 
 ```ts
 export async function submitMuxJob(
-  deps: Deps,
-  input: { actor: Actor; chat: ChatRef; video: TelegramFile; subtitle: TelegramFile; mode: MediaMode }
+	deps: Deps,
+	input: { actor: Actor; chat: ChatRef; video: TelegramFile; subtitle: TelegramFile; mode: MediaMode },
 ): Promise<Result<{ jobId: string; statusMessageId: number }>>;
 ```
 
@@ -333,37 +343,37 @@ export async function submitMuxJob(
 
 ## ۶. لایه‌ی ② — پورت‌ها (`src/ports`)
 
-| پورت | مسئولیت | پیاده‌سازی‌ها |
-|---|---|---|
-| `Messenger` | ارسال/ویرایش پیام، دکمه، آپلود فایل، در هر سطح | `telegram`, (بعداً) `web-push` |
-| `UserRepo` · `SpaceRepo` · `GameRepo` · `JobRepo` · `SettingsRepo` | دسترسی داده | `d1`, `in-memory` (تست) |
-| `SessionStore` | حالت کوتاه‌مدت per-user («منتظر متن شما») | `do`, `memory` (تست) |
-| `JobQueue` | claim/lease/heartbeat/progress/complete | `do`, `fake` |
-| `MediaRunner` | اجرای نقشه‌ی مدیا روی یک runner | `node`, `container`, `client` |
-| `BlobStore` | بایت‌ها | `r2`, `memory` |
-| `RateLimiter` | سطل توکن | `do`, `kv`, `memory` |
-| `AiProvider` | generate/structured/vision/embed | `gemini`, `workers-ai`, `fake` |
-| `Clock` · `Logger` · `Ids` | زمان، لاگ، تولید ULID | عادی + `fixed` برای تست |
+| پورت                                                               | مسئولیت                                        | پیاده‌سازی‌ها                  |
+| ------------------------------------------------------------------ | ---------------------------------------------- | ------------------------------ |
+| `Messenger`                                                        | ارسال/ویرایش پیام، دکمه، آپلود فایل، در هر سطح | `telegram`, (بعداً) `web-push`  |
+| `UserRepo` · `SpaceRepo` · `GameRepo` · `JobRepo` · `SettingsRepo` | دسترسی داده                                    | `d1`, `in-memory` (تست)        |
+| `SessionStore`                                                     | حالت کوتاه‌مدت per-user («منتظر متن شما»)      | `do`, `memory` (تست)           |
+| `JobQueue`                                                         | claim/lease/heartbeat/progress/complete        | `do`, `fake`                   |
+| `MediaRunner`                                                      | اجرای نقشه‌ی مدیا روی یک runner                | `node`, `container`, `client`  |
+| `BlobStore`                                                        | بایت‌ها                                        | `r2`, `memory`                 |
+| `RateLimiter`                                                      | سطل توکن                                       | `do`, `kv`, `memory`           |
+| `AiProvider`                                                       | generate/structured/vision/embed               | `gemini`, `workers-ai`, `fake` |
+| `Clock` · `Logger` · `Ids`                                         | زمان، لاگ، تولید ULID                          | عادی + `fixed` برای تست        |
 
 چند امضای کلیدی که بقیه‌ی طراحی روی آن‌ها می‌ایستد:
 
 ```ts
 // ports/media-runner.ts — تبدیل «اجرا» به یک چیز قابل‌جای‌گزینی
 export interface MediaRunner {
-  readonly id: string;                                  // "node:fra-01" | "container:ffmpeg" | "client:miniapp"
-  readonly capabilities: ReadonlySet<RunnerCapability>; // "ffmpeg" | "mkvmerge" | "stockfish" | "local-bot-files"
-  readonly capacity: { slots: number; busy: number };
-  submit(job: RunnerJob): Promise<Result<{ externalId: string }>>;
-  cancel(externalId: string): Promise<Result<void>>;
+	readonly id: string; // "node:fra-01" | "container:ffmpeg" | "client:miniapp"
+	readonly capabilities: ReadonlySet<RunnerCapability>; // "ffmpeg" | "mkvmerge" | "stockfish" | "local-bot-files"
+	readonly capacity: { slots: number; busy: number };
+	submit(job: RunnerJob): Promise<Result<{ externalId: string }>>;
+	cancel(externalId: string): Promise<Result<void>>;
 }
 
 // ports/messenger.ts — مستقل از تلگرام تا بتوان وب/CLI هم مصرفش کند
 export interface Messenger {
-  reply(ref: ChatRef, view: View, opts?: SendOpts): Promise<Result<MessageRef>>;
-  edit(ref: MessageRef, view: View): Promise<Result<void>>;
-  toast(ref: CallbackRef, text: string, alert?: boolean): Promise<void>;
+	reply(ref: ChatRef, view: View, opts?: SendOpts): Promise<Result<MessageRef>>;
+	edit(ref: MessageRef, view: View): Promise<Result<void>>;
+	toast(ref: CallbackRef, text: string, alert?: boolean): Promise<void>;
 }
-export type View = { text: string; keyboard?: KeyboardSpec; media?: MediaRef; parse?: "HTML" };
+export type View = { text: string; keyboard?: KeyboardSpec; media?: MediaRef; parse?: 'HTML' };
 ```
 
 نکته: `View` یک توصیف داده‌ای است، نه HTML رشته‌ای. آداپتور تلگرام آن را به HTML و
@@ -389,13 +399,13 @@ export type View = { text: string; keyboard?: KeyboardSpec; media?: MediaRef; pa
 
 ### ۷.۲ سطح اجرا — سه آداپتور رسانه (`adapters/media/*`)
 
-| آداپتور | برای چه | مزیت | هزینه |
-|---|---|---|---|
+| آداپتور                             | برای چه                                 | مزیت                                       | هزینه                                                             |
+| ----------------------------------- | --------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------- |
 | `node` (VPS + Local Bot API Server) | فایل بزرگ، mkvmerge، هاردساب، Stockfish | بی‌سقف عملی (۲GB)، دیسک واقعی، GPU اختیاری | باید سرور را نگه دارید (بخش [`MEDIA-PLANE.md`](./MEDIA-PLANE.md)) |
-| `container` (Cloudflare Containers) | همان کارها بدون سرور شخصی | همه‌چیز در Cloudflare | cold start چند ثانیه‌ای، بیلینگ جدا، وابستگی به محصول بتا |
-| `client` (Mini App + WebCodecs) | فایل شخصی کاربر | هزینه‌ی سرور صفر، حریم خصوصی بیشتر | فقط با مرورگر مدرن، نیاز به آپلود نتیجه |
+| `container` (Cloudflare Containers) | همان کارها بدون سرور شخصی               | همه‌چیز در Cloudflare                      | cold start چند ثانیه‌ای، بیلینگ جدا، وابستگی به محصول بتا         |
+| `client` (Mini App + WebCodecs)     | فایل شخصی کاربر                         | هزینه‌ی سرور صفر، حریم خصوصی بیشتر         | فقط با مرورگر مدرن، نیاز به آپلود نتیجه                           |
 
-**نکته‌ی معماری مهم:** اگر نود را انتخاب کنید، *همان ماشین* باید Local Bot API Server را هم
+**نکته‌ی معماری مهم:** اگر نود را انتخاب کنید، _همان ماشین_ باید Local Bot API Server را هم
 داشته باشد، چون در حالت `--local` متد `getFile` مسیر مطلق روی دیسک برمی‌گرداند و فایل
 بدون یک بایت دانلود در Worker مستقیم به ffmpeg می‌رود. این یعنی اضافه‌کردن یک capability به
 runner: `local-bot-files`. زمان‌بند job ها این capability را ترجیح می‌دهد.
@@ -416,17 +426,17 @@ runner: `local-bot-files`. زمان‌بند job ها این capability را ت�
 ```ts
 // features/registry.ts
 export interface FeatureModule {
-  id: string;                                   // "media.mux"
-  title: string;                                // «ادغام زیرنویس»
-  capabilities: Capability[];                   // برای ساخت خودکار منو و بررسی دسترسی
-  enabled?: (env: Env, flags: Flags) => boolean;
-  commands?: CommandSpec[];                     // { name, description, handler }
-  callbacks?: CallbackSpec[];                   // { pattern, handler }
-  routes?: RouteSpec[];                         // برای API/وب
-  menu?: (ctx: MenuCtx) => MenuItem[];          // ورودی منوی اصلی
-  migrations?: string[];                        // فایل‌های SQL این فیچر
-  crons?: CronSpec[];                           // { schedule, handler }
-  workers?: Capability[];                       // به کدام runner نیاز دارد
+	id: string; // "media.mux"
+	title: string; // «ادغام زیرنویس»
+	capabilities: Capability[]; // برای ساخت خودکار منو و بررسی دسترسی
+	enabled?: (env: Env, flags: Flags) => boolean;
+	commands?: CommandSpec[]; // { name, description, handler }
+	callbacks?: CallbackSpec[]; // { pattern, handler }
+	routes?: RouteSpec[]; // برای API/وب
+	menu?: (ctx: MenuCtx) => MenuItem[]; // ورودی منوی اصلی
+	migrations?: string[]; // فایل‌های SQL این فیچر
+	crons?: CronSpec[]; // { schedule, handler }
+	workers?: Capability[]; // به کدام runner نیاز دارد
 }
 ```
 
@@ -434,16 +444,16 @@ export interface FeatureModule {
 
 ```ts
 export const mediaFeature: FeatureModule = {
-  id: "media.mux",
-  title: "ادغام زیرنویس با ویدیو",
-  capabilities: ["media:mux"],
-  commands: [{ name: "mux", description: "ادغام فایل زیرنویس با ویدیو", handler: onMuxCommand }],
-  callbacks: [
-    { pattern: /^mx:m:(\w+):([A-Z0-9]{26})$/, handler: onModeChoice },   // ULID = ۲۶ کاراکتر
-  ],
-  crons: [{ schedule: "*/5 * * * *", handler: reapStaleJobs }],
-  workers: ["ffmpeg"],
-  migrations: ["0010_jobs.sql", "0011_artifacts.sql"],
+	id: 'media.mux',
+	title: 'ادغام زیرنویس با ویدیو',
+	capabilities: ['media:mux'],
+	commands: [{ name: 'mux', description: 'ادغام فایل زیرنویس با ویدیو', handler: onMuxCommand }],
+	callbacks: [
+		{ pattern: /^mx:m:(\w+):([A-Z0-9]{26})$/, handler: onModeChoice }, // ULID = ۲۶ کاراکتر
+	],
+	crons: [{ schedule: '*/5 * * * *', handler: reapStaleJobs }],
+	workers: ['ffmpeg'],
+	migrations: ['0010_jobs.sql', '0011_artifacts.sql'],
 };
 ```
 
@@ -471,13 +481,13 @@ export const mediaFeature: FeatureModule = {
 
 ### ۹.۲ پروتکل (HMAC-امضاشده، بین Worker و نود)
 
-| متد | مسیر | کار |
-|---|---|---|
-| `POST` | `/internal/v1/workers/heartbeat` | نود زنده است + ظرفیت خالی اعلام می‌کند |
-| `POST` | `/internal/v1/jobs/claim` | claim اتمیک؛ پاسخ می‌تواند long-poll تا ۳۰ ثانیه بلاک شود |
-| `POST` | `/internal/v1/jobs/:id/progress` | `{ percent, stage, note }` — throttle شده |
-| `POST` | `/internal/v1/jobs/:id/complete` | `{ status, artifacts[], metrics, error }` |
-| `POST` | `/internal/v1/jobs/:id/cancel` | لغو (از سمت کاربر) |
+| متد    | مسیر                             | کار                                                       |
+| ------ | -------------------------------- | --------------------------------------------------------- |
+| `POST` | `/internal/v1/workers/heartbeat` | نود زنده است + ظرفیت خالی اعلام می‌کند                    |
+| `POST` | `/internal/v1/jobs/claim`        | claim اتمیک؛ پاسخ می‌تواند long-poll تا ۳۰ ثانیه بلاک شود |
+| `POST` | `/internal/v1/jobs/:id/progress` | `{ percent, stage, note }` — throttle شده                 |
+| `POST` | `/internal/v1/jobs/:id/complete` | `{ status, artifacts[], metrics, error }`                 |
+| `POST` | `/internal/v1/jobs/:id/cancel`   | لغو (از سمت کاربر)                                        |
 
 - **امضا:** `HMAC-SHA256(secret_node, timestamp + "." + nonce + "." + sha256(body))` با
   پنجره‌ی ±۳۰۰ ثانیه و کش nonce (جلوگیری از replay). با `crypto.subtle` در Worker.
@@ -646,12 +656,12 @@ CREATE TABLE IF NOT EXISTS audit_log     (id INTEGER PRIMARY KEY AUTOINCREMENT, 
 
 ### ۱۰.۲ Durable Objects — حالت زنده و هماهنگی
 
-| کلاس | نام‌گذاری | مسئولیت | چرا DO |
-|---|---|---|---|
-| `SessionDO` | `user:<id>` | «منتظر متن شما»، آخرین صفحه، وضعیت گفت‌وگو، شمارنده‌ی نرخ per-user | تک‌نویسنده، بدون مسابقه، جایگزین درست `pendingInput` و `conversations()` |
-| `GameDO` | `game:<ulid>` | تخته، نوبت، ساعت، پیشنهاد تساوی، آرشیو حرکت‌ها، alarm برای اتمام وقت | ترتیب تضمین‌شده‌ی حرکت‌ها + آلارم تایمر (Cron دقت ثانیه ندارد) |
-| `JobQueueDO` | `jobs:default` / `jobs:shard-N` | lease اتمیک، heartbeat، تایم‌اوت، شمارش همزمانی per-user | claim بدون مسابقه؛ تنها منبع حقیقت برای «چه کسی چه کاری گرفته» |
-| `DedupeDO` | `chat:<id>` | جلوگیری از پردازش دوباره‌ی `update_id` | یکتایی قطعی (KV در نهایت‌سازگار است و اجازه‌ی عبور تکراری می‌دهد) |
+| کلاس         | نام‌گذاری                       | مسئولیت                                                              | چرا DO                                                                   |
+| ------------ | ------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `SessionDO`  | `user:<id>`                     | «منتظر متن شما»، آخرین صفحه، وضعیت گفت‌وگو، شمارنده‌ی نرخ per-user   | تک‌نویسنده، بدون مسابقه، جایگزین درست `pendingInput` و `conversations()` |
+| `GameDO`     | `game:<ulid>`                   | تخته، نوبت، ساعت، پیشنهاد تساوی، آرشیو حرکت‌ها، alarm برای اتمام وقت | ترتیب تضمین‌شده‌ی حرکت‌ها + آلارم تایمر (Cron دقت ثانیه ندارد)           |
+| `JobQueueDO` | `jobs:default` / `jobs:shard-N` | lease اتمیک، heartbeat، تایم‌اوت، شمارش همزمانی per-user             | claim بدون مسابقه؛ تنها منبع حقیقت برای «چه کسی چه کاری گرفته»           |
+| `DedupeDO`   | `chat:<id>`                     | جلوگیری از پردازش دوباره‌ی `update_id`                               | یکتایی قطعی (KV در نهایت‌سازگار است و اجازه‌ی عبور تکراری می‌دهد)        |
 
 نمونه‌ی الگوی آلارم برای شطرنج:
 
@@ -660,6 +670,7 @@ move played → GameDO: ذخیره‌ی حرکت، محاسبه‌ی نوبت ب
         │
         └─ اگر تا deadline حرکتی نرسید → alarm → اعلام باخت به‌خاطر وقت + پایان بازی
 ```
+
 این بدون DO یعنی یک Cron هر دقیقه که با تأخیر و هزینه کار را انجام می‌دهد.
 
 ### ۱۰.۳ KV / R2 / Queues / Analytics
@@ -675,15 +686,15 @@ move played → GameDO: ذخیره‌ی حرکت، محاسبه‌ی نوبت ب
 
 ### ۱۰.۴ سیاست نگهداشت
 
-| داده | عمر | مکانیزم |
-|---|---|---|
-| فایل مرحله‌ای مدیا (R2) | ۲۴ ساعت | lifecycle rule |
-| artifact تحویل‌شده | ۷ روز | lifecycle rule + `expires_at` |
-| `job_events` | ۹۰ روز | کرون پاکسازی بچ‌بچ |
-| `job` تمام‌شده | ۹۰ روز | همان |
-| بازی شطرنج تمام‌شده | دائمی (کوچک است و ارزش آرشیوی دارد) | — |
-| `update_id` dedupe | ۱۰ دقیقه | TTL در DO |
-| `upload_sessions` منقضی | ۱ ساعت | کرون + بررسی هنگام مصرف |
+| داده                    | عمر                                 | مکانیزم                       |
+| ----------------------- | ----------------------------------- | ----------------------------- |
+| فایل مرحله‌ای مدیا (R2) | ۲۴ ساعت                             | lifecycle rule                |
+| artifact تحویل‌شده      | ۷ روز                               | lifecycle rule + `expires_at` |
+| `job_events`            | ۹۰ روز                              | کرون پاکسازی بچ‌بچ            |
+| `job` تمام‌شده          | ۹۰ روز                              | همان                          |
+| بازی شطرنج تمام‌شده     | دائمی (کوچک است و ارزش آرشیوی دارد) | —                             |
+| `update_id` dedupe      | ۱۰ دقیقه                            | TTL در DO                     |
+| `upload_sessions` منقضی | ۱ ساعت                              | کرون + بررسی هنگام مصرف       |
 
 ---
 
@@ -691,12 +702,12 @@ move played → GameDO: ذخیره‌ی حرکت، محاسبه‌ی نوبت ب
 
 ### ۱۱.۱ چهار حالت بازی
 
-| حالت | توصیف | نکته‌ی معماری |
-|---|---|---|
-| `pvp` | دو کاربر در یک چت/گروه، بات داور است | ذخیره‌ی `white_id/black_id`، اعتبارسنجی نوبت از روی `from.id` |
-| `pve` | کاربر با موتور بات | موتور در Worker (سریع، ضعیف) یا روی نود (قوی) — یک capability |
-| `eve` | دو موتور با هم (نمایشی) | اجرا در DO با آلارم کوچک بین حرکت‌ها تا از سقف CPU فرار کند |
-| `simulation` | شبیه‌سازی آفلاین با **seed** ثابت، خروجی PGN | اجرای دسته‌ای؛ همان هسته، بدون UI؛ برای تست و برای گزارش |
+| حالت         | توصیف                                        | نکته‌ی معماری                                                 |
+| ------------ | -------------------------------------------- | ------------------------------------------------------------- |
+| `pvp`        | دو کاربر در یک چت/گروه، بات داور است         | ذخیره‌ی `white_id/black_id`، اعتبارسنجی نوبت از روی `from.id` |
+| `pve`        | کاربر با موتور بات                           | موتور در Worker (سریع، ضعیف) یا روی نود (قوی) — یک capability |
+| `eve`        | دو موتور با هم (نمایشی)                      | اجرا در DO با آلارم کوچک بین حرکت‌ها تا از سقف CPU فرار کند   |
+| `simulation` | شبیه‌سازی آفلاین با **seed** ثابت، خروجی PGN | اجرای دسته‌ای؛ همان هسته، بدون UI؛ برای تست و برای گزارش      |
 
 ### ۱۱.۲ رندر تخته: چرا متن، نه تصویر
 
@@ -714,6 +725,7 @@ move played → GameDO: ذخیره‌ی حرکت، محاسبه‌ی نوبت ب
 هر حرکت: یا با دکمه‌ی مربعِ مبدأ/مقصد، یا با تایپ SAN/UCI ("Nf3", "e2e4", "O-O")
 نمایش: تخته + نوبت + ساعت + آخرین حرکت + دکمه‌ها [لغو][تساوی][واگذاری][تاریخچه][خروجی PGN]
 ```
+
 `callback_data` باید ≤۶۴ بایت بماند → الگوی `ch:<gameUlid[8]>:mv:<ply>:<sq-from><sq-to>`
 یا حتی بهتر: چون تخته در DO است، فقط `ch:<ulid>:<uci>` لازم است و می‌توان ULID را در
 پیام (نه در دکمه) نگه داشت. این محدودیت را باید از اول در طراحی دکمه‌ها دید.
@@ -725,12 +737,12 @@ move played → GameDO: ذخیره‌ی حرکت، محاسبه‌ی نوبت ب
 مدل ذهنی جدید: هر جای تلگرام که بات در آن اختیار دارد = یک **Space** با `kind ∈ {channel, group, forum}`
 و مجموعه‌ای از **قابلیت‌ها**. آنچه امروز داریم و منتقل می‌شود:
 
-| امروز | مقصد |
-|---|---|
+| امروز                                                  | مقصد                                                     |
+| ------------------------------------------------------ | -------------------------------------------------------- |
 | `features/channels.js` (ثبت با فوروارد + بررسی مالکیت) | `features/space/register.ts` + `app/space/registerSpace` |
-| `channelSuffix.js` + `messageSuffix.js` | `features/suffix/` + `core/space/suffix.ts` (منطق خالص) |
-| `channelAdminSync.js` | `app/space/syncAdmins` + cron router |
-| ستون‌های suffix در جدول `channels` | `space_settings` |
+| `channelSuffix.js` + `messageSuffix.js`                | `features/suffix/` + `core/space/suffix.ts` (منطق خالص)  |
+| `channelAdminSync.js`                                  | `app/space/syncAdmins` + cron router                     |
+| ستون‌های suffix در جدول `channels`                     | `space_settings`                                         |
 
 قابلیت‌های بعدی (هرکدام یک manifest مستقل):
 
@@ -751,11 +763,11 @@ move played → GameDO: ذخیره‌ی حرکت، محاسبه‌ی نوبت ب
 
 سه سطح، یک هسته:
 
-| سطح | مسیر | احراز هویت | یادداشت |
-|---|---|---|---|
-| **تلگرام** (الان) | وبهوک | `secret_token` تلگرام + نقش کاربر | تمرکز فعلی |
-| **HTTP API v1** | `/api/v1/*` | توکن نشست یا `initData` | برای وب، CLI، یکپارچه‌سازی |
-| **Mini App** | همان API از داخل تلگرام | اعتبارسنجی `initData` با HMAC-SHA256 (`WebAppData` به‌عنوان کلید) | برای آپلود فایل و اجرای مدیا سمت کلاینت |
+| سطح               | مسیر                    | احراز هویت                                                        | یادداشت                                 |
+| ----------------- | ----------------------- | ----------------------------------------------------------------- | --------------------------------------- |
+| **تلگرام** (الان) | وبهوک                   | `secret_token` تلگرام + نقش کاربر                                 | تمرکز فعلی                              |
+| **HTTP API v1**   | `/api/v1/*`             | توکن نشست یا `initData`                                           | برای وب، CLI، یکپارچه‌سازی              |
+| **Mini App**      | همان API از داخل تلگرام | اعتبارسنجی `initData` با HMAC-SHA256 (`WebAppData` به‌عنوان کلید) | برای آپلود فایل و اجرای مدیا سمت کلاینت |
 
 قاعده: **هیچ use-case ای نمی‌داند درخواست از کجا آمده.** `Messenger` و `ChatRef` این را پنهان می‌کنند.
 پس افزودن سطح وب یعنی نوشتن یک آداپتور، نه بازنویسی فیچرها.
@@ -764,16 +776,16 @@ move played → GameDO: ذخیره‌ی حرکت، محاسبه‌ی نوبت ب
 
 ## ۱۴. امنیت
 
-| تهدید | کنترل |
-|---|---|
-| update جعلی | `secret_token` (داریم) + dedupe `update_id` (نداریم) |
-| replay روی API داخلی نود | HMAC با timestamp+nonce، پنجره‌ی ±۳۰۰s، کش nonce |
-| abuse سهمیه | سقف job همزمان per-user (DO)، سهمیه‌ی روزانه، محدودیت اندازه‌ی فایل |
+| تهدید                             | کنترل                                                                                                                         |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| update جعلی                       | `secret_token` (داریم) + dedupe `update_id` (نداریم)                                                                          |
+| replay روی API داخلی نود          | HMAC با timestamp+nonce، پنجره‌ی ±۳۰۰s، کش nonce                                                                              |
+| abuse سهمیه                       | سقف job همزمان per-user (DO)، سهمیه‌ی روزانه، محدودیت اندازه‌ی فایل                                                           |
 | دکمه‌ی callback با شناسه‌ی دیگران | **هر** callback باید مالکیت را از DO/DB چک کند، نه از روی محتوای دکمه (الگوی `requireChannelAdmin` فعلی درست است — تعمیم بده) |
-| آپلود مخرب فایل | سقف اندازه از روی `expected_size`، probe با ffprobe، timeout اجرا، اجرا در محیط محدود (`--no-network`)، نام‌گذاری امن فایل |
-| نشت توکن | توکن فقط در Worker و روی نود؛ هرگز در URL قابل‌اشتراک (`api.telegram.org/file/bot<TOKEN>/...` را به کاربر ندهید) |
-| XSS در وب | CSP موجود خوب است؛ فقط `img-src` را اگر R2 اضافه شد به‌روز کنید |
-| دسترسی بی‌جا در پنل | capability ها + `audit_log` برای هر عملیات مدیر |
+| آپلود مخرب فایل                   | سقف اندازه از روی `expected_size`، probe با ffprobe، timeout اجرا، اجرا در محیط محدود (`--no-network`)، نام‌گذاری امن فایل    |
+| نشت توکن                          | توکن فقط در Worker و روی نود؛ هرگز در URL قابل‌اشتراک (`api.telegram.org/file/bot<TOKEN>/...` را به کاربر ندهید)              |
+| XSS در وب                         | CSP موجود خوب است؛ فقط `img-src` را اگر R2 اضافه شد به‌روز کنید                                                               |
+| دسترسی بی‌جا در پنل               | capability ها + `audit_log` برای هر عملیات مدیر                                                                               |
 
 ---
 
@@ -793,18 +805,18 @@ move played → GameDO: ذخیره‌ی حرکت، محاسبه‌ی نوبت ب
 
 ## ۱۶. تست و CI
 
-| لایه | ابزار | چه چیزی را تضمین می‌کند | سرعت |
-|---|---|---|---|
-| ⓪ هسته | vitest، بدون runtime ورکرز | perft، پارس SRT، `renderArgv`، قواعد دسترسی | میلی‌ثانیه |
-| ① کاربرد | fakes برای همه‌ی پورت‌ها | رفتار use-case بدون شبکه/DB | صدم ثانیه |
-| ② آداپتور | vitest-pool-workers + D1 واقعی | SQL، مهاجرت‌ها، تراکنش‌ها (الان دارید — عالی) | ثانیه |
-| ③ قرارداد | اجرای واقعی یک نود شبیه‌سازی‌شده | پروتکل job، امضا، lease، timeout | دقیقه (در CI شبانه) |
+| لایه      | ابزار                            | چه چیزی را تضمین می‌کند                       | سرعت                |
+| --------- | -------------------------------- | --------------------------------------------- | ------------------- |
+| ⓪ هسته    | vitest، بدون runtime ورکرز       | perft، پارس SRT، `renderArgv`، قواعد دسترسی   | میلی‌ثانیه          |
+| ① کاربرد  | fakes برای همه‌ی پورت‌ها         | رفتار use-case بدون شبکه/DB                   | صدم ثانیه           |
+| ② آداپتور | vitest-pool-workers + D1 واقعی   | SQL، مهاجرت‌ها، تراکنش‌ها (الان دارید — عالی) | ثانیه               |
+| ③ قرارداد | اجرای واقعی یک نود شبیه‌سازی‌شده | پروتکل job، امضا، lease، timeout              | دقیقه (در CI شبانه) |
 
 - **آزمون‌های طلایی (golden)**: `argv` تولیدی از `MuxPlan` به‌صورت snapshot ذخیره شود؛ هر تغییری
   در دستور ffmpeg باید در دیف PR دیده شود. این جلوی «یک روز ffmpeg خطا می‌دهد و کسی نمی‌داند چرا» را می‌گیرد.
 - **فیچر‌فایل‌های واقعی زیرنویس** در `test/fixtures/subtitles/` با فایل‌های خرابِ واقعی.
 - **CI**: `typecheck` + `vitest run` + `wrangler deploy --dry-run` (هم برای اندازه، هم برای اطمینان از بایندینگ‌ها)
-  + `prettier --check`. (این مورد هم در TODO شما هست.)
+  - `prettier --check`. (این مورد هم در TODO شما هست.)
 
 ---
 
@@ -812,37 +824,37 @@ move played → GameDO: ذخیره‌ی حرکت، محاسبه‌ی نوبت ب
 
 این‌ها یافته‌های واقعی از همین کدبیس‌اند، به‌ترتیب اهمیت:
 
-| # | مشکل | جا | اثر واقعی | راه‌حل |
-|---|---|---|---|---|
-| ۱ | `pendingInput` یک `Map` درون‌ایزوله است | `ui/pendingInput.js` | کاربر «منتظر متن» را بین درخواست‌ها از دست می‌دهد (چند ایزوله همزمان) | `SessionDO` (پورت `SessionStore`) |
-| ۲ | `conversations()` ثبت شده ولی **هیچ گفت‌وگویی** وجود ندارد | `bot.ts` | وابستگی مرده + اگر روزی استفاده شود، با storage درون‌حافظه در وبهوک می‌شکند | حذف، یا اتصال با storage روی DO |
-| ۳ | بدون dedupe روی `update_id` | `main-tel.ts` | تلگرام وبهوک را retry می‌کند → ثبت دوباره‌ی کانال، پسوند دوباره، پیام تکراری | `DedupeDO` یا جدول dedupe |
-| ۴ | بدون throttle و auto-retry | `bot.ts` | با رشد کاربر، `429` و `retry_after` پیام‌ها را می‌اندازد | `@grammyjs/auto-retry` + `transformer-throttler` |
-| ۵ | مدیریت کرون با مقایسه‌ی رشته‌ی `event.cron` و «همه‌ی بقیه → cleanup» | `index.ts` | افزودن کرون سوم، بی‌صدا cleanup را دوباره اجرا می‌کند | `platform/cron-router.ts` با نگاشت صریح و default = log منفی |
-| ۶ | `schema.sql` دستی اجرا می‌شود | `db/schema.sql` | تغییر اسکیما در پروداکشن ردیابی‌شدنی نیست | `wrangler d1 migrations` + مهاجرت هر فیچر در manifest |
-| ۷ | `escapeHtml` سه بار کپی شده | ۳ فایل | یکسان‌سازی نشدن رفتار و باگ‌های ظریف | انتقال به `core/text` |
-| ۸ | ستون‌های تنظیمات فیچر روی جدول `channels` | `schema.sql` | با فیچر سوم، جدول پر از ستون‌های تک‌کاربردی می‌شود | `space_settings` |
-| ۹ | `strict: false` و ترکیب JS/TS بی‌نوع | `tsconfig.json` | نبود محافظ در برابر خطای رایج | `src/core` با `strict: true`، مهاجرت تدریجی |
-| ۱۰ | نبود rate limit روی ثبت کانال | README هم گفته | یک نفر با فوروارد زیاد، `getChatMember` را می‌سوزاند | `RateLimiter` (DO) روی capability `space:manage` |
-| ۱۱ | دکمه‌هایی که کار نمی‌کنند | README | کاربر فکر می‌کند بات خراب است | منو از روی `manifest` ساخته شود → مرده‌دکمه ناممکن |
-| ۱۲ | نبود `.dev.vars.example` و  `/health` | README | راه‌اندازی برای نفر بعد کند است؛ مانیتورینگ نداریم | بخش ۱۵ همین سند + قدم ۰.۲ در ROADMAP |
+| #   | مشکل                                                                 | جا                   | اثر واقعی                                                                    | راه‌حل                                                       |
+| --- | -------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| ۱   | `pendingInput` یک `Map` درون‌ایزوله است                              | `ui/pendingInput.js` | کاربر «منتظر متن» را بین درخواست‌ها از دست می‌دهد (چند ایزوله همزمان)        | `SessionDO` (پورت `SessionStore`)                            |
+| ۲   | `conversations()` ثبت شده ولی **هیچ گفت‌وگویی** وجود ندارد           | `bot.ts`             | وابستگی مرده + اگر روزی استفاده شود، با storage درون‌حافظه در وبهوک می‌شکند  | حذف، یا اتصال با storage روی DO                              |
+| ۳   | بدون dedupe روی `update_id`                                          | `main-tel.ts`        | تلگرام وبهوک را retry می‌کند → ثبت دوباره‌ی کانال، پسوند دوباره، پیام تکراری | `DedupeDO` یا جدول dedupe                                    |
+| ۴   | بدون throttle و auto-retry                                           | `bot.ts`             | با رشد کاربر، `429` و `retry_after` پیام‌ها را می‌اندازد                     | `@grammyjs/auto-retry` + `transformer-throttler`             |
+| ۵   | مدیریت کرون با مقایسه‌ی رشته‌ی `event.cron` و «همه‌ی بقیه → cleanup» | `index.ts`           | افزودن کرون سوم، بی‌صدا cleanup را دوباره اجرا می‌کند                        | `platform/cron-router.ts` با نگاشت صریح و default = log منفی |
+| ۶   | `schema.sql` دستی اجرا می‌شود                                        | `db/schema.sql`      | تغییر اسکیما در پروداکشن ردیابی‌شدنی نیست                                    | `wrangler d1 migrations` + مهاجرت هر فیچر در manifest        |
+| ۷   | `escapeHtml` سه بار کپی شده                                          | ۳ فایل               | یکسان‌سازی نشدن رفتار و باگ‌های ظریف                                         | انتقال به `core/text`                                        |
+| ۸   | ستون‌های تنظیمات فیچر روی جدول `channels`                            | `schema.sql`         | با فیچر سوم، جدول پر از ستون‌های تک‌کاربردی می‌شود                           | `space_settings`                                             |
+| ۹   | `strict: false` و ترکیب JS/TS بی‌نوع                                 | `tsconfig.json`      | نبود محافظ در برابر خطای رایج                                                | `src/core` با `strict: true`، مهاجرت تدریجی                  |
+| ۱۰  | نبود rate limit روی ثبت کانال                                        | README هم گفته       | یک نفر با فوروارد زیاد، `getChatMember` را می‌سوزاند                         | `RateLimiter` (DO) روی capability `space:manage`             |
+| ۱۱  | دکمه‌هایی که کار نمی‌کنند                                            | README               | کاربر فکر می‌کند بات خراب است                                                | منو از روی `manifest` ساخته شود → مرده‌دکمه ناممکن           |
+| ۱۲  | نبود `.dev.vars.example` و `/health`                                 | README               | راه‌اندازی برای نفر بعد کند است؛ مانیتورینگ نداریم                           | بخش ۱۵ همین سند + قدم ۰.۲ در ROADMAP                         |
 
 ---
 
 ## ۱۸. تصمیم‌های معماری (خلاصه‌ی ADR)
 
-| # | تصمیم | دلیل اصلی | بدیل رد‌شده چون | هزینه‌ی برگشت |
-|---|---|---|---|---|
-| ADR-۱ | معماری لایه‌ای با هسته‌ی خالص (hexagonal سبک) | تست‌پذیری، جداشدن فیچرها از تلگرام | «همین‌طور ادامه بده» → با فیچر سوم به دیوار می‌خورد | متوسط (مکانیکی) |
-| ADR-۲ | سطح اجرا پشت پورت `MediaRunner` با ۳ پیاده‌سازی | ffmpeg در Worker ناممکن است؛ و شما «هر سه» را می‌خواستید | انتخاب سخت‌کد یکی از سه گزینه | پایین ✅ |
-| ADR-۳ | پردازش وبهوک از پاسخ‌دهی جدا (Queue) | محدودیت زمانی تلگرام + پردازش دوباره‌ی retry | پردازش درون‌خطی (وضع فعلی) | پایین |
-| ADR-۴ | حالت زنده در Durable Objects، نه KV/D1 | تک‌نویسنده، آلارم، بدون مسابقه | D1 + Cron (تأخیر و مسابقه) | متوسط |
-| ADR-۵ | «نقشه» جدا از «اجرا» در فیچر مدیا | تست‌پذیری + جابه‌جایی آزاد ابزار | نوشتن دستور ffmpeg در هندلر | پایین ✅ |
-| ADR-۶ | تنظیمات per-space به‌شکل key/value | افزودن فیچر بدون migration | ستون‌های جدید برای هر تنظیم | پایین |
-| ADR-۷ | یک Worker واحد بماند (فعلاً) | یک دیپلوی، اشتراک کد، باندل کوچک | تقسیم به چند Worker (پیچیدگی بی‌مورد) | بالا (ولی بعداً ممکن) |
-| ADR-۸ | Local Bot API Server روی همان نود مدیا | فایل بدون عبور از Worker به ffmpeg می‌رسد | R2 به‌عنوان واسط (دانلود+آپلود دوباره) | پایین |
-| ADR-۹ | رندر تخته‌ی شطرنج متنی، نه تصویری | صفر CPU، بدون وابستگی، سازگاری همه‌جانبه | wasm رستر + باندل سنگین‌تر | پایین ✅ |
-| ADR-۱۰ | منو/Capability از روی manifest | حذف «دکمه‌ی مرده» به‌صورت ساختاری | دستی نگه‌داشتن منو | پایین ✅ |
+| #      | تصمیم                                           | دلیل اصلی                                                | بدیل رد‌شده چون                                     | هزینه‌ی برگشت        |
+| ------ | ----------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------- | -------------------- |
+| ADR-۱  | معماری لایه‌ای با هسته‌ی خالص (hexagonal سبک)   | تست‌پذیری، جداشدن فیچرها از تلگرام                       | «همین‌طور ادامه بده» → با فیچر سوم به دیوار می‌خورد | متوسط (مکانیکی)      |
+| ADR-۲  | سطح اجرا پشت پورت `MediaRunner` با ۳ پیاده‌سازی | ffmpeg در Worker ناممکن است؛ و شما «هر سه» را می‌خواستید | انتخاب سخت‌کد یکی از سه گزینه                       | پایین ✅             |
+| ADR-۳  | پردازش وبهوک از پاسخ‌دهی جدا (Queue)            | محدودیت زمانی تلگرام + پردازش دوباره‌ی retry             | پردازش درون‌خطی (وضع فعلی)                          | پایین                |
+| ADR-۴  | حالت زنده در Durable Objects، نه KV/D1          | تک‌نویسنده، آلارم، بدون مسابقه                           | D1 + Cron (تأخیر و مسابقه)                          | متوسط                |
+| ADR-۵  | «نقشه» جدا از «اجرا» در فیچر مدیا               | تست‌پذیری + جابه‌جایی آزاد ابزار                         | نوشتن دستور ffmpeg در هندلر                         | پایین ✅             |
+| ADR-۶  | تنظیمات per-space به‌شکل key/value              | افزودن فیچر بدون migration                               | ستون‌های جدید برای هر تنظیم                         | پایین                |
+| ADR-۷  | یک Worker واحد بماند (فعلاً)                     | یک دیپلوی، اشتراک کد، باندل کوچک                         | تقسیم به چند Worker (پیچیدگی بی‌مورد)               | بالا (ولی بعداً ممکن) |
+| ADR-۸  | Local Bot API Server روی همان نود مدیا          | فایل بدون عبور از Worker به ffmpeg می‌رسد                | R2 به‌عنوان واسط (دانلود+آپلود دوباره)              | پایین                |
+| ADR-۹  | رندر تخته‌ی شطرنج متنی، نه تصویری               | صفر CPU، بدون وابستگی، سازگاری همه‌جانبه                 | wasm رستر + باندل سنگین‌تر                          | پایین ✅             |
+| ADR-۱۰ | منو/Capability از روی manifest                  | حذف «دکمه‌ی مرده» به‌صورت ساختاری                        | دستی نگه‌داشتن منو                                  | پایین ✅             |
 
 ---
 
@@ -850,14 +862,14 @@ move played → GameDO: ذخیره‌ی حرکت، محاسبه‌ی نوبت ب
 
 سناریوی مرجع: ۵٬۰۰۰ کاربر فعال، ۵۰۰ کانال ثبت‌شده، ۲۰ job مدیا در روز.
 
-| منبع | مصرف تخمینی | سقف | وضعیت |
-|---|---|---|---|
-| درخواست Worker (update ها) | ~۱۵۰K/روز | ۱۰۰K/روز رایگان، بقیه پرداختی | پلن پرداختی لازم است |
-| CPU Worker | چند ms به‌ازای هر update (بدون مدیا/شطرنج سنگین) | ۳۰s پیش‌فرض | راحت ✅ |
-| D1 | `jobs` + `job_events` ~۲۰۰K ردیف/سال | ~۱۰GB per DB | راحت ✅ (با پاکسازی ۹۰ روزه) |
-| DO requests | هر حرکت شطرنج + هر claim job | بیلینگ per-request | راحت ✅ |
-| R2 | فایل مرحله‌ای ۲۴ ساعته: ۲۰ × ۵۰۰MB = ۱۰GB چرخشی | نامحدود عملاً | هزینه‌ی ناچیز، ترافیک خروج رایگان |
-| نود مدیا (۲ vCPU، ۴GB RAM، ۸۰GB SSD) | mkvmerge: ۱۰–۲۰s per ۱۰۰MB؛ هاردساب: ۰.۳–۱× زمان واقعی | — | برای ۲۰ job/روز کافی؛ برای ۱۰۰+ job/روز GPU (NVENC) را در نظر بگیرید |
+| منبع                                 | مصرف تخمینی                                            | سقف                           | وضعیت                                                                |
+| ------------------------------------ | ------------------------------------------------------ | ----------------------------- | -------------------------------------------------------------------- |
+| درخواست Worker (update ها)           | ~۱۵۰K/روز                                              | ۱۰۰K/روز رایگان، بقیه پرداختی | پلن پرداختی لازم است                                                 |
+| CPU Worker                           | چند ms به‌ازای هر update (بدون مدیا/شطرنج سنگین)       | ۳۰s پیش‌فرض                   | راحت ✅                                                              |
+| D1                                   | `jobs` + `job_events` ~۲۰۰K ردیف/سال                   | ~۱۰GB per DB                  | راحت ✅ (با پاکسازی ۹۰ روزه)                                         |
+| DO requests                          | هر حرکت شطرنج + هر claim job                           | بیلینگ per-request            | راحت ✅                                                              |
+| R2                                   | فایل مرحله‌ای ۲۴ ساعته: ۲۰ × ۵۰۰MB = ۱۰GB چرخشی        | نامحدود عملاً                  | هزینه‌ی ناچیز، ترافیک خروج رایگان                                    |
+| نود مدیا (۲ vCPU، ۴GB RAM، ۸۰GB SSD) | mkvmerge: ۱۰–۲۰s per ۱۰۰MB؛ هاردساب: ۰.۳–۱× زمان واقعی | —                             | برای ۲۰ job/روز کافی؛ برای ۱۰۰+ job/روز GPU (NVENC) را در نظر بگیرید |
 
 عدد مهم برای UX: **هاردساب یک ویدیوی ۹۰ دقیقه‌ای می‌تواند تا یک ساعت طول بکشد.** پس «job» و
 «پیشرفت» و «اعلان پایان» اختیاری نیستند؛ خودِ معماری باید این را پیش‌بینی کند، نه اینکه کاربر

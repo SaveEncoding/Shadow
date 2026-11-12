@@ -19,7 +19,7 @@ describe('isDirectUserInteraction', () => {
 		expect(isDirectUserInteraction(ctx)).toBe(true);
 	});
 
-	it('counts a reply to the bot\'s own message inside a group', () => {
+	it("counts a reply to the bot's own message inside a group", () => {
 		const ctx = {
 			chat: { type: 'supergroup' },
 			message: { text: 'thanks!', reply_to_message: { from: { id: BOT_ID } } },

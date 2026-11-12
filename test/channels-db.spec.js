@@ -16,21 +16,18 @@ import {
 
 beforeAll(async () => {
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, first_name TEXT NOT NULL, last_name TEXT, language_code TEXT, role INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));'
+		'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, first_name TEXT NOT NULL, last_name TEXT, language_code TEXT, role INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP));',
 	);
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, username TEXT, owner_id INTEGER, registered_by INTEGER NOT NULL, admins_synced_at TEXT, official_suffix TEXT, official_suffix_entities TEXT, suffix_skip_marker TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (registered_by) REFERENCES users(id), FOREIGN KEY (owner_id) REFERENCES users(id));'
+		'CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, channel_id INTEGER NOT NULL UNIQUE, title TEXT NOT NULL, username TEXT, owner_id INTEGER, registered_by INTEGER NOT NULL, admins_synced_at TEXT, official_suffix TEXT, official_suffix_entities TEXT, suffix_skip_marker TEXT, created_at TEXT DEFAULT (CURRENT_TIMESTAMP), updated_at TEXT DEFAULT (CURRENT_TIMESTAMP), FOREIGN KEY (registered_by) REFERENCES users(id), FOREIGN KEY (owner_id) REFERENCES users(id));',
 	);
 	await env.my_database.exec(
-		'CREATE TABLE IF NOT EXISTS channel_admins (channel_id INTEGER NOT NULL, user_id INTEGER NOT NULL, added_at TEXT DEFAULT (CURRENT_TIMESTAMP), PRIMARY KEY (channel_id, user_id), FOREIGN KEY (channel_id) REFERENCES channels(channel_id), FOREIGN KEY (user_id) REFERENCES users(id));'
+		'CREATE TABLE IF NOT EXISTS channel_admins (channel_id INTEGER NOT NULL, user_id INTEGER NOT NULL, added_at TEXT DEFAULT (CURRENT_TIMESTAMP), PRIMARY KEY (channel_id, user_id), FOREIGN KEY (channel_id) REFERENCES channels(channel_id), FOREIGN KEY (user_id) REFERENCES users(id));',
 	);
 
 	// registerChannel/channel_admins هر دو به وجود کاربر توی جدول users وابسته‌ن
 	for (const id of [1, 2, 3, 4, 5, 6, 7]) {
-		await env.my_database
-			.prepare('INSERT INTO users (id, first_name) VALUES (?, ?)')
-			.bind(id, `user-${id}`)
-			.run();
+		await env.my_database.prepare('INSERT INTO users (id, first_name) VALUES (?, ?)').bind(id, `user-${id}`).run();
 	}
 });
 
@@ -52,12 +49,7 @@ describe('registerChannel', () => {
 	});
 
 	it('records owner_id when the registrant is the creator', async () => {
-		const result = await registerChannel(
-			env.my_database,
-			2,
-			{ id: -100222, title: 'Channel Two', username: null },
-			{ isOwner: true }
-		);
+		const result = await registerChannel(env.my_database, 2, { id: -100222, title: 'Channel Two', username: null }, { isOwner: true });
 
 		expect(result).toEqual({ isNewChannel: true, ownerAssigned: true });
 
@@ -75,10 +67,7 @@ describe('registerChannel', () => {
 		expect(await getChannels(env.my_database, 3)).toHaveLength(1);
 		expect(await getChannels(env.my_database, 4)).toHaveLength(1);
 
-		const { results } = await env.my_database
-			.prepare('SELECT COUNT(*) as count FROM channels WHERE channel_id = ?')
-			.bind(-100333)
-			.all();
+		const { results } = await env.my_database.prepare('SELECT COUNT(*) as count FROM channels WHERE channel_id = ?').bind(-100333).all();
 		expect(results[0].count).toBe(1);
 	});
 
@@ -92,12 +81,7 @@ describe('registerChannel', () => {
 
 	it('fills in owner_id retroactively once the real creator shows up, without overwriting an existing owner', async () => {
 		await registerChannel(env.my_database, 5, { id: -100556, title: 'Channel Five-B', username: null });
-		let result = await registerChannel(
-			env.my_database,
-			6,
-			{ id: -100556, title: 'Channel Five-B', username: null },
-			{ isOwner: true }
-		);
+		let result = await registerChannel(env.my_database, 6, { id: -100556, title: 'Channel Five-B', username: null }, { isOwner: true });
 		expect(result.ownerAssigned).toBe(true);
 
 		let channels = await getChannels(env.my_database, 6);
@@ -212,19 +196,13 @@ describe('syncChannelAdmins', () => {
 	it('always advances admins_synced_at, even when nothing changed', async () => {
 		await registerChannel(env.my_database, 1, { id: -400004, title: 'No Change', username: null });
 
-		const before = await env.my_database
-			.prepare('SELECT admins_synced_at FROM channels WHERE channel_id = ?')
-			.bind(-400004)
-			.first();
+		const before = await env.my_database.prepare('SELECT admins_synced_at FROM channels WHERE channel_id = ?').bind(-400004).first();
 		expect(before.admins_synced_at).toBeNull();
 
 		const result = await syncChannelAdmins(env.my_database, -400004, [1]);
 
 		expect(result).toEqual({ added: 0, removed: 0 });
-		const after = await env.my_database
-			.prepare('SELECT admins_synced_at FROM channels WHERE channel_id = ?')
-			.bind(-400004)
-			.first();
+		const after = await env.my_database.prepare('SELECT admins_synced_at FROM channels WHERE channel_id = ?').bind(-400004).first();
 		expect(after.admins_synced_at).not.toBeNull();
 	});
 

@@ -6,9 +6,9 @@
  * @returns {number|null}
  */
 export function resolveFounderId(env) {
-  if (env?.FOUNDER_TELEGRAM_ID != null && env.FOUNDER_TELEGRAM_ID !== "") {
-    const n = Number(env.FOUNDER_TELEGRAM_ID);
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
+	if (env?.FOUNDER_TELEGRAM_ID != null && env.FOUNDER_TELEGRAM_ID !== '') {
+		const n = Number(env.FOUNDER_TELEGRAM_ID);
+		if (Number.isFinite(n)) return n;
+	}
+	return null;
 }

@@ -39,7 +39,13 @@ class FakeApi {
 				err.error_code = 400;
 				throw err;
 			}
-			return { message_id: 700, photo: [{ file_id: 'small', width: 90, height: 90 }, { file_id: 'spooled-photo', width: 800, height: 400 }] };
+			return {
+				message_id: 700,
+				photo: [
+					{ file_id: 'small', width: 90, height: 90 },
+					{ file_id: 'spooled-photo', width: 800, height: 400 },
+				],
+			};
 		}
 		if (method === 'sendVideo') {
 			if (this.failSpool) throw new Error('Bad Request: failed to get HTTP URL content');
@@ -410,10 +416,7 @@ describe('pollDueSources', () => {
 			pollUsername: 'broken_chan',
 			now: NOW,
 		});
-		await env.my_database
-			.prepare('UPDATE post_poll_sources SET cursor_message_id = 5 WHERE username = ?')
-			.bind('broken_chan')
-			.run();
+		await env.my_database.prepare('UPDATE post_poll_sources SET cursor_message_id = 5 WHERE username = ?').bind('broken_chan').run();
 
 		feedPosts = [{ channel: USERNAME, id: 71, html: 'پست تازه' }];
 

@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-	buildPublishPlan,
-	describeTelegramError,
-	executePublishPlan,
-	publishPost,
-} from '../src/telegram/services/postPublisher.js';
+import { buildPublishPlan, describeTelegramError, executePublishPlan, publishPost } from '../src/telegram/services/postPublisher.js';
 import { channelPostLink } from '../src/telegram/publishQueue.js';
 
 const TARGET = -1001234567890;
@@ -100,14 +95,7 @@ describe('buildPublishPlan', () => {
 	});
 
 	it('groups several items into one album', () => {
-		const plan = buildPublishPlan(
-			post([
-				mediaItem('photo', 'a', 'اول'),
-				mediaItem('photo', 'b'),
-				mediaItem('video', 'c'),
-			]),
-			TARGET,
-		);
+		const plan = buildPublishPlan(post([mediaItem('photo', 'a', 'اول'), mediaItem('photo', 'b'), mediaItem('video', 'c')]), TARGET);
 		expect(plan.method).toBe('sendMediaGroup');
 		expect(plan.args[0]).toBe(TARGET);
 		const media = plan.args[1];

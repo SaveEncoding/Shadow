@@ -60,10 +60,7 @@ export function shouldPoll(row: PollSourceRow, now: number): boolean {
 /**
  * برداشتن پست‌های تازه‌ی یک منبع عمومی و ریختنشان در صف.
  */
-export async function pollOneSource(
-	deps: PollDeps,
-	row: PollSourceRow & { rule: SourceRule },
-): Promise<PollOutcome> {
+export async function pollOneSource(deps: PollDeps, row: PollSourceRow & { rule: SourceRule }): Promise<PollOutcome> {
 	const { db, now } = deps;
 	const outcome: PollOutcome = { ruleId: row.ruleId, username: row.username, queued: 0, skipped: 0, error: null };
 
@@ -73,7 +70,7 @@ export async function pollOneSource(
 		return { ...outcome, error: feed.error };
 	}
 
-	const posts = /** @type {FeedPost[]} */ (feed.posts).filter((post) => post.messageId > row.cursorMessageId);
+	const posts = /** @type {FeedPost[]} */ feed.posts.filter((post) => post.messageId > row.cursorMessageId);
 	const highestSeen = feed.posts.reduce((max, post) => Math.max(max, post.messageId), row.cursorMessageId);
 
 	if (posts.length === 0) {

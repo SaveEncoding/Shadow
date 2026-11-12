@@ -146,9 +146,7 @@ describe('game record', () => {
 	});
 
 	it('replay throws on a corrupted history', () => {
-		expect(() => replay('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', ['e4', 'e5', 'Qa5'])).toThrow(
-			IllegalMoveError,
-		);
+		expect(() => replay('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', ['e4', 'e5', 'Qa5'])).toThrow(IllegalMoveError);
 	});
 });
 

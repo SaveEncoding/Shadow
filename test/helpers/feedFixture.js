@@ -5,9 +5,7 @@
 export function feedPage(posts) {
 	const blocks = posts
 		.map((post) => {
-			const text = post.html
-				? `<div class="tgme_widget_message_text js-message_text" dir="auto">${post.html}</div>`
-				: '';
+			const text = post.html ? `<div class="tgme_widget_message_text js-message_text" dir="auto">${post.html}</div>` : '';
 			const media = (post.media ?? [])
 				.map((m) => {
 					if (m.kind === 'photo') {

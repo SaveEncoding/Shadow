@@ -136,9 +136,7 @@ describe('game screen', () => {
 	it('warns about check and about a piece without legal moves', () => {
 		const game = newGame('4k3/8/8/8/8/8/4R3/4K3 b - - 0 1');
 		const status = currentStatus(game);
-		expect(
-			gameText({ position: positionOf(game), game, status, mode: 'local', level: 0 }),
-		).toContain('کیش!');
+		expect(gameText({ position: positionOf(game), game, status, mode: 'local', level: 0 })).toContain('کیش!');
 
 		const noMoves = newGame('4k3/8/8/8/8/8/8/4K3 w - - 0 1');
 		expect(

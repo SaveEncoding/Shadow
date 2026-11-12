@@ -64,14 +64,14 @@ npm test
 
 طراحی «Shadow به‌عنوان دستیار همه‌کاره» (مدیریت کانال/چت، شطرنج، ادغام زیرنویس با ویدیو):
 
-| سند | محتوا |
-|---|---|
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | معماری هدف: لایه‌ی هسته‌ی خالص، پورت‌ها، آداپتورها، پلاگین‌ها، مدل داده، سطح اجرا، امنیت، تست. |
-| [`docs/ROADMAP.md`](./docs/ROADMAP.md) | نقشه‌ی راه فاز‌به‌فاز با قدم‌های PR-اندازه و معیار پذیرش هر قدم. |
-| [`docs/MEDIA-PLANE.md`](./docs/MEDIA-PLANE.md) | سطح اجرا: سرور Bot API محلی تلگرام (سقف ۲GB)، نود ffmpeg، پروتکل امن، ریسک‌ها. |
-| [`docs/CHESS.md`](./docs/CHESS.md) | فیچر شطرنج: مدل داده، الگوی callback، سطوح موتور، تست‌ها و محدودیت‌ها. |
-| [`docs/SCHEDULED-POSTS.md`](./docs/SCHEDULED-POSTS.md) | کپی و زمان‌بندی پست: صف در D1، کرون دقیقه‌ای، پنجرهٔ ویرایش، آلبوم‌ها، تضمین‌های ضدپست‌تکراری. |
-| [`docs/SCHEDULED-POSTS.md#۱۷-حساب-x-توییتر`](./docs/SCHEDULED-POSTS.md) | منابع X (توییتر): انتخاب ارائه‌دهنده (API رسمی/RSS)، کنترل هزینه، محدودیت‌های محتوایی. |
+| سند                                                                     | محتوا                                                                                          |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)                        | معماری هدف: لایه‌ی هسته‌ی خالص، پورت‌ها، آداپتورها، پلاگین‌ها، مدل داده، سطح اجرا، امنیت، تست. |
+| [`docs/ROADMAP.md`](./docs/ROADMAP.md)                                  | نقشه‌ی راه فاز‌به‌فاز با قدم‌های PR-اندازه و معیار پذیرش هر قدم.                               |
+| [`docs/MEDIA-PLANE.md`](./docs/MEDIA-PLANE.md)                          | سطح اجرا: سرور Bot API محلی تلگرام (سقف ۲GB)، نود ffmpeg، پروتکل امن، ریسک‌ها.                 |
+| [`docs/CHESS.md`](./docs/CHESS.md)                                      | فیچر شطرنج: مدل داده، الگوی callback، سطوح موتور، تست‌ها و محدودیت‌ها.                         |
+| [`docs/SCHEDULED-POSTS.md`](./docs/SCHEDULED-POSTS.md)                  | کپی و زمان‌بندی پست: صف در D1، کرون دقیقه‌ای، پنجرهٔ ویرایش، آلبوم‌ها، تضمین‌های ضدپست‌تکراری.  |
+| [`docs/SCHEDULED-POSTS.md#۱۷-حساب-x-توییتر`](./docs/SCHEDULED-POSTS.md) | منابع X (توییتر): انتخاب ارائه‌دهنده (API رسمی/RSS)، کنترل هزینه، محدودیت‌های محتوایی.         |
 
 خلاصه‌ی یک‌خطی معماری: **Worker فقط تصمیم می‌گیرد و هماهنگ می‌کند؛ ffmpeg/Stockfish روی یک
 سطح اجرای جدا اجرا می‌شوند؛ حالت زنده در Durable Objects، رکورد در D1، فایل در R2.**
@@ -83,6 +83,7 @@ npm test
 ## 📋 TODO
 
 ### Website
+
 - [x] Completely removing dependency on `env.ASSETS` — everything directly from the code Worker (bundled files) is served
 - [x] 301 redirect from `.html` addresses to canonical version (while preserving query string)
 - [x] `robots.txt`
@@ -91,6 +92,7 @@ npm test
 - [ ] Create a search menu
 
 ### Telegram bot
+
 - [x] Removing dead and unused code (old and incompatible version of channel management, wrong imports with upper/lower case)
 - [x] Webhook Secret validation (prevents processing of fake updates that do not come from Telegram)
 - [x] Global error handling system (`withErrorHandling`, throttling error reporting with KV, `UserFacingError`/`CriticalError` classes)
@@ -110,7 +112,7 @@ npm test
 - [x] Pure chess core in `src/core/chess` with perft-verified move generation (6 standard positions) and 100% unit-test coverage of FEN/SAN/rules
 - [x] **Scheduled post copy** (`/schedule` + `/post`): copy posts from a source channel (or a manual forward) into a target channel and publish them after a delay, so the admin can edit the text/caption, reschedule, cancel or publish now — see [`docs/SCHEDULED-POSTS.md`](./docs/SCHEDULED-POSTS.md)
 - [x] **Sources where the bot is not a member**: public channels are polled through the `t.me/s/<username>` web preview (text/photo/small video, polled once a minute, media converted to durable `file_id`s), with an automatic offer when a forwarded channel rejects the bot as non-admin
-- [x] **X (Twitter) sources** *(suspended — code ships off by default behind `X_SOURCES_ENABLED`, until a stable RSS bridge or API key is in place; turning it on is one variable)*: connect one or more `@handle`s to a target channel; new tweets are queued in full (text with expanded `t.co` links, `note_tweet` long text, up to 4 photos spooled to durable `file_id`s, video kept as a link) and published on schedule. Reads through the official X API (`X_BEARER_TOKEN`) or a self-hosted RSS bridge (`X_RSS_TEMPLATE`); never scrapes X. Built as a platform-agnostic scanner (`src/core/sources/`) so more websites can be added as adapters — see [`docs/SCHEDULED-POSTS.md`](./docs/SCHEDULED-POSTS.md)
+- [x] **X (Twitter) sources** _(suspended — code ships off by default behind `X_SOURCES_ENABLED`, until a stable RSS bridge or API key is in place; turning it on is one variable)_: connect one or more `@handle`s to a target channel; new tweets are queued in full (text with expanded `t.co` links, `note_tweet` long text, up to 4 photos spooled to durable `file_id`s, video kept as a link) and published on schedule. Reads through the official X API (`X_BEARER_TOKEN`) or a self-hosted RSS bridge (`X_RSS_TEMPLATE`); never scrapes X. Built as a platform-agnostic scanner (`src/core/sources/`) so more websites can be added as adapters — see [`docs/SCHEDULED-POSTS.md`](./docs/SCHEDULED-POSTS.md)
 - [ ] Use Gemini
 - [ ] Connect the rest Menu buttons: "Admin Panel", "Settings", "Statistics", "Help" — now nothing happens if the user clicks them (no response, not even the loading state of Telegram closes) because none of them have a callback handler
 - [ ] UI for managing registered channels from within "My Channels" (now just a raw text list; no delete channel button)
@@ -119,12 +121,14 @@ npm test
 - [ ] Rate limit on the ability to add channels, so that someone can't overload the forwards with too many requests Increase `getChatMember`
 
 ### Chess (next steps)
+
 - [ ] Clocks (per-move time control) with Durable Object alarms
 - [ ] Play by position/FEN, board image renderer, puzzle mode
 - [ ] Engine-vs-engine simulation with reproducible PGN (seeded)
 - [ ] Stronger opponent via Stockfish on the execution plane (`MEDIA-PLANE.md`)
 
 ### Infrastructure
+
 - [x] Partial migration to TypeScript (`index.ts`, `types.ts`, `assets.d.ts`)
 - [x] Committing essential files that were previously mistakenly gitignored (`package.json`, `tsconfig.json`, `wrangler.jsonc`, `package-lock.json`, `vitest.config.js`, `test/`)
 - [ ] Setting up GitHub Actions to automatically run tests on every push/PR

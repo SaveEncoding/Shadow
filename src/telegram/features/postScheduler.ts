@@ -34,25 +34,10 @@
 import { InlineKeyboard, type Context } from 'grammy';
 import { captureSourcePost, applySourceEdit, extractPostItem, queueManualPost, unsupportedReason } from '../capturePost.js';
 import { computePublishAt, DEFAULT_DELAY_MINUTES, formatDelay, SECONDS_PER_MINUTE } from '../../core/schedule/timing.js';
-import {
-	latestMessageId,
-	isValidChannelUsername,
-	normalizeUsername,
-	publicSourceChannelId,
-} from '../../core/schedule/publicFeed.js';
+import { latestMessageId, isValidChannelUsername, normalizeUsername, publicSourceChannelId } from '../../core/schedule/publicFeed.js';
 import { fetchPublicFeed } from '../publicFeed.js';
-import {
-	isValidXHandle,
-	normalizeXHandle,
-	xSourceChannelId,
-} from '../../core/sources/x.js';
-import {
-	fetchXTimeline,
-	isXSourcesEnabled,
-	resolveXProvider,
-	X_NOT_CONFIGURED_MESSAGE,
-	X_SUSPENDED_MESSAGE,
-} from '../xSource.js';
+import { isValidXHandle, normalizeXHandle, xSourceChannelId } from '../../core/sources/x.js';
+import { fetchXTimeline, isXSourcesEnabled, resolveXProvider, X_NOT_CONFIGURED_MESSAGE, X_SUSPENDED_MESSAGE } from '../xSource.js';
 import { upsertXSource } from '../db/postQueue.js';
 import type { PostItem } from '../../core/schedule/types.js';
 import { getChannelByTelegramId, getChannels, isUserChannelAdmin } from '../db/channels.js';
@@ -259,11 +244,7 @@ export function postSchedulerFeature(
 			expiresAt: now + SESSION_TTL_SECONDS,
 		});
 
-		return renderScreen(
-			ctx,
-			manualCaptureText(channel?.title ?? String(channelId), delay),
-			manualCaptureKeyboard(channelId),
-		);
+		return renderScreen(ctx, manualCaptureText(channel?.title ?? String(channelId), delay), manualCaptureKeyboard(channelId));
 	});
 
 	// ── حساب X (توییتر) ──
@@ -418,13 +399,7 @@ export function postSchedulerFeature(
 		if (!(await canManage(db, channelId, ctx.from?.id))) return toast(ctx, 'دسترسی ندارید.');
 
 		const channel = await getChannelByTelegramId(db, channelId);
-		const result = await registerPublicSource(
-			ctx.from!.id,
-			channelId,
-			ctx.chat?.id ?? ctx.from!.id,
-			username,
-			DEFAULT_DELAY_MINUTES,
-		);
+		const result = await registerPublicSource(ctx.from!.id, channelId, ctx.chat?.id ?? ctx.from!.id, username, DEFAULT_DELAY_MINUTES);
 
 		if (result.ok === false) {
 			await toast(ctx, 'انجام نشد.');
@@ -432,9 +407,7 @@ export function postSchedulerFeature(
 		}
 		await toast(ctx, 'اضافه شد.');
 
-		await ctx.reply(
-			publicSourceAddedText(`@${normalizeUsername(username)}`, channel?.title ?? String(channelId), DEFAULT_DELAY_MINUTES),
-		);
+		await ctx.reply(publicSourceAddedText(`@${normalizeUsername(username)}`, channel?.title ?? String(channelId), DEFAULT_DELAY_MINUTES));
 		return openChannel(ctx, channelId);
 	});
 
@@ -447,11 +420,7 @@ export function postSchedulerFeature(
 			const rule = await getSourceRule(db, Number(scope.slice(1)));
 			if (!rule) return toast(ctx, 'این منبع پیدا نشد.');
 			if (!(await canManage(db, rule.targetChannelId, ctx.from?.id))) return toast(ctx, 'دسترسی ندارید.');
-			return renderScreen(
-				ctx,
-				delayPickerText('rule', rule.delayMinutes, nowSeconds()),
-				delayPickerKeyboard(scope, 'rule'),
-			);
+			return renderScreen(ctx, delayPickerText('rule', rule.delayMinutes, nowSeconds()), delayPickerKeyboard(scope, 'rule'));
 		}
 
 		const post = await getPost(db, Number(scope.slice(1)));
@@ -516,11 +485,7 @@ export function postSchedulerFeature(
 
 		const now = nowSeconds();
 		const posts = await listPendingPosts(db, channelId, 10);
-		return renderScreen(
-			ctx,
-			queueText(posts, channel.title, now),
-			queueKeyboard(posts, channelId),
-		);
+		return renderScreen(ctx, queueText(posts, channel.title, now), queueKeyboard(posts, channelId));
 	};
 
 	bot.callbackQuery(/^ps:q:(-?\d+)$/, async (ctx: Context) => {
@@ -535,11 +500,7 @@ export function postSchedulerFeature(
 
 		const channel = await getChannelByTelegramId(db, post.targetChannelId);
 		const now = nowSeconds();
-		return renderScreen(
-			ctx,
-			postDetailText(post, channel?.title ?? String(post.targetChannelId), now),
-			postDetailKeyboard(post, now),
-		);
+		return renderScreen(ctx, postDetailText(post, channel?.title ?? String(post.targetChannelId), now), postDetailKeyboard(post, now));
 	};
 
 	bot.callbackQuery(/^ps:p:(\d+)$/, async (ctx: Context) => {
@@ -713,13 +674,7 @@ export function postSchedulerFeature(
 				return ctx.reply(X_SUSPENDED_MESSAGE, { parse_mode: 'HTML' });
 			}
 
-			const result = await registerXSource(
-				userId,
-				session.targetChannelId,
-				ctx.chat.id,
-				ctx.message?.text ?? '',
-				session.delayMinutes,
-			);
+			const result = await registerXSource(userId, session.targetChannelId, ctx.chat.id, ctx.message?.text ?? '', session.delayMinutes);
 
 			if (result.ok === false) {
 				// اگر فقط آدرس اشتباه بود، جلسه باز می‌ماند؛ اگر پیکربندی سرور
@@ -741,22 +696,14 @@ export function postSchedulerFeature(
 		// حالت ۰: منبع عمومی — کاربر باید @یوزرنیم بفرستد
 		if (session.mode === 'public') {
 			const text = (ctx.message?.text ?? '').trim();
-			const result = await registerPublicSource(
-				userId,
-				session.targetChannelId,
-				ctx.chat.id,
-				text,
-				session.delayMinutes,
-			);
+			const result = await registerPublicSource(userId, session.targetChannelId, ctx.chat.id, text, session.delayMinutes);
 			if (result.ok === false) {
 				// جلسه باز می‌ماند تا کاربر آدرس درست را بفرستد (یا /cancel بزند)
 				return ctx.reply(result.message);
 			}
 
 			await clearCaptureSession(db, userId);
-			await ctx.reply(
-				publicSourceAddedText(`@${normalizeUsername(text)}`, targetTitle, session.delayMinutes),
-			);
+			await ctx.reply(publicSourceAddedText(`@${normalizeUsername(text)}`, targetTitle, session.delayMinutes));
 			return openChannel(ctx, session.targetChannelId);
 		}
 
@@ -764,9 +711,7 @@ export function postSchedulerFeature(
 		if (session.mode === 'source') {
 			const source = getForwardedChannel(ctx.message) as { id: number; title: string; username: string | null } | null;
 			if (!source) {
-				return ctx.reply(
-					'❌ این پیام از یک کانال فوروارد نشده است.\nیک پست از کانال مبدأ را فوروارد کن، یا /cancel را بزن.',
-				);
+				return ctx.reply('❌ این پیام از یک کانال فوروارد نشده است.\nیک پست از کانال مبدأ را فوروارد کن، یا /cancel را بزن.');
 			}
 
 			// شرط سخت: بات باید ادمین کانال مبدأ باشد تا پست‌ها را ببیند
@@ -788,9 +733,7 @@ export function postSchedulerFeature(
 							{ reply_markup: kb },
 						);
 					}
-					return ctx.reply(
-						`❌ بات در کانال «${source.title}» ادمین نیست.\nاول بات را ادمین کن، بعد دوباره فوروارد کن.`,
-					);
+					return ctx.reply(`❌ بات در کانال «${source.title}» ادمین نیست.\nاول بات را ادمین کن، بعد دوباره فوروارد کن.`);
 				}
 			} catch (err) {
 				console.error('[postScheduler] getChatMember failed:', err);

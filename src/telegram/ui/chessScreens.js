@@ -88,32 +88,21 @@ export function boardText(position, targets = [], selected = null) {
  * @param {{ position: import('../../core/chess/types.js').Position, game: GameLike, status: { over: boolean, check: boolean }, mode: string, level: number, selected?: number|null, targets?: any[] }} input
  */
 export function gameText({ position, game, status, mode, level, selected = null, targets = [] }) {
-	const header =
-		mode === 'engine'
-			? `♟ <b>شطرنج</b> — ${levelLabel(level)}`
-			: '♟ <b>شطرنج</b> — دو نفره';
+	const header = mode === 'engine' ? `♟ <b>شطرنج</b> — ${levelLabel(level)}` : '♟ <b>شطرنج</b> — دو نفره';
 
 	const moveNumber = Math.floor(game.moves.length / 2) + 1;
 	const side = position.turn === 'w' ? 'سفید' : 'سیاه';
-	const owner =
-		mode === 'engine' ? (position.turn === 'w' ? '<b>شما</b>' : 'موتور') : `<b>${side}</b>`;
+	const owner = mode === 'engine' ? (position.turn === 'w' ? '<b>شما</b>' : 'موتور') : `<b>${side}</b>`;
 
 	// توجه: `targets` مجموعه‌ی حرکت‌هاست؛ برای تخته فقط «خانه‌ی مقصد» لازم است.
 	const targetSquares = targets.map((move) => move.to);
-	const lines = [
-		`${header} · حرکت ${moveNumber}`,
-		`نوبت ${owner} (${side})`,
-		'',
-		boardText(position, targetSquares, selected),
-	];
+	const lines = [`${header} · حرکت ${moveNumber}`, `نوبت ${owner} (${side})`, '', boardText(position, targetSquares, selected)];
 
 	if (status.check) lines.push('⚠️ <b>کیش!</b>');
 	lines.push('', `<i>${moveHistoryLine(game.moves)}</i>`);
 
 	const selectedLabel =
-		selected !== null && position.board[selected] !== 0
-			? `${pieceSymbol(position.board[selected])} ${squareName(selected)}`
-			: null;
+		selected !== null && position.board[selected] !== 0 ? `${pieceSymbol(position.board[selected])} ${squareName(selected)}` : null;
 
 	if (selected !== null && targets.length > 0) {
 		lines.push('', `👆 انتخاب: <b>${selectedLabel}</b> — خانه‌ی مقصد را از کیبورد بزنید.`);
@@ -205,10 +194,7 @@ export function chessHomeText({ stats, activeGame }) {
 	}
 
 	if (stats && stats.played > 0) {
-		lines.push(
-			'',
-			`🏆 برد: <b>${stats.wins}</b> • 🤝 مساوی: <b>${stats.draws}</b> • 💀 باخت: <b>${stats.losses}</b>`,
-		);
+		lines.push('', `🏆 برد: <b>${stats.wins}</b> • 🤝 مساوی: <b>${stats.draws}</b> • 💀 باخت: <b>${stats.losses}</b>`);
 	}
 
 	return lines.join('\n');

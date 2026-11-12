@@ -16,16 +16,7 @@
  */
 
 /** انواع entity که تولید می‌کنیم (زیرمجموعه‌ی MessageEntity تلگرام) */
-export type HtmlEntityType =
-	| 'bold'
-	| 'italic'
-	| 'underline'
-	| 'strikethrough'
-	| 'spoiler'
-	| 'code'
-	| 'pre'
-	| 'blockquote'
-	| 'text_link';
+export type HtmlEntityType = 'bold' | 'italic' | 'underline' | 'strikethrough' | 'spoiler' | 'code' | 'pre' | 'blockquote' | 'text_link';
 
 export interface HtmlTextEntity {
 	type: HtmlEntityType;
