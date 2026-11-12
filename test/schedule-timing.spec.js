@@ -142,6 +142,8 @@ describe('due checks', () => {
 
 describe('retry backoff', () => {
 	it('grows but stays bounded', () => {
+		// قرارداد مستندشده: ۱ → ۳، ۲ → ۹، ۳ → ۲۷ دقیقه، و از آن به بعد سقف ۶۰ دقیقه
+		expect(retryDelaySeconds(0)).toBe(180); // هیچ تلاشی ثبت نشده → مثل اولین خطا
 		expect(retryDelaySeconds(1)).toBe(180);
 		expect(retryDelaySeconds(2)).toBe(540);
 		expect(retryDelaySeconds(3)).toBe(1620);

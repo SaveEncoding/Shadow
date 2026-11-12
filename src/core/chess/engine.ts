@@ -47,13 +47,25 @@ function moveOrderScore(move: Move): number {
 	return score;
 }
 
-class Searcher {
+/**
+ * جست‌وجوگر.
+ *
+ * صادر شده تا تست بتواند مسیرهای نادر (مثل «سقف گره وسط درخت») را مستقیم بزند؛
+ * `search` همیشه از آن استفاده می‌کند و رفتار عمومی تغییر نمی‌کند.
+ */
+export class Searcher {
 	nodes = 0;
 	truncated = false;
 	private readonly nodeLimit: number;
 
 	constructor(nodeLimit: number) {
 		this.nodeLimit = nodeLimit;
+	}
+
+	/** ارزیابی از دید نوبت‌دار (همان قراردادی که negamax انتظار دارد) */
+	private evalForSideToMove(pos: Position): number {
+		const white = evaluate(pos);
+		return pos.turn === 'w' ? white : -white;
 	}
 
 	private outOfNodes(): boolean {
@@ -70,7 +82,8 @@ class Searcher {
 	 */
 	negamax(pos: Position, depth: number, alpha: number, beta: number, ply: number): number {
 		this.nodes++;
-		if (this.outOfNodes()) return evaluate(pos);
+		// امتیاز باید از دید نوبت‌دار باشد؛ `evaluate` همیشه از دید سفید است.
+		if (this.outOfNodes()) return this.evalForSideToMove(pos);
 
 		// در برگ، پیش از تولید کامل حرکات، به جست‌وجوی آرام می‌رویم (صرفه‌جویی زیاد)
 		if (depth <= 0) return this.quiescence(pos, alpha, beta, ply);
@@ -91,7 +104,7 @@ class Searcher {
 			const score = -this.negamax(pos, depth - 1, -beta, -alpha, ply + 1);
 			undoMove(pos, undo);
 
-			if (this.truncated) return best === -INFINITY ? evaluate(pos) : best;
+			if (this.truncated) return best === -INFINITY ? this.evalForSideToMove(pos) : best;
 
 			if (score > best) best = score;
 			if (best > alpha) alpha = best;
@@ -110,7 +123,7 @@ class Searcher {
 	 */
 	quiescence(pos: Position, alpha: number, beta: number, ply: number): number {
 		this.nodes++;
-		if (this.outOfNodes()) return evaluate(pos) * (pos.turn === 'w' ? 1 : -1);
+		if (this.outOfNodes()) return this.evalForSideToMove(pos);
 
 		let best = evaluate(pos) * (pos.turn === 'w' ? 1 : -1);
 		if (best >= beta) return best;
@@ -201,7 +214,6 @@ export function search(pos: Position, options: SearchOptions): SearchResult {
 		if (Math.abs(localBestScore) > MATE_SCORE - 100) break; // مات پیدا شد
 	}
 
-	if (!best.move) return { ...best, nodes: searcher.nodes, truncated: searcher.truncated };
 	return { ...best, nodes: searcher.nodes, truncated: searcher.truncated };
 }
 

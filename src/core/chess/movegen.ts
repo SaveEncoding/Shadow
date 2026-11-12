@@ -63,15 +63,7 @@ const ROOK_DIRS: ReadonlyArray<readonly [number, number]> = [
 
 const PROMOTION_PIECES = [QUEEN, ROOK, BISHOP, KNIGHT];
 
-function addPawnMove(
-	out: Move[],
-	from: number,
-	to: number,
-	piece: number,
-	captured: number,
-	isPromotion: boolean,
-	ep = false,
-): void {
+function addPawnMove(out: Move[], from: number, to: number, piece: number, captured: number, isPromotion: boolean, ep = false): void {
 	if (isPromotion) {
 		for (const promo of PROMOTION_PIECES) {
 			out.push({ from, to, piece, captured, promo });

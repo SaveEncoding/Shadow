@@ -81,14 +81,7 @@ export interface Undo {
 export type GameResult = '1-0' | '0-1' | '1/2-1/2';
 
 export type GameEndReason =
-	| 'checkmate'
-	| 'stalemate'
-	| 'insufficient-material'
-	| 'fifty-move'
-	| 'threefold'
-	| 'resignation'
-	| 'timeout'
-	| 'agreement';
+	'checkmate' | 'stalemate' | 'insufficient-material' | 'fifty-move' | 'threefold' | 'resignation' | 'timeout' | 'agreement';
 
 export interface GameStatus {
 	/** آیا بازی تمام شده است؟ */

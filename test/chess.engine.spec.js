@@ -3,10 +3,77 @@ import { parseFen } from '../src/core/chess/fen.js';
 import { applyMove, moveToUci } from '../src/core/chess/make-move.js';
 import { legalMoves } from '../src/core/chess/movegen.js';
 import { moveToSan } from '../src/core/chess/san.js';
-import { ENGINE_LEVELS, MATE_SCORE, chooseMove, makeRandom, search } from '../src/core/chess/engine.js';
+import { ENGINE_LEVELS, MATE_SCORE, Searcher, chooseMove, makeRandom, search } from '../src/core/chess/engine.js';
 import { getStatus } from '../src/core/chess/status.js';
+import { evaluate } from '../src/core/chess/eval.js';
+
+/**
+ * آینه‌ی رنگی موقعیت: هر مهره در خانه‌ی مقابل (`sq ^ 56`) و رنگ معکوس.
+ *
+ * `evaluate` همیشه از دید سفید است و برای سیاه از PST آینه‌ای استفاده می‌کند؛ پس
+ * ارزیابی موقعیت آینه‌ای دقیقاً قرینه است و امتیاز negamax باید یکی بماند.
+ */
+function colorMirror(pos) {
+	const board = new Int8Array(64);
+	for (let sq = 0; sq < 64; sq++) board[sq] = -pos.board[sq ^ 56];
+	const swap = { w: 'b', b: 'w' };
+	return {
+		board,
+		turn: swap[pos.turn],
+		// KQ ↔ kq
+		castling: ((pos.castling & 3) << 2) | ((pos.castling & 12) >> 2),
+		ep: pos.ep === -1 ? -1 : pos.ep ^ 56,
+		halfmove: pos.halfmove,
+		fullmove: pos.fullmove,
+	};
+}
+
+describe('negamax perspective at the node limit', () => {
+	// `evaluate` همیشه از دید سفید است، ولی negamax قرارداد «از دید نوبت‌دار» دارد.
+	// اگر در سقف گره امتیاز سفید برگردد، والد آن را قرینه می‌کند و علامت برعکس می‌شود.
+	const blackToMove = () => parseFen('r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 4 4');
+
+	it('returns the side-to-move eval when the budget is already exhausted', () => {
+		const pos = blackToMove();
+		const searcher = new Searcher(0);
+		const whiteScore = evaluate(pos);
+		// سیاه نوبت دارد → امتیاز باید قرینه‌ی ارزیابی سفید باشد
+		expect(searcher.negamax(pos, 3, -1_000_000, 1_000_000, 1)).toBe(-whiteScore);
+	});
+
+	it('returns the side-to-move eval when the first child eats the last node', () => {
+		const pos = blackToMove();
+		const searcher = new Searcher(1);
+		const whiteScore = evaluate(pos);
+		expect(searcher.negamax(pos, 3, -1_000_000, 1_000_000, 1)).toBe(-whiteScore);
+		expect(searcher.truncated).toBe(true);
+	});
+
+	it('produces the same score for a position and its color mirror', () => {
+		// قوی‌ترین شکل همین قرارداد: تقارن رنگی در همه‌ی سقف‌های گره
+		const pos = parseFen('r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4');
+		for (const nodeLimit of [1, 2, 5, 25, 200]) {
+			expect(search(pos, { depth: 3, nodeLimit }).score, `nodeLimit=${nodeLimit}`).toBe(
+				search(colorMirror(pos), { depth: 3, nodeLimit }).score,
+			);
+		}
+	});
+});
 
 describe('search', () => {
+	it('evaluates a position and its color mirror identically, even when the node budget runs out', () => {
+		// اگر در سقف گره، ارزیابی از دید سفید برگردد (به‌جای نوبت‌دار)، این تقارن می‌شکند.
+		const fen = 'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4';
+		const pos = parseFen(fen);
+		const mirrored = colorMirror(pos);
+
+		for (const nodeLimit of [1, 2, 3, 7, 25]) {
+			const a = search(pos, { depth: 3, nodeLimit });
+			const b = search(mirrored, { depth: 3, nodeLimit });
+			expect(a.score, `nodeLimit=${nodeLimit}`).toBe(b.score);
+		}
+	});
+
 	it('finds mate in one', () => {
 		const pos = parseFen('6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1');
 		const result = search(pos, { depth: 2 });

@@ -157,7 +157,13 @@ export function isDue(row: { status: string; publishAt: number; finalizeAt: numb
 	return false;
 }
 
-/** تأخیر پلکانی برای تلاش مجدد: ۱، ۳، ۹ دقیقه */
+/**
+ * تأخیر پلکانی برای تلاش مجدد، بر حسب ثانیه.
+ *
+ * `attempts` تعداد تلاش‌های انجام‌شده است (۱ یعنی اولین خطا):
+ *   1 → 3 دقیقه، 2 → 9 دقیقه، 3 → 27 دقیقه، 4 → 60 دقیقه (سقف).
+ * سقف ۶۰ دقیقه است تا یک منبع خراب هرگز بیش از یک بار در ساعت تلاش نکند.
+ */
 export function retryDelaySeconds(attempts: number): number {
 	return Math.min(3 ** Math.max(1, attempts), 60) * SECONDS_PER_MINUTE;
 }

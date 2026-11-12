@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import { env } from 'cloudflare:test';
 import { createBot, executionCtxStorage } from '../src/telegram/bot.js';
 import { postSchedulerFeature } from '../src/telegram/features/postScheduler.js';
-import { getPost, getSourceRule } from '../src/telegram/db/postQueue.js';
+import { getPost, getSourceRule, saveSourceRule } from '../src/telegram/db/postQueue.js';
 import { CHANNEL_ADMINS_TABLE, CHANNELS_TABLE, createScheduleTables, resetScheduleTables } from './helpers/scheduleSchema.js';
 import { getPollSource, listRulesForTarget } from '../src/telegram/db/postQueue.js';
 import { publicSourceChannelId } from '../src/core/schedule/publicFeed.js';
@@ -325,6 +325,52 @@ describe('capturing channel posts', () => {
 
 		// هنوز چیزی در کانال مقصد منتشر نشده است
 		expect(channelMessages()).toHaveLength(0);
+	});
+
+	it('surfaces a handler error to bot.catch instead of swallowing it', async () => {
+		// شرط: خطای داخل هندلر باید از زنجیره بیرون بیاید (تا `handleTelegramUpdate`
+		// آن را لاگ و به ادمین گزارش کند)، نه اینکه با `return next()` در finally بلعیده شود.
+		const db = env.my_database;
+		let exploded = false;
+		const brokenDb = new Proxy(db, {
+			get(target, key) {
+				if (key === 'prepare') {
+					return (sql) => {
+						if (String(sql).includes('post_seen')) {
+							exploded = true;
+							throw new Error('boom from db');
+						}
+						return target.prepare(sql);
+					};
+				}
+				const value = target[key];
+				return typeof value === 'function' ? value.bind(target) : value;
+			},
+		});
+
+		const bot = createBot({ ...env, TELEGRAM_TOKEN: '123:test', TELEGRAM_WEBHOOK_SECRET: 'secret' });
+		postSchedulerFeature(bot, { ...env, my_database: brokenDb });
+		bot.api.config.use((prev, method, payload) => {
+			calls.push({ method, payload });
+			return Promise.resolve({ ok: true, result: fakeResult(method, payload) });
+		});
+		await bot.init();
+
+		// یک قانون واقعی روی D1 سالم بساز تا مسیر capture اجرا شود
+		await saveSourceRule(db, {
+			sourceChannelId: SOURCE,
+			sourceTitle: 'کانال مبدأ',
+			sourceUsername: 'source_chan',
+			targetChannelId: TARGET,
+			delayMinutes: 30,
+			notifyChatId: USER.id,
+			addedBy: USER.id,
+			now: 1_700_000_000,
+		});
+
+		// خطا باید از زنجیره بیرون بیاید تا `handleTelegramUpdate` بگیرد و به ادمین گزارش کند
+		await expect(dispatch(bot, channelPostUpdate({ text: 'خطا بده' }))).rejects.toThrow(/boom from db/);
+		expect(exploded).toBe(true);
 	});
 
 	it('does not copy posts of an unknown channel', async () => {

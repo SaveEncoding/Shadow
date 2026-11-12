@@ -817,9 +817,14 @@ export function postSchedulerFeature(
 				await notifyQueued(schedulerApi(ctx), db, outcome.postId, now);
 			}
 		} catch (err) {
+			// خطا را لاگ می‌کنیم ولی نمی‌بلعیم: `bot.catch` آن را گزارش می‌کند و
+			// به کاربر پیام می‌دهد. قبلاً `return next()` داخل `finally` استثنا را
+			// دور می‌ریخت و هیچ‌کس خبردار نمی‌شد.
 			console.error('[postScheduler] channel post handling failed:', err);
-		} finally {
-			return next();
+			throw err;
 		}
+
+		// فقط در مسیر موفق؛ زنجیره ادامه پیدا می‌کند تا فیچر پسوند هم اجرا شود.
+		await next();
 	});
 }

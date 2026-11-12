@@ -137,7 +137,11 @@ export async function saveSourceRule(
 		now: number;
 	},
 ): Promise<number> {
-	const result = await db
+	// NOTE: `meta.last_row_id` را عمداً نمی‌خوانیم.
+	// در مسیر `ON CONFLICT DO UPDATE` مقدار `last_insert_rowid` تغییر نمی‌کند و
+	// شناسه‌ی آخرین INSERT این اتصال را برمی‌گرداند — یعنی می‌توانست ردیف‌های
+	// poll/X را به قانون دیگری بچسباند. شناسه همیشه از خودِ جدول خوانده می‌شود.
+	const row = await db
 		.prepare(
 			`INSERT INTO post_sources
 			   (source_channel_id, source_title, source_username, target_channel_id, delay_minutes, enabled, notify_chat_id, added_by, created_at, updated_at)
@@ -150,7 +154,8 @@ export async function saveSourceRule(
 			   enabled = 1,
 			   notify_chat_id = excluded.notify_chat_id,
 			   added_by = excluded.added_by,
-			   updated_at = excluded.updated_at`,
+			   updated_at = excluded.updated_at
+			 RETURNING id`,
 		)
 		.bind(
 			input.sourceChannelId,
@@ -163,9 +168,10 @@ export async function saveSourceRule(
 			input.now,
 			input.now,
 		)
-		.run();
+		.first<{ id: number }>();
 
-	const ruleId = Number(result.meta?.last_row_id ?? 0) || (await findRuleIdBySourceChannel(db, input.sourceChannelId)) || 0;
+	// RETURNING هر دو مسیر (INSERT و UPDATE) را پوشش می‌دهد؛ SELECT فقط تور ایمنی است.
+	const ruleId = Number(row?.id ?? 0) || (await findRuleIdBySourceChannel(db, input.sourceChannelId)) || 0;
 
 	if (input.pollUsername) {
 		await upsertPollSource(db, { ruleId, username: input.pollUsername, now: input.now });
@@ -634,19 +640,22 @@ export async function getPost(db: D1Database, id: number): Promise<QueuePost | n
  * گرفتن قفل انتشار. اگر false برگردد، یک اجرای دیگر (یا کلیک دیگر) زودتر آن را
  * برداشته است — پس نباید دوباره ارسال شود. این تنها محافظ در برابر پست تکراری است.
  */
+/**
+ * قفل انتشار: تنها یک فراخواننده برنده می‌شود.
+ *
+ * هر دو حالت در یک `UPDATE` اتمیک هستند (`scheduled` و آلبومی که هنوز
+ * `collecting` است)؛ قبلاً دو UPDATE پشت‌سرهم بود که هم یک رفت‌وبرگشت
+ * اضافه داشت و هم برنده‌شدن را به ترتیب اجرا گره می‌زد.
+ */
 export async function claimForPublish(db: D1Database, id: number, now: number): Promise<boolean> {
-	const fromScheduled = await db
-		.prepare(`UPDATE post_queue SET status = 'publishing', updated_at = ? WHERE id = ? AND status = 'scheduled'`)
+	const result = await db
+		.prepare(
+			`UPDATE post_queue SET status = 'publishing', updated_at = ?
+			 WHERE id = ? AND status IN ('scheduled', 'collecting')`,
+		)
 		.bind(now, id)
 		.run();
-	if (Number(fromScheduled.meta?.changes ?? 0) > 0) return true;
-
-	// آلبوم ممکن است هنوز در حالت collecting باشد
-	const fromCollecting = await db
-		.prepare(`UPDATE post_queue SET status = 'publishing', updated_at = ? WHERE id = ? AND status = 'collecting'`)
-		.bind(now, id)
-		.run();
-	return Number(fromCollecting.meta?.changes ?? 0) > 0;
+	return Number(result.meta?.changes ?? 0) > 0;
 }
 
 export async function markPublished(db: D1Database, id: number, messageId: number | null, now: number): Promise<void> {
