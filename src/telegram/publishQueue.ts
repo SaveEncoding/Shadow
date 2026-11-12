@@ -29,7 +29,9 @@ import {
 	claimForPublish,
 	finalizePost,
 	getPost,
-	getSourceRule,
+	getPostsByIds,
+	getRulesForSources,
+	listCollectingAmong,
 	markFailed,
 	markPublished,
 	listActivePollSources,
@@ -153,22 +155,57 @@ export async function publishOne(api: SchedulerApi, db: D1Database, postId: numb
  * پایان‌بندی آلبوم‌هایی که مهلت جمع‌آوری‌شان تمام شده است.
  * زمان انتشار از **لحظه‌ی رسیدن اولین آیتم** حساب می‌شود، نه از لحظه‌ی پایان‌بندی.
  */
-export async function finalizeReadyAlbums(db: D1Database, now: number): Promise<number[]> {
-	const ids = await listReadyPosts(db, now, MAX_PUBLISH_PER_TICK);
+export async function finalizeReadyAlbums(db: D1Database, now: number, candidateIds?: number[]): Promise<number[]> {
+	const ready = candidateIds ?? (await listReadyPosts(db, now, MAX_PUBLISH_PER_TICK));
+	const { finalized } = await closeDueAlbums(db, now, ready);
+	return finalized;
+}
+
+/**
+ * بستن آلبوم‌های سررسیده از میان کاندیدهای همین تیک.
+ *
+ * چرا جدا از `listReadyPosts`؟ چون آن کوئری هر دو حالت را برمی‌گرداند و نتیجه‌اش
+ * دور ریخته می‌شد. حالا تیک یک بار لیست آماده‌ها را می‌گیرد و همین جا:
+ *   - فقط پست‌های `collecting` را می‌بندد (با یک کوئری فیلتر، بدون لود بی‌مصرف)،
+ *   - پست، آیتم‌ها و قانون را دسته‌ای می‌خواند (۳ کوئری برای همه، نه ۳ برای هر کدام)،
+ *   - و `publishable` را برمی‌گرداند تا آلبومی که تأخیرش صفر است در همین تیک برود
+ *     و آلبومی که زمان انتشارش به آینده رفت، زودتر از موعد منتشر نشود.
+ */
+async function closeDueAlbums(db: D1Database, now: number, ids: number[]): Promise<{ finalized: number[]; publishable: number[] }> {
 	const finalized: number[] = [];
+	if (ids.length === 0) return { finalized, publishable: [] };
 
-	for (const id of ids) {
-		const post = await getPost(db, id);
-		if (!post || post.status !== 'collecting') continue;
+	const collecting = await listCollectingAmong(db, ids);
+	// هیچ آلبومی در حال جمع‌آوری نیست: همه‌ی کاندیدها از قبل `scheduled` و سررسیده‌اند
+	if (collecting.length === 0) return { finalized, publishable: ids };
 
-		const rule = post.sourceChannelId ? await getSourceRule(db, post.sourceChannelId) : null;
-		const delay = rule?.delayMinutes ?? DEFAULT_DELAY_MINUTES;
+	const posts = await getPostsByIds(db, collecting);
+	const rules = await getRulesForSources(
+		db,
+		[...new Set(posts.map((post) => post.sourceChannelId))].filter((id) => Boolean(id)),
+	);
+	const delayBySource = new Map(rules.map((rule) => [rule.sourceChannelId, rule.delayMinutes]));
+
+	// خروجی با ترتیب همان `publish_at` ورودی می‌ماند
+	const publishable = new Set<number>(ids);
+
+	for (const post of posts) {
+		if (post.status !== 'collecting') continue;
+
+		const delay = post.sourceChannelId ? (delayBySource.get(post.sourceChannelId) ?? DEFAULT_DELAY_MINUTES) : DEFAULT_DELAY_MINUTES;
 		// انتشار = لحظه‌ی رسیدن اولین آیتم + تأخیر (نه لحظه‌ی پایان‌بندی جمع‌آوری)
-		const publishAt = Math.max(post.createdAt + delay * SECONDS_PER_MINUTE, post.createdAt + ALBUM_GRACE_SECONDS);
-		if (await finalizePost(db, id, Math.round(publishAt), now)) finalized.push(id);
+		const publishAt = Math.round(Math.max(post.createdAt + delay * SECONDS_PER_MINUTE, post.createdAt + ALBUM_GRACE_SECONDS));
+		if (await finalizePost(db, post.id, publishAt, now)) {
+			finalized.push(post.id);
+			// اگر تأخیر صفر بود (یا گذشته)، همین حالا قابل انتشار است
+			if (publishAt > now) publishable.delete(post.id);
+		} else {
+			// تیک دیگری زودتر بست/حذف کرد → در این تیک دست نزن
+			publishable.delete(post.id);
+		}
 	}
 
-	return finalized;
+	return { finalized, publishable: ids.filter((id) => publishable.has(id)) };
 }
 
 /** پست‌هایی که در حالت «در حال ارسال» گیر کرده‌اند (Worker وسط کار مرده) */
@@ -263,7 +300,10 @@ export async function publishDuePosts(
 	}
 
 	const recovered = await recoverStuckPosts(api, db, now);
-	const finalizedAlbums = await finalizeReadyAlbums(db, now);
+
+	// یک کوئری برای «چه چیزی آماده است»، بعد بستن آلبوم‌های همان لیست.
+	const candidates = await listReadyPosts(db, now, MAX_PUBLISH_PER_TICK);
+	const { finalized: finalizedAlbums, publishable } = await closeDueAlbums(db, now, candidates);
 
 	// آلبومی که تازه نهایی شده، اعلانش را همین حالا می‌فرستیم (پیش از انتشار)
 	for (const postId of finalizedAlbums) {
@@ -274,11 +314,10 @@ export async function publishDuePosts(
 		}
 	}
 
-	const ready = await listReadyPosts(db, now, MAX_PUBLISH_PER_TICK);
 	let published = 0;
 	let failed = 0;
 
-	for (const id of ready) {
+	for (const id of publishable) {
 		try {
 			const result = await publishOne(api, db, id, now);
 			if (result.status === 'published') published++;
