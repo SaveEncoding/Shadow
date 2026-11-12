@@ -402,6 +402,47 @@ describe('pollDueSources', () => {
 		expect(result).toMatchObject({ polled: 1, queued: 1, failed: 0 });
 	});
 
+	it('polls several due sources with bounded concurrency, not one by one', async () => {
+		// دو منبع آماده، هر دو با شبکه‌ی کند. اگر سری بود، مجموع تأخیر ≈ ۲×d؛
+		// با هم‌زمانی، حداکثر در-flight به ۲ می‌رسد و مجموع ≈ d.
+		for (const name of ['chan_one', 'chan_two']) {
+			await saveSourceRule(env.my_database, {
+				sourceChannelId: publicSourceChannelId(name),
+				sourceTitle: `@${name}`,
+				sourceUsername: name,
+				targetChannelId: TARGET,
+				delayMinutes: 5,
+				addedBy: 7,
+				notifyChatId: ADMIN_CHAT,
+				pollUsername: name,
+				now: NOW,
+			});
+		}
+		await env.my_database.prepare('UPDATE post_poll_sources SET cursor_message_id = 1, last_polled_at = NULL').run();
+
+		let inFlight = 0;
+		let peak = 0;
+		const slowFetch = async (url) => {
+			inFlight++;
+			peak = Math.max(peak, inFlight);
+			await new Promise((resolve) => setTimeout(resolve, 25));
+			inFlight--;
+			const name = String(url).includes('chan_one') ? 'chan_one' : 'chan_two';
+			return new Response(feedPage([{ channel: name, id: 90, html: `از ${name}` }]), { status: 200 });
+		};
+
+		const result = await pollDueSources(env, {
+			api,
+			now: NOW,
+			fetchImpl: slowFetch,
+			sources: await activeSources(),
+		});
+
+		expect(result.failed).toBe(0);
+		expect(result.polled).toBe(2);
+		expect(peak).toBe(2); // هم‌زمان، ولی سقف‌دار (سقف کلی ۳ است)
+	});
+
 	it('one broken source does not stop the others', async () => {
 		await addPublicRule();
 		await setCursor(70);
