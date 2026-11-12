@@ -137,7 +137,11 @@ export async function saveSourceRule(
 		now: number;
 	},
 ): Promise<number> {
-	const result = await db
+	// NOTE: `meta.last_row_id` را عمداً نمی‌خوانیم.
+	// در مسیر `ON CONFLICT DO UPDATE` مقدار `last_insert_rowid` تغییر نمی‌کند و
+	// شناسه‌ی آخرین INSERT این اتصال را برمی‌گرداند — یعنی می‌توانست ردیف‌های
+	// poll/X را به قانون دیگری بچسباند. شناسه همیشه از خودِ جدول خوانده می‌شود.
+	const row = await db
 		.prepare(
 			`INSERT INTO post_sources
 			   (source_channel_id, source_title, source_username, target_channel_id, delay_minutes, enabled, notify_chat_id, added_by, created_at, updated_at)
@@ -150,7 +154,8 @@ export async function saveSourceRule(
 			   enabled = 1,
 			   notify_chat_id = excluded.notify_chat_id,
 			   added_by = excluded.added_by,
-			   updated_at = excluded.updated_at`,
+			   updated_at = excluded.updated_at
+			 RETURNING id`,
 		)
 		.bind(
 			input.sourceChannelId,
@@ -163,9 +168,10 @@ export async function saveSourceRule(
 			input.now,
 			input.now,
 		)
-		.run();
+		.first<{ id: number }>();
 
-	const ruleId = Number(result.meta?.last_row_id ?? 0) || (await findRuleIdBySourceChannel(db, input.sourceChannelId)) || 0;
+	// RETURNING هر دو مسیر (INSERT و UPDATE) را پوشش می‌دهد؛ SELECT فقط تور ایمنی است.
+	const ruleId = Number(row?.id ?? 0) || (await findRuleIdBySourceChannel(db, input.sourceChannelId)) || 0;
 
 	if (input.pollUsername) {
 		await upsertPollSource(db, { ruleId, username: input.pollUsername, now: input.now });

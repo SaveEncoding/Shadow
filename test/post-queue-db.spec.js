@@ -120,6 +120,56 @@ describe('source rules', () => {
 		expect(list).toHaveLength(1);
 	});
 
+	it('attaches poll and X rows to the right rule when re-saving an existing source', async () => {
+		// ترتیب مهم است: بین دو ذخیره‌ی یک منبع، یک منبع دیگر ثبت می‌شود.
+		// روی ON CONFLICT DO UPDATE مقدار last_insert_rowid تغییر نمی‌کند و ردیف
+		// منبع دوم را برمی‌گرداند؛ اگر شناسه از آن خوانده شود، ردیف‌های poll/X
+		// به قانون اشتباه می‌چسبند.
+		const first = await makeRule({ sourceChannelId: SOURCE });
+		await makeRule({ sourceChannelId: -100777 });
+
+		await saveSourceRule(env.my_database, {
+			sourceChannelId: SOURCE,
+			sourceTitle: 'کانال مبدأ',
+			sourceUsername: 'source_chan',
+			targetChannelId: TARGET,
+			delayMinutes: 30,
+			notifyChatId: 555,
+			addedBy: 7,
+			pollUsername: 'source_chan',
+			now: NOW + 60,
+		});
+
+		const updated = await getSourceRule(env.my_database, SOURCE);
+		expect(updated.id).toBe(first.id);
+		expect(updated.pollUsername).toBe('source_chan');
+
+		// منبع دوم نباید هیچ ردیف poll داشته باشد
+		const other = await getSourceRule(env.my_database, -100777);
+		expect(other.pollUsername).toBeNull();
+		const orphan = await env.my_database.prepare('SELECT COUNT(*) AS n FROM post_poll_sources WHERE rule_id = ?').bind(other.id).first();
+		expect(Number(orphan.n)).toBe(0);
+
+		// همان چیز برای X
+		await makeRule({ sourceChannelId: SOURCE });
+		await saveSourceRule(env.my_database, {
+			sourceChannelId: SOURCE,
+			sourceTitle: 'کانال مبدأ',
+			sourceUsername: 'source_chan',
+			targetChannelId: TARGET,
+			delayMinutes: 30,
+			notifyChatId: 555,
+			addedBy: 7,
+			xHandle: 'openai',
+			now: NOW + 120,
+		});
+
+		const withX = await getSourceRule(env.my_database, SOURCE);
+		expect(withX.xHandle).toBe('openai');
+		expect(withX.pollUsername).toBeNull();
+		expect((await getSourceRule(env.my_database, -100777)).xHandle).toBeNull();
+	});
+
 	it('toggles, slows down and deletes a rule', async () => {
 		const rule = await makeRule();
 
