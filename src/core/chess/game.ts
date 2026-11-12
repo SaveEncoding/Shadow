@@ -11,7 +11,7 @@ import { START_FEN, parseFen, positionKey, toFen } from './fen.js';
 import { applyMove } from './make-move.js';
 import { legalMoves } from './movegen.js';
 import { buildPgn } from './pgn.js';
-import { moveToSan } from './san.js';
+import { moveToSan, moveToSanCore } from './san.js';
 import { getStatus } from './status.js';
 import type { GameEndReason, GameResult, GameStatus, Move, Position } from './types.js';
 
@@ -52,10 +52,23 @@ export function replay(startFen: string, moves: readonly string[]): ReplayResult
 
 	for (const san of moves) {
 		const legal = legalMoves(position);
-		const move = legal.find((m) => moveToSan(position, m) === san);
-		if (!move) {
+		// جست‌وجو با بخش ارزان SAN (بدون پسوند کیش) انجام می‌شود و پسوند کیش فقط
+		// یک‌بار برای حرکتِ پیدا‌شده حساب می‌شود؛ چون پسوند گران است (اجرا و
+		// بازگرداندن حرکت) و برای «پیدا کردن» لازم نیست.
+		const normalized = san.replace(/[+#]+$/, '');
+		let match: Move | undefined;
+		for (const candidate of legal) {
+			if (moveToSanCore(position, candidate, legal) === normalized) {
+				match = candidate;
+				break;
+			}
+		}
+		// مقایسه‌ی دقیق با SAN کامل: تاریخچه‌ای که پسوند کیش اشتباه دارد باید
+		// مثل قبل رد شود، نه اینکه با تطبیق جزئی پذیرفته شود.
+		if (!match || moveToSan(position, match, legal) !== san) {
 			throw new IllegalMoveError('illegal', `حرکت نامعتبر در تاریخچه: ${san}`);
 		}
+		const move = match;
 		applyMove(position, move);
 		const key = positionKey(position);
 		counts.set(key, (counts.get(key) ?? 0) + 1);
@@ -73,9 +86,8 @@ export function positionOf(game: GameRecord): Position {
 	return replay(game.startFen, game.moves).position;
 }
 
-/** وضعیت فعلی، با در نظر گرفتن تکرار سه‌باره */
-export function currentStatus(game: GameRecord): GameStatus {
-	const { position, counts } = replay(game.startFen, game.moves);
+/** وضعیت را از دل یک بازپخشِ از پیش انجام‌شده می‌سازد */
+function statusFrom(game: GameRecord, position: Position, counts: Map<string, number>): GameStatus {
 	if (game.result && game.reason) {
 		return {
 			over: true,
@@ -86,6 +98,26 @@ export function currentStatus(game: GameRecord): GameStatus {
 		};
 	}
 	return getStatus(position, { repetitionCount: counts.get(positionKey(position)) ?? 1 });
+}
+
+export interface GameState {
+	position: Position;
+	status: GameStatus;
+}
+
+/**
+ * تخته و وضعیت با **یک** بازپخش.
+ * برای هر رندر UI لازم است؛ قبلاً `positionOf` و `currentStatus` هر کدام
+ * جداگانه کل تاریخچه را بازپخش می‌کردند (دو برابر کار برای یک نتیجه).
+ */
+export function gameState(game: GameRecord): GameState {
+	const { position, counts } = replay(game.startFen, game.moves);
+	return { position, status: statusFrom(game, position, counts) };
+}
+
+/** وضعیت فعلی، با در نظر گرفتن تکرار سه‌باره */
+export function currentStatus(game: GameRecord): GameStatus {
+	return gameState(game).status;
 }
 
 /** حرکات قانونی از یک خانه؛ برای هایلایت مقصدها در UI */
@@ -105,10 +137,11 @@ export interface MoveOutcome {
  * خطاها با `IllegalMoveError` و کد مشخص برمی‌گردند تا UI پیام فارسی مناسب بسازد.
  */
 export function applyUserMove(game: GameRecord, from: number, to: number, promo?: number): MoveOutcome {
-	const status = currentStatus(game);
+	// یک بازپخش برای هر سه نیاز: تخته، وضعیت فعلی و شمارش تکرارها.
+	const { position, counts } = replay(game.startFen, game.moves);
+	const status = statusFrom(game, position, counts);
 	if (status.over) throw new IllegalMoveError('game-over', 'این بازی تمام شده است');
 
-	const { position } = replay(game.startFen, game.moves);
 	const all = legalMoves(position);
 	const candidates = all.filter((m) => m.from === from && m.to === to);
 
@@ -129,7 +162,7 @@ export function applyUserMove(game: GameRecord, from: number, to: number, promo?
 		move = candidates[0];
 	}
 
-	const san = moveToSan(position, move);
+	const san = moveToSan(position, move, all);
 	const next: GameRecord = {
 		...game,
 		moves: [...game.moves, san],
@@ -139,16 +172,14 @@ export function applyUserMove(game: GameRecord, from: number, to: number, promo?
 	applyMove(position, move);
 	next.fen = toFen(position);
 
-	const nextStatus = getStatus(position, {
-		repetitionCount: countRepetitions(next),
-	});
+	// شمارش تکرار به‌صورت افزایشی: نقشه‌ی بازپخش + یک واحد برای وضعیت تازه.
+	// هم‌ارز با بازپخش دوباره‌ی `next.moves` است، بدون هزینه‌ی آن.
+	const nextKey = positionKey(position);
+	counts.set(nextKey, (counts.get(nextKey) ?? 0) + 1);
+
+	const nextStatus = getStatus(position, { repetitionCount: counts.get(nextKey) ?? 1 });
 
 	return { game: { ...next, result: nextStatus.result, reason: nextStatus.reason }, san, status: nextStatus, move };
-}
-
-function countRepetitions(game: GameRecord): number {
-	const { position, counts } = replay(game.startFen, game.moves);
-	return counts.get(positionKey(position)) ?? 1;
 }
 
 /** پایان دادن به بازی به دلیلی خارج از تخته (استعفا، وقت، توافق) */
