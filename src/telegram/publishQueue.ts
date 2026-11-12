@@ -42,6 +42,7 @@ import {
 	pruneSeen,
 	setPreviewMessage,
 } from './db/postQueue.js';
+import { prunePendingInputs } from './db/pendingInput.js';
 import { pollDueSources } from './pollSources.js';
 import { pollDueXSources } from './xPoll.js';
 import { isXSourcesEnabled, resolveXProvider } from './xSource.js';
@@ -334,6 +335,7 @@ export async function publishDuePosts(
 		try {
 			await pruneSeen(db, now - 30 * SECONDS_PER_DAY);
 			await pruneEditSessions(db, now);
+			await prunePendingInputs(db, now);
 		} catch (err) {
 			console.warn('[publishQueue] prune failed:', err);
 		}

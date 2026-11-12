@@ -17,6 +17,7 @@ export const SCHEDULE_SCHEMA = [
 	'CREATE TABLE IF NOT EXISTS post_x_sources ( rule_id INTEGER PRIMARY KEY, handle TEXT NOT NULL, user_id TEXT, cursor_id TEXT, last_polled_at INTEGER, last_error TEXT, failures INTEGER NOT NULL DEFAULT 0, FOREIGN KEY (rule_id) REFERENCES post_sources(id) ON DELETE CASCADE );',
 	'CREATE TABLE IF NOT EXISTS post_edit_sessions ( id INTEGER PRIMARY KEY AUTOINCREMENT, post_id INTEGER NOT NULL, user_id INTEGER NOT NULL UNIQUE, chat_id INTEGER NOT NULL, message_id INTEGER NOT NULL, field TEXT NOT NULL, target_message_id INTEGER NOT NULL, expires_at INTEGER NOT NULL );',
 	"CREATE TABLE IF NOT EXISTS post_capture_sessions ( user_id INTEGER PRIMARY KEY, target_channel_id INTEGER NOT NULL, mode TEXT NOT NULL DEFAULT 'manual', delay_minutes INTEGER NOT NULL DEFAULT 30, expires_at INTEGER NOT NULL );",
+	'CREATE TABLE IF NOT EXISTS ui_pending_inputs ( user_id INTEGER PRIMARY KEY, type TEXT NOT NULL, channel_id INTEGER NOT NULL, prompt_chat_id INTEGER, prompt_message_id INTEGER, expires_at INTEGER NOT NULL );',
 ];
 
 export async function createScheduleTables(db) {
@@ -36,6 +37,7 @@ export async function resetScheduleTables(db) {
 		'post_capture_sessions',
 		'post_poll_sources',
 		'post_x_sources',
+		'ui_pending_inputs',
 	]) {
 		await db.exec(`DELETE FROM ${table};`);
 	}

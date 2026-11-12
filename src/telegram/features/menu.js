@@ -3,7 +3,7 @@ import { getChannels, getChannelByTelegramId, isUserChannelAdmin, setOfficialSuf
 import { Role, RoleLabel } from '../constants/roles.js';
 import { renderScreen, toast } from '../ui/render.js';
 import { sanitizeEntities } from '../utils/messageSuffix.js';
-import { setPendingInput, getPendingInput, clearPendingInput } from '../ui/pendingInput.js';
+import { PENDING_INPUT_TTL_SECONDS, clearPendingInput, getPendingInput, setPendingInput } from '../db/pendingInput.js';
 import {
 	homeText,
 	homeKeyboard,
@@ -65,9 +65,14 @@ export function menuFeature(bot, env) {
 		return ch;
 	}
 
+	/** پاک‌کردن «منتظر ورودی» این کاربر (اگر چیزی در انتظار باشد) */
+	const dropPending = async (ctx) => {
+		if (ctx.from?.id) await clearPendingInput(env.my_database, ctx.from.id);
+	};
+
 	// ----- Home -----
 	const goHome = async (ctx) => {
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		const role = await roleOf(ctx);
 		await renderScreen(ctx, homeText(role), homeKeyboard(role));
 	};
@@ -76,20 +81,20 @@ export function menuFeature(bot, env) {
 
 	// ----- Add channel -----
 	bot.callbackQuery(['m:a', 'add_channel'], async (ctx) => {
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		await renderScreen(ctx, addChannelText(), addChannelKeyboard());
 	});
 
 	// ----- Channel list -----
 	bot.callbackQuery(['m:l', 'my_channels'], async (ctx) => {
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		const channels = await getChannels(env.my_database, ctx.from.id);
 		await renderScreen(ctx, channelsListText(channels, ctx.from.id), channelsListKeyboard(channels));
 	});
 
 	// ----- Channel detail -----
 	bot.callbackQuery(/^m:c:(-?\d+)$/, async (ctx) => {
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		const channelId = Number(ctx.match[1]);
 		const ch = await requireChannelAdmin(ctx, channelId);
 		if (!ch) return;
@@ -98,7 +103,7 @@ export function menuFeature(bot, env) {
 
 	// ----- Suffix screen -----
 	bot.callbackQuery(/^m:cs:(-?\d+)$/, async (ctx) => {
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		const channelId = Number(ctx.match[1]);
 		const ch = await requireChannelAdmin(ctx, channelId);
 		if (!ch) return;
@@ -111,11 +116,12 @@ export function menuFeature(bot, env) {
 		const ch = await requireChannelAdmin(ctx, channelId);
 		if (!ch) return;
 
-		setPendingInput(ctx.from.id, {
+		await setPendingInput(env.my_database, ctx.from.id, {
 			type: 'suffix',
 			channelId,
 			promptChatId: ctx.chat?.id,
 			promptMessageId: ctx.callbackQuery?.message?.message_id,
+			expiresAt: Math.floor(Date.now() / 1000) + PENDING_INPUT_TTL_SECONDS,
 		});
 
 		await renderScreen(ctx, awaitInputText('suffix', ch.title), awaitInputKeyboard(channelId, 'suffix'));
@@ -124,7 +130,7 @@ export function menuFeature(bot, env) {
 	// Cancel waiting for suffix
 	bot.callbackQuery(/^m:cs:x:(-?\d+)$/, async (ctx) => {
 		const channelId = Number(ctx.match[1]);
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		const ch = await requireChannelAdmin(ctx, channelId);
 		if (!ch) return;
 		await renderScreen(ctx, channelSuffixHelpText(ch), channelSuffixKeyboard(channelId));
@@ -153,7 +159,7 @@ export function menuFeature(bot, env) {
 
 	// ----- Skip marker screen -----
 	bot.callbackQuery(/^m:sk:(-?\d+)$/, async (ctx) => {
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		const channelId = Number(ctx.match[1]);
 		const ch = await requireChannelAdmin(ctx, channelId);
 		if (!ch) return;
@@ -165,11 +171,12 @@ export function menuFeature(bot, env) {
 		const ch = await requireChannelAdmin(ctx, channelId);
 		if (!ch) return;
 
-		setPendingInput(ctx.from.id, {
+		await setPendingInput(env.my_database, ctx.from.id, {
 			type: 'skip',
 			channelId,
 			promptChatId: ctx.chat?.id,
 			promptMessageId: ctx.callbackQuery?.message?.message_id,
+			expiresAt: Math.floor(Date.now() / 1000) + PENDING_INPUT_TTL_SECONDS,
 		});
 
 		await renderScreen(ctx, awaitInputText('skip', ch.title), awaitInputKeyboard(channelId, 'skip'));
@@ -177,7 +184,7 @@ export function menuFeature(bot, env) {
 
 	bot.callbackQuery(/^m:sk:x:(-?\d+)$/, async (ctx) => {
 		const channelId = Number(ctx.match[1]);
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		const ch = await requireChannelAdmin(ctx, channelId);
 		if (!ch) return;
 		await renderScreen(ctx, channelSkipHelpText(ch), channelSkipKeyboard(channelId));
@@ -205,7 +212,7 @@ export function menuFeature(bot, env) {
 
 	// ----- Stats -----
 	bot.callbackQuery(['m:st', 'stats'], async (ctx) => {
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		const role = await roleOf(ctx);
 		const channels = await getChannels(env.my_database, ctx.from.id);
 		let roleStats = null;
@@ -219,25 +226,25 @@ export function menuFeature(bot, env) {
 
 	// ----- Settings -----
 	bot.callbackQuery(['m:se', 'settings'], async (ctx) => {
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		await renderScreen(ctx, settingsText(), settingsKeyboard());
 	});
 
 	// ----- Help -----
 	bot.callbackQuery(['m:hp', 'help'], async (ctx) => {
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		await renderScreen(ctx, helpText(), helpKeyboard());
 	});
 
 	// ----- Support -----
 	bot.callbackQuery('m:sp', async (ctx) => {
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		await renderScreen(ctx, supportText(), supportKeyboard());
 	});
 
 	// ----- Admin hub -----
 	bot.callbackQuery(['m:ad', 'panel'], async (ctx) => {
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		const role = await roleOf(ctx);
 		if (role < Role.EXEC_ADMIN) {
 			return toast(ctx, 'این بخش مخصوص ادمین‌های ربات است.');
@@ -247,7 +254,7 @@ export function menuFeature(bot, env) {
 
 	// ----- Coming soon stubs -----
 	bot.callbackQuery(/^m:soon:(.+)$/, async (ctx) => {
-		if (ctx.from?.id) clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 		const key = ctx.match[1];
 		await renderScreen(ctx, soonText(key), soonKeyboard());
 	});
@@ -257,13 +264,13 @@ export function menuFeature(bot, env) {
 	bot.on('message:text', async (ctx, next) => {
 		if (ctx.chat?.type !== 'private' || !ctx.from?.id) return next();
 
-		const pending = getPendingInput(ctx.from.id);
+		const pending = await getPendingInput(env.my_database, ctx.from.id, Math.floor(Date.now() / 1000));
 		if (!pending) return next();
 
 		// Ignore bot commands so /start etc. still work.
 		const text = (ctx.message.text || '').trim();
 		if (text.startsWith('/')) {
-			clearPendingInput(ctx.from.id);
+			await dropPending(ctx);
 			return next();
 		}
 
@@ -274,12 +281,12 @@ export function menuFeature(bot, env) {
 
 		const allowed = await isUserChannelAdmin(env.my_database, pending.channelId, ctx.from.id);
 		if (!allowed) {
-			clearPendingInput(ctx.from.id);
+			await dropPending(ctx);
 			await ctx.reply('⛔️ دسترسی به این کانال را از دست داده‌اید.');
 			return;
 		}
 
-		clearPendingInput(ctx.from.id);
+		await dropPending(ctx);
 
 		if (pending.type === 'suffix') {
 			// Preserve bold/spoiler/links/… from the user's formatted message.
