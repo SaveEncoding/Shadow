@@ -38,13 +38,18 @@ function checkSuffix(pos: Position, move: Move): string {
 }
 
 /**
- * SAN یک حرکت. ورودی باید از `legalMoves(pos)` آمده باشد.
+ * SAN بدون پسوند کیش/مات.
+ *
+ * جدا کردنش دو فایده دارد: `moveToSan` همان `coreSan + checkSuffix` است (پس
+ * رفتارش عیناً حفظ می‌شود)، و `replay` می‌تواند برای «پیدا کردن حرکت از روی
+ * SAN» فقط بخش ارزان را بسازد و پسوند کیش را یک‌بار، فقط برای حرکتِ پیدا‌شده،
+ * حساب کند. پسوند گران است چون حرکت را اجرا و برمی‌گرداند.
  */
-export function moveToSan(pos: Position, move: Move): string {
+function coreSan(pos: Position, move: Move, legal?: readonly Move[]): string {
 	const type = Math.abs(move.piece);
 
 	if (move.castle) {
-		return (move.castle === 'k' ? 'O-O' : 'O-O-O') + checkSuffix(pos, move);
+		return move.castle === 'k' ? 'O-O' : 'O-O-O';
 	}
 
 	const target = squareName(move.to);
@@ -53,12 +58,13 @@ export function moveToSan(pos: Position, move: Move): string {
 	if (type === PAWN) {
 		let san = isCapture ? `${'abcdefgh'[fileOf(move.from)]}x${target}` : target;
 		if (move.promo) san += `=${PROMO_LETTERS[move.promo]}`;
-		return san + checkSuffix(pos, move);
+		return san;
 	}
 
 	const letter = PIECE_LETTERS[type];
 	// رفع ابهام: اگر مهره‌ی هم‌نوع دیگری هم می‌تواند به همان خانه برود، مبدأ باید ذکر شود.
-	const rivals = legalMoves(pos).filter((m) => m.to === move.to && m.from !== move.from && Math.abs(m.piece) === type && !m.castle);
+	const candidates = legal ?? legalMoves(pos);
+	const rivals = candidates.filter((m) => m.to === move.to && m.from !== move.from && Math.abs(m.piece) === type && !m.castle);
 
 	let disambiguation = '';
 	if (rivals.length > 0) {
@@ -69,20 +75,37 @@ export function moveToSan(pos: Position, move: Move): string {
 		else disambiguation = squareName(move.from);
 	}
 
-	const san = `${letter}${disambiguation}${isCapture ? 'x' : ''}${target}`;
-	return san + checkSuffix(pos, move);
+	return `${letter}${disambiguation}${isCapture ? 'x' : ''}${target}`;
+}
+
+/**
+ * SAN یک حرکت. ورودی باید از `legalMoves(pos)` آمده باشد.
+ *
+ * `legal` اختیاری است: وقتی فراخوان از قبل فهرست حرکات قانونیِ همین وضعیت را
+ * دارد (مثل `replay` که برای هر نیم‌حرکت یک‌بار تولیدش می‌کند)، دادن آن باعث
+ * می‌شود برای «رفع ابهام» دوباره حرکت‌ها تولید نشوند. نتیجه دقیقاً یکی است.
+ */
+export function moveToSan(pos: Position, move: Move, legal?: readonly Move[]): string {
+	return coreSan(pos, move, legal) + checkSuffix(pos, move);
+}
+
+/** SAN بدون پسوند کیش/مات (برای تطبیق سریع در `replay`) */
+export function moveToSanCore(pos: Position, move: Move, legal?: readonly Move[]): string {
+	return coreSan(pos, move, legal);
 }
 
 /** پیدا کردن حرکت از روی SAN؛ اگر بی‌معنا باشد null */
 export function moveFromSan(pos: Position, san: string): Move | null {
 	const normalized = san.replace(/[+#!?]+$/, '').trim();
-	for (const move of legalMoves(pos)) {
-		if (moveToSan(pos, move).replace(/[+#!?]+$/, '') === normalized) return move;
+	const legal = legalMoves(pos);
+	for (const move of legal) {
+		if (moveToSan(pos, move, legal).replace(/[+#!?]+$/, '') === normalized) return move;
 	}
 	return null;
 }
 
 /** SAN همه‌ی حرکات قانونی — برای تست و دیباگ */
 export function legalSans(pos: Position): string[] {
-	return legalMoves(pos).map((m) => moveToSan(pos, m));
+	const legal = legalMoves(pos);
+	return legal.map((m) => moveToSan(pos, m, legal));
 }
