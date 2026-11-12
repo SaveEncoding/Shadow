@@ -4,37 +4,35 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2026-05-27",
 	"observability": {
-		"enabled": true
+		"enabled": true,
 	},
-	"compatibility_flags": [
-		"nodejs_compat"
-	],
+	"compatibility_flags": ["nodejs_compat"],
 	"d1_databases": [
 		{
 			"binding": "my_database",
 			"database_name": "my_database",
-			"database_id": "57a6f751-79c5-4748-b7dd-a81e1ccb284b"
-		}
+			"database_id": "57a6f751-79c5-4748-b7dd-a81e1ccb284b",
+		},
 	],
 	"kv_namespaces": [
 		{
 			"binding": "ERROR_KV",
-			"id": "f33d01e83e2b43baa349f8ad265997c8"
-		}
+			"id": "f33d01e83e2b43baa349f8ad265997c8",
+		},
 	],
 	"rules": [
-    	{
+		{
 			"type": "Data",
 			"globs": ["**/*.jpg", "**/*.jpeg", "**/*.png"],
-			"fallthrough": true 
+			"fallthrough": true,
 		},
 		{
 			"type": "Text",
 			"globs": ["**/*.css"],
-			"fallthrough": true
-		}
-  	],
+			"fallthrough": true,
+		},
+	],
 	"triggers": {
-		"crons": ["30 23 * * *", "30 14 * * *", "* * * * *"]
-	}
+		"crons": ["30 23 * * *", "30 14 * * *", "* * * * *"],
+	},
 }
