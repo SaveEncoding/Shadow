@@ -640,19 +640,22 @@ export async function getPost(db: D1Database, id: number): Promise<QueuePost | n
  * گرفتن قفل انتشار. اگر false برگردد، یک اجرای دیگر (یا کلیک دیگر) زودتر آن را
  * برداشته است — پس نباید دوباره ارسال شود. این تنها محافظ در برابر پست تکراری است.
  */
+/**
+ * قفل انتشار: تنها یک فراخواننده برنده می‌شود.
+ *
+ * هر دو حالت در یک `UPDATE` اتمیک هستند (`scheduled` و آلبومی که هنوز
+ * `collecting` است)؛ قبلاً دو UPDATE پشت‌سرهم بود که هم یک رفت‌وبرگشت
+ * اضافه داشت و هم برنده‌شدن را به ترتیب اجرا گره می‌زد.
+ */
 export async function claimForPublish(db: D1Database, id: number, now: number): Promise<boolean> {
-	const fromScheduled = await db
-		.prepare(`UPDATE post_queue SET status = 'publishing', updated_at = ? WHERE id = ? AND status = 'scheduled'`)
+	const result = await db
+		.prepare(
+			`UPDATE post_queue SET status = 'publishing', updated_at = ?
+			 WHERE id = ? AND status IN ('scheduled', 'collecting')`,
+		)
 		.bind(now, id)
 		.run();
-	if (Number(fromScheduled.meta?.changes ?? 0) > 0) return true;
-
-	// آلبوم ممکن است هنوز در حالت collecting باشد
-	const fromCollecting = await db
-		.prepare(`UPDATE post_queue SET status = 'publishing', updated_at = ? WHERE id = ? AND status = 'collecting'`)
-		.bind(now, id)
-		.run();
-	return Number(fromCollecting.meta?.changes ?? 0) > 0;
+	return Number(result.meta?.changes ?? 0) > 0;
 }
 
 export async function markPublished(db: D1Database, id: number, messageId: number | null, now: number): Promise<void> {

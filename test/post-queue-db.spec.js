@@ -296,6 +296,34 @@ describe('publishing guards', () => {
 		expect(post.publishedAt).toBe(NOW);
 	});
 
+	it('has exactly one winner when two ticks claim the same post at once', async () => {
+		const db = env.my_database;
+		const id = await makeScheduledPost();
+
+		const results = await Promise.all([claimForPublish(db, id, NOW), claimForPublish(db, id, NOW + 1)]);
+		expect(results.filter(Boolean)).toHaveLength(1);
+		expect((await getPost(db, id)).status).toBe('publishing');
+	});
+
+	it('claims a still-collecting album exactly once too', async () => {
+		const db = env.my_database;
+		const id = await createQueuedPost(db, {
+			sourceChannelId: SOURCE,
+			sourceTitle: 'کانال مبدأ',
+			sourceUsername: 'source_chan',
+			targetChannelId: TARGET,
+			mediaGroupId: 'album-1',
+			createdBy: 555,
+			now: NOW,
+		});
+		await appendItem(db, id, textItem(1, 'آیتم آلبوم'), NOW);
+
+		expect((await getPost(db, id)).status).toBe('collecting');
+		expect(await claimForPublish(db, id, NOW)).toBe(true);
+		expect((await getPost(db, id)).status).toBe('publishing');
+		expect(await claimForPublish(db, id, NOW)).toBe(false);
+	});
+
 	it('schedules a retry and then gives up after the last attempt', async () => {
 		const db = env.my_database;
 		const id = await makeScheduledPost();
