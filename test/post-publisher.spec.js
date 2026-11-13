@@ -94,6 +94,27 @@ describe('buildPublishPlan', () => {
 		expect(plan.args[2]).toMatchObject({ width: 720, height: 1280, duration: 12, supports_streaming: true });
 	});
 
+	it('puts the album caption on the first item only', () => {
+		// رگرسیون: کپشنِ آیتم‌های بعدی در تلگرام دیده نمی‌شود ولی پردازش می‌شود؛
+		// یک لینکِ شکسته در آن‌ها کل آلبوم را با WEBPAGE_CURL_FAILED رد می‌کرد.
+		const plan = buildPublishPlan(post([mediaItem('photo', 'a', 'متن'), mediaItem('photo', 'b', 'https://x.test/a')]), TARGET);
+		const media = plan.args[1];
+		expect(media[0]).toMatchObject({ type: 'photo', media: 'a', caption: 'متن' });
+		expect(media[1]).toMatchObject({ type: 'photo', media: 'b' });
+		expect(media[1].caption).toBeUndefined();
+		expect(media[1].caption_entities).toBeUndefined();
+	});
+
+	it('hoists the album caption when the first item has none', () => {
+		const item = { ...mediaItem('photo', 'b', 'کپشن اصلی'), sourceMessageId: 2 };
+		item.entities = [{ type: 'bold', offset: 0, length: 5 }];
+		const plan = buildPublishPlan(post([mediaItem('photo', 'a'), item]), TARGET);
+		const media = plan.args[1];
+		expect(media[0]).toMatchObject({ media: 'a', caption: 'کپشن اصلی' });
+		expect(media[0].caption_entities).toEqual([{ type: 'bold', offset: 0, length: 5 }]);
+		expect(media[1].caption).toBeUndefined();
+	});
+
 	it('groups several items into one album', () => {
 		const plan = buildPublishPlan(post([mediaItem('photo', 'a', 'اول'), mediaItem('photo', 'b'), mediaItem('video', 'c')]), TARGET);
 		expect(plan.method).toBe('sendMediaGroup');

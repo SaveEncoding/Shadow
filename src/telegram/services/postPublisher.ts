@@ -158,14 +158,26 @@ export function buildPublishPlan(post: QueuePost, targetChannelId: number): Publ
 		return { method: 'unsupported', reason: 'یکی از رسانه‌های آلبوم مرجعی برای ارسال ندارد.', items: items.length };
 	}
 
-	const media = items.map((item) => {
+	// تلگرام در آلبوم فقط کپشنِ **اولین** آیتم را نشان می‌دهد؛ کپشن آیتم‌های بعدی
+	// هرگز دیده نمی‌شود ولی سرور آن‌ها را پردازش می‌کند: هر لینکی که در آن‌ها باشد
+	// یعنی یک تلاش تازه برای ساختن پیش‌نمایش، و اگر تلگرام نتواند آن را بگیرد،
+	// پاسخ `WEBPAGE_CURL_FAILED` می‌دهد و **کل آلبوم** رد می‌شود. پس کپشن را فقط
+	// روی آیتم اول می‌نشانیم — همان کاری که در مسیر پولینگ وب (`pollSources.js`)
+	// هنگام ذخیره‌ی پست انجام می‌شود.
+	//
+	// اگر آیتم اول متنی نداشته باشد، اولین کپشنِ غیرخالی را بالا می‌کشیم تا متن
+	// پست بی‌دلیل گم نشود.
+	const captionSource = items.find((item) => (item.text ?? '').trim().length > 0) ?? null;
+	const captionParts = captionSource?.text ? splitTextWithEntities(captionSource.text, entityList(captionSource), MAX_CAPTION_LENGTH) : [];
+	const albumCaption = captionParts[0] ?? null;
+
+	const media = items.map((item, index) => {
 		const type = item.kind === 'video' ? 'video' : item.kind === 'document' ? 'document' : 'photo';
 		const entry: Record<string, unknown> = { type, media: mediaRef(item) };
-		if (item.text && item.text.trim()) {
-			// سقف کپشن هر آیتم ۱۰۲۴ است؛ بیشتر از آن در پیام جدا نمی‌گنجد
-			const caption = splitTextWithEntities(item.text, entityList(item), MAX_CAPTION_LENGTH)[0]!;
-			entry.caption = caption.text;
-			if (caption.entities.length > 0) entry.caption_entities = caption.entities;
+		if (index === 0 && albumCaption) {
+			// سقف کپشن ۱۰۲۴ است؛ بیشتر از آن در پیام جدا نمی‌گنجد
+			entry.caption = albumCaption.text;
+			if (albumCaption.entities.length > 0) entry.caption_entities = albumCaption.entities;
 		}
 		if (type === 'video') {
 			const raw = item.extra ?? {};
