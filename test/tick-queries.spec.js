@@ -102,6 +102,25 @@ describe('cron tick query budget', () => {
 		expect(post.id).toBe(id);
 	});
 
+	it('publishes the per-tick maximum with about 6 statements per post', async () => {
+		// سقف اندازه‌گیری‌شده‌ی Step 5: ۴ کوئری پایه + ~۶ برای هر پست (docs/PERF.md)
+		for (let i = 0; i < 10; i++) {
+			const id = await createQueuedPost(env.my_database, {
+				sourceChannelId: -100,
+				targetChannelId: TARGET,
+				mediaGroupId: null,
+				createdBy: 5,
+				now: NOW,
+			});
+			await appendItem(env.my_database, id, textItem(i + 1, `پست ${i + 1}`), NOW);
+			await finalizePost(env.my_database, id, NOW - 100 + i, NOW);
+		}
+
+		const { result } = await tick();
+		expect(result.published).toBe(10);
+		expect(result.metrics.queries, JSON.stringify(result.metrics)).toBeLessThanOrEqual(70);
+	});
+
 	it('loads a page of pending posts with 2 statements, not 1 + 2 per post', async () => {
 		for (let i = 0; i < 5; i++) {
 			const id = await createQueuedPost(env.my_database, {

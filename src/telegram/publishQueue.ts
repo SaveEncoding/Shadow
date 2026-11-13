@@ -43,6 +43,7 @@ import {
 	setPreviewMessage,
 } from './db/postQueue.js';
 import { prunePendingInputs } from './db/pendingInput.js';
+import { countQueries } from './db/queryCounter.js';
 import { pollDueSources } from './pollSources.js';
 import { pollDueXSources } from './xPoll.js';
 import { isXSourcesEnabled, resolveXProvider } from './xSource.js';
@@ -235,6 +236,16 @@ export async function recoverStuckPosts(api: SchedulerApi, db: D1Database, now: 
  * @param env
  * @param options.api و options.now فقط برای تست تزریق می‌شوند
  */
+/** چیزی که هر تیک درباره‌ی هزینه‌ی خودش می‌داند */
+export interface TickMetrics {
+	/** زمان دیواری کل تیک (میلی‌ثانیه)؛ شامل انتظار برای D1 و تلگرام */
+	durationMs: number;
+	/** تعداد statement های D1 در این تیک */
+	queries: number;
+	/** تعداد رفت‌وبرگشت به D1؛ `batch` فقط یکی حساب می‌شود */
+	roundTrips: number;
+}
+
 export async function publishDuePosts(
 	env: {
 		TELEGRAM_TOKEN?: string;
@@ -253,9 +264,12 @@ export async function publishDuePosts(
 	queued: number;
 	xPolled: number;
 	xQueued: number;
+	metrics: TickMetrics;
 }> {
+	const startedAt = Date.now();
 	const now = options.now ?? Math.floor(Date.now() / 1000);
-	const db = env.my_database;
+	// همه‌ی کوئری‌های تیک از این پروکسی رد می‌شوند تا عدد واقعی داشته باشیم.
+	const { db, counter } = countQueries(env.my_database);
 	const api = options.api ?? createSchedulerApi(env.TELEGRAM_TOKEN ?? '');
 
 	// ── منابع عمومی (بدون عضویت بات) ──
@@ -341,11 +355,27 @@ export async function publishDuePosts(
 		}
 	}
 
-	if (published || failed || recovered) {
-		console.log(`[publishQueue] tick: published=${published} failed=${failed} recovered=${recovered}`);
-	}
+	const metrics: TickMetrics = { durationMs: Date.now() - startedAt, queries: counter.total, roundTrips: counter.roundTrips };
 
-	return { finalized: finalizedAlbums.length, published, failed, recovered, polled, queued, xPolled, xQueued };
+	// یک خط JSON در هر تیک؛ Workers Logs فیلدها را ایندکس می‌کند و می‌شود روی
+	// `event = "cron.publish"` فیلتر کرد و مثلاً میانگین `queries` را گرفت.
+	console.log({
+		event: 'cron.publish',
+		now,
+		durationMs: metrics.durationMs,
+		dbQueries: metrics.queries,
+		dbRoundTrips: metrics.roundTrips,
+		finalized: finalizedAlbums.length,
+		published,
+		failed,
+		recovered,
+		polled,
+		queued,
+		xPolled,
+		xQueued,
+	});
+
+	return { finalized: finalizedAlbums.length, published, failed, recovered, polled, queued, xPolled, xQueued, metrics };
 }
 
 /**
