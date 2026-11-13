@@ -522,7 +522,12 @@ export function postSchedulerFeature(
 		if (result.status === 'failed') {
 			return toastAlert(ctx, 'انتشار ناموفق بود؛ جزئیات در صفحه‌ی پست است.');
 		}
-		return toast(ctx, 'این پست هم‌اکنون در حال ارسال است.');
+		if (result.status === 'missing') {
+			return toastAlert(ctx, 'پست پیدا نشد.');
+		}
+		// `skipped` یعنی قفل گرفته نشد: پست یا همین حالا دارد می‌رود، یا قبلاً
+		// منتشر/لغو شده و دیگر در صف نیست.
+		return toast(ctx, 'این پست در وضعیت قابل‌انتشار نیست (در حال ارسال، یا منتشر/لغو شده).');
 	});
 
 	// ── ویرایش متن/کپشن ──

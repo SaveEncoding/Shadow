@@ -3,7 +3,7 @@ import { env } from 'cloudflare:test';
 import { createBot, executionCtxStorage } from '../src/telegram/bot.js';
 import { postSchedulerFeature } from '../src/telegram/features/postScheduler.js';
 import { channelSuffixFeature } from '../src/telegram/features/channelSuffix.js';
-import { getPost, getSourceRule, saveSourceRule } from '../src/telegram/db/postQueue.js';
+import { getPost, getSourceRule, markFailed, saveSourceRule } from '../src/telegram/db/postQueue.js';
 import { CHANNEL_ADMINS_TABLE, CHANNELS_TABLE, createScheduleTables, resetScheduleTables } from './helpers/scheduleSchema.js';
 import { getPollSource, listRulesForTarget } from '../src/telegram/db/postQueue.js';
 import { publicSourceChannelId } from '../src/core/schedule/publicFeed.js';
@@ -430,6 +430,37 @@ describe('editing before publish', () => {
 		expect(sent).toHaveLength(1);
 		expect(sent[0].payload.text).toBe('متن ویرایش‌شده توسط ادمین');
 		expect((await getPost(env.my_database, postId)).status).toBe('published');
+	});
+
+	it('re-publishes a failed post when the admin presses publish now', async () => {
+		// رگرسیون: پستِ `failed` قفل نمی‌شد، پس دکمه هیچ کاری نمی‌کرد و پیام
+		// «در حال ارسال» نشان می‌داد — در حالی که هیچ‌کس آن را نمی‌فرستاد.
+		const bot = await addSourceRule();
+		await dispatch(bot, channelPostUpdate({ text: 'پستی که شکست خورد' }));
+		const postId = Number((await env.my_database.prepare('SELECT id FROM post_queue ORDER BY id DESC LIMIT 1').first()).id);
+
+		await markFailed(env.my_database, postId, 'WEBPAGE_CURL_FAILED', 1_800_000_000, null, 3);
+		expect((await getPost(env.my_database, postId)).status).toBe('failed');
+
+		calls = [];
+		await dispatch(bot, callbackUpdate(`ps:pub:${postId}`));
+
+		expect(channelMessages()).toHaveLength(1);
+		expect(channelMessages()[0].payload.text).toBe('پستی که شکست خورد');
+		expect((await getPost(env.my_database, postId)).status).toBe('published');
+	});
+
+	it('does not claim a post that is already published', async () => {
+		const bot = await addSourceRule();
+		await dispatch(bot, channelPostUpdate({ text: 'منتشر شده' }));
+		const postId = Number((await env.my_database.prepare('SELECT id FROM post_queue ORDER BY id DESC LIMIT 1').first()).id);
+
+		await dispatch(bot, callbackUpdate(`ps:pub:${postId}`));
+		calls = [];
+		await dispatch(bot, callbackUpdate(`ps:pub:${postId}`));
+
+		expect(channelMessages()).toHaveLength(0);
+		expect(toasts().some((t) => t.includes('در وضعیت قابل‌انتشار'))).toBe(true);
 	});
 
 	it('/cancel leaves the edit session without touching the post', async () => {
