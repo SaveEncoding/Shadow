@@ -60,14 +60,15 @@ beforeEach(async () => {
 });
 
 describe('cron tick query budget', () => {
-	it('keeps an idle tick at 4 statements / 3 round trips', async () => {
+	it('keeps an idle tick at 4 statements / 2 round trips', async () => {
 		const { result, counter } = await tick();
 
 		expect(result.published).toBe(0);
-		// `listReadyPosts` حالا دو SELECT است (یکی برای scheduled، یکی collecting) که
-		// با `batch` در یک رفت‌وبرگشت می‌روند؛ پس یک statement بیشتر، همان ۳ رفت‌وبرگشت.
+		// ۴ statement: لیست منابع + سه SELECT در `loadTickCandidates`
+		// (گیرکرده‌ها، scheduled، collecting). آن سه با یک `batch` می‌روند، پس
+		// رفت‌وبرگشت = ۲ (یکی برای منابع، یکی برای batch).
 		expect(counter.total, counter.summary()).toBe(4);
-		expect(counter.roundTrips).toBe(3);
+		expect(counter.roundTrips).toBe(2);
 	});
 
 	it('counts the polling path writes (a polled source = 5 statements)', async () => {
@@ -90,7 +91,8 @@ describe('cron tick query budget', () => {
 		const { result, counter } = await tick();
 		expect(result.polled).toBe(1);
 		expect(counter.total, counter.summary()).toBe(5);
-		expect(counter.roundTrips).toBe(4);
+		// ۳ رفت‌وبرگشت: منابع + batchِ سه‌تایی + نوشتن نتیجه‌ی پولینگ
+		expect(counter.roundTrips).toBe(3);
 	});
 
 	it('adds only the hourly prune on the hourly tick', async () => {

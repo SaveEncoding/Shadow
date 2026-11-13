@@ -38,6 +38,7 @@ import {
 	listActiveXSources,
 	listReadyPosts,
 	listStuckPosts,
+	loadTickCandidates,
 	pruneEditSessions,
 	pruneSeen,
 	setPreviewMessage,
@@ -210,9 +211,13 @@ async function closeDueAlbums(db: D1Database, now: number, ids: number[]): Promi
 	return { finalized, publishable: ids.filter((id) => publishable.has(id)) };
 }
 
-/** پست‌هایی که در حالت «در حال ارسال» گیر کرده‌اند (Worker وسط کار مرده) */
-export async function recoverStuckPosts(api: SchedulerApi, db: D1Database, now: number): Promise<number> {
-	const ids = await listStuckPosts(db, now, STUCK_PUBLISH_SECONDS);
+/**
+ * پست‌هایی که در حالت «در حال ارسال» گیر کرده‌اند (Worker وسط کار مرده).
+ * @param stuckIds شناسه‌های از قبل خوانده‌شده؛ تیک آن‌ها را همراه دو کوئری
+ *   «آماده» در یک `batch` می‌گیرد (`loadTickCandidates`) و این‌جا دوباره نمی‌خواند.
+ */
+export async function recoverStuckPosts(api: SchedulerApi, db: D1Database, now: number, stuckIds?: number[]): Promise<number> {
+	const ids = stuckIds ?? (await listStuckPosts(db, now, STUCK_PUBLISH_SECONDS));
 	for (const id of ids) {
 		const post = await getPost(db, id);
 		if (!post) continue;
@@ -334,11 +339,16 @@ export async function publishDuePosts(
 	const pollMs = Math.round(performance.now() - pollStartedAt);
 
 	const publishStartedAt = performance.now();
-	const recovered = await recoverStuckPosts(api, db, now);
+	// سه خواندنِ مستقل (گیرکرده‌ها + دو شاخه‌ی «آماده») با یک رفت‌وبرگشت؛
+	// قبلاً سه رفت‌وبرگشت بود و هر کدام ~۷۵ms در پروداکشن هزینه داشت.
+	const { stuck, ready } = await loadTickCandidates(db, now, {
+		limit: MAX_PUBLISH_PER_TICK,
+		stuckThresholdSeconds: STUCK_PUBLISH_SECONDS,
+	});
+	const recovered = await recoverStuckPosts(api, db, now, stuck);
 
-	// یک کوئری برای «چه چیزی آماده است»، بعد بستن آلبوم‌های همان لیست.
-	const candidates = await listReadyPosts(db, now, MAX_PUBLISH_PER_TICK);
-	const { finalized: finalizedAlbums, publishable } = await closeDueAlbums(db, now, candidates);
+	// بستن آلبوم‌های همان لیست (بدون کوئری تازه).
+	const { finalized: finalizedAlbums, publishable } = await closeDueAlbums(db, now, ready);
 
 	// آلبومی که تازه نهایی شده، اعلانش را همین حالا می‌فرستیم (پیش از انتشار)
 	for (const postId of finalizedAlbums) {

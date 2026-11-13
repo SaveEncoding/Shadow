@@ -635,15 +635,24 @@ export async function finalizePost(db: D1Database, queueId: number, publishAt: n
 	return false;
 }
 
-/** پست‌های آماده (وقت انتشار رسیده یا آلبوم تمام‌شده) */
-export async function listReadyPosts(db: D1Database, now: number, limit: number): Promise<number[]> {
-	// چرا دو SELECT و نه یک `OR`؟ چون در `OR`، SQLite هر دو شاخه را جمع می‌کند و
-	// برای `ORDER BY publish_at` یک TEMP B-TREE روی **همه‌ی** ردیف‌های سررسیده
-	// می‌سازد (یعنی `LIMIT` زودتر تمام نمی‌شود) و شاخه‌ی `collecting` فقط با
-	// پیشوند `status = ?` جلو می‌رود. با دو کوئری، هر شاخه روی ایندکس خودش مرتب
-	// است و بعد از `LIMIT` تمام می‌شود؛ ادغامشان در حافظه روی حداکثر ۲×limit ردیف
-	// انجام می‌شود. `batch` یعنی این دو در **یک** رفت‌وبرگشت به D1 می‌روند.
-	const [scheduled, collecting] = await db.batch<{ id: number; publish_at: number }>([
+/** حداکثر پست گیرکرده‌ای که یک تیک بازیابی می‌کند */
+const STUCK_POSTS_LIMIT = 20;
+
+/** ردیف سبک کاندیدها؛ `publish_at` فقط برای دو شاخه‌ی «آماده» وجود دارد */
+type CandidateRow = { id: number; publish_at?: number | null };
+
+/**
+ * دو SELECT شاخه‌ی «آماده»، آماده برای `batch`.
+ *
+ * چرا دو SELECT و نه یک `OR`؟ چون در `OR`، SQLite هر دو شاخه را جمع می‌کند و
+ * برای `ORDER BY publish_at` یک TEMP B-TREE روی **همه‌ی** ردیف‌های سررسیده
+ * می‌سازد (یعنی `LIMIT` زودتر تمام نمی‌شود) و شاخه‌ی `collecting` فقط با
+ * پیشوند `status = ?` جلو می‌رود. با دو کوئری، هر شاخه روی ایندکس خودش مرتب
+ * است و بعد از `LIMIT` تمام می‌شود؛ ادغامشان در حافظه روی حداکثر ۲×limit ردیف
+ * انجام می‌شود.
+ */
+function readyStatements(db: D1Database, now: number, limit: number): D1PreparedStatement[] {
+	return [
 		db
 			.prepare(
 				`SELECT id, publish_at FROM post_queue
@@ -660,12 +669,57 @@ export async function listReadyPosts(db: D1Database, now: number, limit: number)
 				 LIMIT ?`,
 			)
 			.bind(now, limit),
+	];
+}
+
+/** ادغام دو شاخه بر اساس `publish_at` و بریدن تا سقف */
+function mergeReady(scheduled: CandidateRow[] | undefined, collecting: CandidateRow[] | undefined, limit: number): number[] {
+	// یک ردیف یا `scheduled` است یا `collecting`، پس ادغام تکراری ندارد.
+	const ready = [...(scheduled ?? []), ...(collecting ?? [])];
+	ready.sort((a, b) => Number(a.publish_at ?? 0) - Number(b.publish_at ?? 0));
+	return ready.slice(0, limit).map((row) => Number(row.id));
+}
+
+/** پست‌های آماده (وقت انتشار رسیده یا آلبوم تمام‌شده) */
+export async function listReadyPosts(db: D1Database, now: number, limit: number): Promise<number[]> {
+	const [scheduled, collecting] = await db.batch<CandidateRow>(readyStatements(db, now, limit));
+	return mergeReady(scheduled?.results, collecting?.results, limit);
+}
+
+/** چیزی که یک تیک برای بستن/انتشار لازم دارد، در یک رفت‌وبرگشت */
+export interface TickCandidates {
+	/** پست‌هایی که در وضعیت `publishing` گیر کرده‌اند */
+	stuck: number[];
+	/** پست‌های سررسیده، به ترتیب `publish_at` (حداکثر `limit` تا) */
+	ready: number[];
+}
+
+/**
+ * سه خواندنِ مستقلِ ابتدای فاز انتشار را در **یک** `batch` می‌فرستد.
+ *
+ * چرا؟ پروداکشن نشان داد هر رفت‌وبرگشت به D1 حدود ۷۵ms است؛ سه رفت‌وبرگشت
+ * جدا یعنی ~۱۵۰ms اضافه در هر تیک، ۱۴۴۰ بار در روز. `batch` همین سه SELECT را
+ * با یک رفت‌وبرگشت می‌فرستد. تعداد statement ها عوض نمی‌شود (۳) و چون هر سه
+ * فقط خواندن‌اند، ترتیب/اتمی‌بودن رفتار هم عوض نمی‌شود:
+ * `recoverStuckPosts` وضعیت ردیف‌های `publishing` را عوض می‌کند و آن‌ها در
+ * هیچ‌کدام از دو کوئری «آماده» نمی‌آیند.
+ */
+export async function loadTickCandidates(
+	db: D1Database,
+	now: number,
+	options: { limit: number; stuckThresholdSeconds: number },
+): Promise<TickCandidates> {
+	const [stuck, scheduled, collecting] = await db.batch<CandidateRow>([
+		db
+			.prepare(`SELECT id FROM post_queue WHERE status = 'publishing' AND updated_at <= ? LIMIT ${STUCK_POSTS_LIMIT}`)
+			.bind(now - options.stuckThresholdSeconds),
+		...readyStatements(db, now, options.limit),
 	]);
 
-	// یک ردیف یا `scheduled` است یا `collecting`، پس ادغام تکراری ندارد.
-	const ready = [...(scheduled?.results ?? []), ...(collecting?.results ?? [])];
-	ready.sort((a, b) => Number(a.publish_at) - Number(b.publish_at));
-	return ready.slice(0, limit).map((row) => Number(row.id));
+	return {
+		stuck: (stuck?.results ?? []).map((row) => Number(row.id)),
+		ready: mergeReady(scheduled?.results, collecting?.results, options.limit),
+	};
 }
 
 /**
@@ -899,7 +953,7 @@ export async function countPendingPosts(db: D1Database, targetChannelId: number)
 /** پست‌های گیرکرده در حالت publishing (مثلاً Worker وسط ارسال مرده) */
 export async function listStuckPosts(db: D1Database, now: number, thresholdSeconds: number): Promise<number[]> {
 	const { results } = await db
-		.prepare(`SELECT id FROM post_queue WHERE status = 'publishing' AND updated_at <= ? LIMIT 20`)
+		.prepare(`SELECT id FROM post_queue WHERE status = 'publishing' AND updated_at <= ? LIMIT ${STUCK_POSTS_LIMIT}`)
 		.bind(now - thresholdSeconds)
 		.all<{ id: number }>();
 	return (results ?? []).map((r) => Number(r.id));
