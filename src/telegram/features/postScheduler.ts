@@ -822,28 +822,22 @@ export function postSchedulerFeature(
 	// همچنان کار کند. کپی از متنِ پیش از پسوند انجام می‌شود، که مطلوب است.
 	bot.on(['channel_post', 'edited_channel_post'], async (ctx: Context, next: () => Promise<void>) => {
 		try {
-			const isEdit = Boolean(ctx.editedChannelPost);
 			const message = ctx.channelPost ?? ctx.editedChannelPost;
-			if (!message) return;
-
 			const now = nowSeconds();
 
-			if (isEdit) {
+			if (message && ctx.editedChannelPost) {
 				const outcome = await applySourceEdit(db, message, now);
 				if (outcome.action === 'updated' && !outcome.published) {
 					await notifyQueued(schedulerApi(ctx), db, outcome.postId, now);
 				}
-				return;
-			}
-
-			const outcome = await captureSourcePost(db, message, now);
-			if (outcome.action === 'unsupported') {
-				console.log(`[postScheduler] unsupported post from ${message.chat?.id}: ${outcome.reason}`);
-				return;
-			}
-			if (outcome.action === 'queued') {
-				// پیش‌نمایش برای سازنده‌ی قانون (چت خصوصی خودش)
-				await notifyQueued(schedulerApi(ctx), db, outcome.postId, now);
+			} else if (message) {
+				const outcome = await captureSourcePost(db, message, now);
+				if (outcome.action === 'unsupported') {
+					console.log(`[postScheduler] unsupported post from ${message.chat?.id}: ${outcome.reason}`);
+				} else if (outcome.action === 'queued') {
+					// پیش‌نمایش برای سازنده‌ی قانون (چت خصوصی خودش)
+					await notifyQueued(schedulerApi(ctx), db, outcome.postId, now);
+				}
 			}
 		} catch (err) {
 			// خطا را لاگ می‌کنیم ولی نمی‌بلعیم: `bot.catch` آن را گزارش می‌کند و
@@ -853,7 +847,10 @@ export function postSchedulerFeature(
 			throw err;
 		}
 
-		// فقط در مسیر موفق؛ زنجیره ادامه پیدا می‌کند تا فیچر پسوند هم اجرا شود.
+		// این `next()` باید برای **همه‌ی** مسیرهای غیرخطا اجرا شود، نه فقط مسیر
+		// «پست تازه‌ی صف‌شده»: فیچر پسوند بعد از این ثبت می‌شود و ویرایش پست هم
+		// باید به آن برسد (وگرنه «stamp نامعتبر ⇒ پسوند دوباره» روی ویرایش‌ها
+		// کار نمی‌کند). به همین دلیل مسیرها `return` نمی‌کنند.
 		await next();
 	});
 }

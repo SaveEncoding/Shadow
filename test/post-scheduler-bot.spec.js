@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import { env } from 'cloudflare:test';
 import { createBot, executionCtxStorage } from '../src/telegram/bot.js';
 import { postSchedulerFeature } from '../src/telegram/features/postScheduler.js';
+import { channelSuffixFeature } from '../src/telegram/features/channelSuffix.js';
 import { getPost, getSourceRule, saveSourceRule } from '../src/telegram/db/postQueue.js';
 import { CHANNEL_ADMINS_TABLE, CHANNELS_TABLE, createScheduleTables, resetScheduleTables } from './helpers/scheduleSchema.js';
 import { getPollSource, listRulesForTarget } from '../src/telegram/db/postQueue.js';
@@ -68,10 +69,12 @@ function fakeResult(method, payload) {
 	}
 }
 
-async function setupBot() {
+/** `register` پیش‌فرض فقط فیچر زمان‌بندی است؛ تست زنجیره می‌تواند فیچر دیگری هم اضافه کند. */
+async function setupBot(register) {
 	calls = [];
 	const bot = createBot({ ...env, TELEGRAM_TOKEN: '123:test', TELEGRAM_WEBHOOK_SECRET: 'secret' });
-	postSchedulerFeature(bot, env);
+	if (register) await register(bot);
+	else postSchedulerFeature(bot, env);
 	bot.api.config.use((prev, method, payload) => {
 		calls.push({ method, payload });
 		try {
@@ -126,16 +129,14 @@ function forwardedUpdate({
 	};
 }
 
-function channelPostUpdate({ chatId = SOURCE, messageId = 500, text = 'خبر تازه' } = {}) {
-	return {
-		update_id: updateId++,
-		channel_post: {
-			message_id: messageId,
-			date: 1_700_000_000,
-			chat: { id: chatId, type: 'channel', title: 'کانال مبدأ', username: 'source_chan' },
-			text,
-		},
+function channelPostUpdate({ chatId = SOURCE, messageId = 500, text = 'خبر تازه', edited = false } = {}) {
+	const post = {
+		message_id: messageId,
+		date: 1_700_000_000,
+		chat: { id: chatId, type: 'channel', title: 'کانال مبدأ', username: 'source_chan' },
+		text,
 	};
+	return { update_id: updateId++, ...(edited ? { edited_channel_post: post } : { channel_post: post }) };
 }
 
 function callbackUpdate(data, from = USER) {
@@ -677,5 +678,86 @@ describe('manual copy', () => {
 
 		const stored = await getPost(env.my_database, Number(post.id));
 		expect(stored.items[0].text).toBe('پستی که خودم انتخاب کردم');
+	});
+});
+
+/**
+ * زنجیره‌ی middleware برای پست کانال.
+ *
+ * فیچر پسوند **بعد** از فیچر زمان‌بندی ثبت می‌شود (مثل `main-tel.ts`)، پس فقط
+ * وقتی اجرا می‌شود که هندلر زمان‌بندی `next()` را صدا بزند. یک بار در گام ۱
+ * `return`های داخل هندلر باعث شدند ویرایش‌ها هیچ‌وقت به پسوند نرسند؛ این تست‌ها
+ * همان قرارداد را نگه می‌دارند.
+ */
+describe('channel post chain', () => {
+	const SUFFIX = '— @my_channel';
+
+	/** فیچر پسوند با توکن واقعی می‌سازد و درخواست‌های HTTP تلگرام را ثبت می‌کند */
+	function stubTelegramApi() {
+		const requests = [];
+		vi.stubGlobal('fetch', async (url, init) => {
+			requests.push({ method: String(url).split('/').pop(), body: JSON.parse(init.body) });
+			return new Response(
+				JSON.stringify({ ok: true, result: { message_id: 500, date: 0, chat: { id: TARGET, type: 'channel' }, text: '' } }),
+				{
+					status: 200,
+					headers: { 'content-type': 'application/json' },
+				},
+			);
+		});
+		return requests;
+	}
+
+	const edits = (requests) => requests.filter((r) => r.method === 'editMessageText');
+
+	async function setupChainBot() {
+		const suffixEnv = { ...env, TELEGRAM_TOKEN: '123:test' };
+		await env.my_database
+			.prepare('UPDATE channels SET official_suffix = ?, official_suffix_entities = NULL WHERE channel_id = ?')
+			.bind(SUFFIX, TARGET)
+			.run();
+		return setupBot(async (bot) => {
+			postSchedulerFeature(bot, env);
+			channelSuffixFeature(bot, suffixEnv);
+		});
+	}
+
+	it('a new post that is not queued still reaches the suffix feature', async () => {
+		const requests = stubTelegramApi();
+		const bot = await setupChainBot();
+
+		await dispatch(bot, channelPostUpdate({ chatId: TARGET, messageId: 500, text: 'خبر تازه' }));
+
+		const edit = edits(requests)[0];
+		expect(edit).toBeTruthy();
+		expect(edit.body.chat_id).toBe(TARGET);
+		expect(edit.body.text).toContain('خبر تازه');
+		expect(edit.body.text).toContain(SUFFIX);
+	});
+
+	it('an admin edit of a channel post reaches the suffix feature', async () => {
+		const requests = stubTelegramApi();
+		const bot = await setupChainBot();
+
+		await dispatch(bot, channelPostUpdate({ chatId: TARGET, messageId: 500, text: 'متن ویرایش‌شده', edited: true }));
+
+		const edit = edits(requests)[0];
+		expect(edit).toBeTruthy();
+		expect(edit.body.text).toContain('متن ویرایش‌شده');
+		expect(edit.body.text).toContain(SUFFIX);
+	});
+
+	it('an edit whose stamp is still valid is left alone', async () => {
+		const requests = stubTelegramApi();
+		const bot = await setupChainBot();
+
+		// همان متنی که بات بعد از اعمال پسوند می‌سازد (stamp معتبر)
+		await dispatch(bot, channelPostUpdate({ chatId: TARGET, messageId: 500, text: 'خبر تازه' }));
+		const stamped = edits(requests)[0].body.text;
+		requests.length = 0;
+
+		await dispatch(bot, channelPostUpdate({ chatId: TARGET, messageId: 500, text: stamped, edited: true }));
+
+		expect(edits(requests)).toHaveLength(0);
 	});
 });
