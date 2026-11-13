@@ -43,7 +43,7 @@ export function statusLabel(status: string): string {
 export function describeItems(items: PostItem[]): string {
 	if (items.length === 0) return 'بدون محتوا';
 	if (items.length === 1) {
-		const item = items[0];
+		const item = items[0]!;
 		const snippet = previewSnippet(item.text, 40);
 		return snippet ? `${kindLabel(item.kind)} — «${escapeHtml(snippet)}»` : kindLabel(item.kind);
 	}

@@ -280,7 +280,7 @@ export function chessFeature(bot: Bot, env: Pick<Env, 'my_database'>): void {
 		const square = Number(ctx.match[1]);
 		const state = gameState(row.game);
 		const position = state.position;
-		const piece = position.board[square];
+		const piece = position.board[square]!;
 		const mine = piece !== 0 && piece > 0 === (position.turn === 'w');
 
 		if (!mine) return toast(ctx, 'این مهره از نوبت شما نیست.');

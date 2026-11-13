@@ -392,7 +392,7 @@ export function postSchedulerFeature(
 	// پیشنهاد حالت عمومی، وقتی بات در کانال مبدأ ادمین نیست
 	bot.callbackQuery(/^ps:usepub:(-?\d+):(@?[A-Za-z0-9_]+)$/, async (ctx) => {
 		const channelId = Number(ctx.match[1]);
-		const username = ctx.match[2];
+		const username = ctx.match[2]!;
 		const userId = ctx.from?.id;
 		if (userId === undefined || !(await canManage(db, channelId, userId))) return toast(ctx, 'دسترسی ندارید.');
 
@@ -411,7 +411,7 @@ export function postSchedulerFeature(
 
 	// ── انتخاب تأخیر / زمان ──
 	bot.callbackQuery(/^ps:dp:([rp]-?\d+)$/, async (ctx) => {
-		const scope = ctx.match[1];
+		const scope = ctx.match[1]!;
 		const isRule = scope.startsWith('r');
 
 		if (isRule) {
@@ -428,7 +428,7 @@ export function postSchedulerFeature(
 	});
 
 	bot.callbackQuery(/^ps:ds:([rp]-?\d+):(\d+)$/, async (ctx) => {
-		const scope = ctx.match[1];
+		const scope = ctx.match[1]!;
 		const minutes = Number(ctx.match[2]);
 		const now = nowSeconds();
 
@@ -593,8 +593,11 @@ export function postSchedulerFeature(
 			return toast(ctx, 'پیش‌نمایش ارسال شد.');
 		}
 
+		const first = post.items[0];
+		if (!first) return toast(ctx, 'این پست محتوایی ندارد.');
+
 		try {
-			await ctx.api.copyMessage(chatId, post.sourceChannelId, post.items[0].sourceMessageId);
+			await ctx.api.copyMessage(chatId, post.sourceChannelId, first.sourceMessageId);
 			await toast(ctx, 'پیش‌نمایش ارسال شد.');
 		} catch {
 			await toastAlert(ctx, 'نسخه‌ی اصلی در کانال مبدأ پیدا نشد (شاید حذف شده باشد).');

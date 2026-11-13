@@ -101,14 +101,19 @@ export function buildPublishPlan(post: QueuePost, targetChannelId: number): Publ
 		return { method: 'unsupported', reason: 'این پست محتوای قابل ارسالی ندارد.', items: 0 };
 	}
 
+	const first = items[0]!;
+
 	// ── پست تک‌آیتمی متنی ──
-	if (items.length === 1 && items[0].kind === 'text') {
-		const text = items[0].text ?? '';
+	if (items.length === 1 && first.kind === 'text') {
+		const text = first.text ?? '';
 		if (!text.trim()) {
 			return { method: 'unsupported', reason: 'متن پست خالی است.', items: 1 };
 		}
-		const parts = splitTextWithEntities(text, entityList(items[0]));
-		if (parts.length === 1) return textPlan(targetChannelId, parts[0].text, parts[0].entities as unknown[]);
+		const parts = splitTextWithEntities(text, entityList(first));
+		if (parts.length === 1) {
+			const part = parts[0]!;
+			return textPlan(targetChannelId, part.text, part.entities as unknown[]);
+		}
 		return {
 			method: 'sequence',
 			items: 1,
@@ -118,19 +123,19 @@ export function buildPublishPlan(post: QueuePost, targetChannelId: number): Publ
 
 	// ── پست تک‌آیتمی رسانه‌ای ──
 	if (items.length === 1) {
-		const item = items[0];
-		const method = SINGLE_MEDIA_METHOD[item.kind];
-		const ref = mediaRef(item);
+		const method = SINGLE_MEDIA_METHOD[first.kind];
+		const ref = mediaRef(first);
 		if (!method || !ref) {
 			return { method: 'unsupported', reason: 'این نوع رسانه پشتیبانی نمی‌شود.', items: 1 };
 		}
-		const other: Record<string, unknown> = { ...mediaExtra(item) };
+		const other: Record<string, unknown> = { ...mediaExtra(first) };
 
 		// کپشن سقف ۱۰۲۴ کاراکتر دارد؛ باقی متن در پیام بعدی می‌آید (نه اینکه گم شود)
-		const captionParts = item.text && item.text.trim() ? splitTextWithEntities(item.text, entityList(item), MAX_CAPTION_LENGTH) : [];
-		if (captionParts.length > 0) {
-			other.caption = captionParts[0].text;
-			if (captionParts[0].entities.length > 0) other.caption_entities = captionParts[0].entities;
+		const captionParts = first.text && first.text.trim() ? splitTextWithEntities(first.text, entityList(first), MAX_CAPTION_LENGTH) : [];
+		const caption = captionParts[0];
+		if (caption) {
+			other.caption = caption.text;
+			if (caption.entities.length > 0) other.caption_entities = caption.entities;
 		}
 
 		const plan: PublishPlan = { method, args: [targetChannelId, ref, other], items: 1 };
@@ -158,7 +163,7 @@ export function buildPublishPlan(post: QueuePost, targetChannelId: number): Publ
 		const entry: Record<string, unknown> = { type, media: mediaRef(item) };
 		if (item.text && item.text.trim()) {
 			// سقف کپشن هر آیتم ۱۰۲۴ است؛ بیشتر از آن در پیام جدا نمی‌گنجد
-			const caption = splitTextWithEntities(item.text, entityList(item), MAX_CAPTION_LENGTH)[0];
+			const caption = splitTextWithEntities(item.text, entityList(item), MAX_CAPTION_LENGTH)[0]!;
 			entry.caption = caption.text;
 			if (caption.entities.length > 0) entry.caption_entities = caption.entities;
 		}
