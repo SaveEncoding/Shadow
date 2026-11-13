@@ -11,7 +11,7 @@ import {
 } from '../src/telegram/features/chess.js';
 import { getActiveGame } from '../src/telegram/db/chess.js';
 import { parseSquare } from '../src/core/chess/board.js';
-import { newGame } from '../src/core/chess/game.js';
+import { applyUserMove, gameState, newGame } from '../src/core/chess/game.js';
 
 beforeAll(async () => {
 	await env.my_database.exec(
@@ -78,8 +78,20 @@ describe('playEngineTurn', () => {
 			game: { ...row.game, moves: ['e4'], fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1' },
 		};
 		const result = playEngineTurn(afterUser);
-		expect(result.game.moves).toHaveLength(2);
-		expect(result.game.fen).not.toBe(afterUser.game.fen);
+		expect(result.row.game.moves).toHaveLength(2);
+		expect(result.row.game.fen).not.toBe(afterUser.game.fen);
+		expect(result.played?.san).toBe(result.row.game.moves.at(-1));
+	});
+
+	it('plays the same reply whether or not it is handed the state', () => {
+		const row = { mode: 'engine', level: 3, seed: 99, game: newGame() };
+		const afterUser = applyUserMove(row.game, parseSquare('e2'), parseSquare('e4'));
+
+		const fromScratch = playEngineTurn({ ...row, game: afterUser.game });
+		const fromState = playEngineTurn({ ...row, game: afterUser.game }, afterUser.state);
+
+		expect(fromState.played.san).toBe(fromScratch.played.san);
+		expect(fromState.row.game.moves).toEqual(fromScratch.row.game.moves);
 	});
 
 	it('is deterministic for the same position and seed', () => {
@@ -91,7 +103,7 @@ describe('playEngineTurn', () => {
 		};
 		const a = playEngineTurn({ ...base });
 		const b = playEngineTurn({ ...base });
-		expect(a.game.moves.at(-1)).toBe(b.game.moves.at(-1));
+		expect(a.row.game.moves.at(-1)).toBe(b.row.game.moves.at(-1));
 	});
 
 	it('does nothing in local mode', () => {
@@ -101,12 +113,13 @@ describe('playEngineTurn', () => {
 			seed: 0,
 			game: { startFen: newGame().startFen, moves: ['e4'], fen: '', result: null, reason: null },
 		};
-		expect(playEngineTurn(row)).toBe(row);
+		expect(playEngineTurn(row).row).toBe(row);
+		expect(playEngineTurn(row).played).toBeNull();
 	});
 
 	it('does nothing when it is the human side to move', () => {
 		const row = { mode: 'engine', level: 2, seed: 0, game: newGame() };
-		expect(playEngineTurn(row).game.moves).toEqual([]);
+		expect(playEngineTurn(row).row.game.moves).toEqual([]);
 	});
 });
 
@@ -122,6 +135,18 @@ describe('commitMove', () => {
 		const stored = await getActiveGame(db, 600);
 		expect(stored.game.moves).toEqual(result.row.game.moves);
 		expect(stored.game.fen).toBe(result.row.game.fen);
+	});
+
+	it('returns the final state so the screen does not replay the game', async () => {
+		const row = await createGame(db, { chatId: 604, userId: 6, level: 2 });
+		const result = await commitMove(db, row, parseSquare('e2'), parseSquare('e4'));
+		if (!result.ok) throw new Error('move was rejected');
+
+		// همان چیزی که `screenFor` بدون `state` از بازپخش می‌گیرد
+		const fresh = gameState(result.row.game);
+		expect(result.state.position.fen).toBe(fresh.position.fen);
+		expect(result.state.status).toEqual(fresh.status);
+		expect(screenFor(result.row, { state: result.state }).text).toBe(screenFor(result.row).text);
 	});
 
 	it('rejects an illegal move without touching the database', async () => {

@@ -303,20 +303,34 @@ export async function getPollSource(db: D1Database, ruleId: number): Promise<Pol
 }
 
 /** منابع عمومیِ فعالِ یک کانال مقصد (برای کرون) */
+/**
+ * بخش مشترک دو فهرست «منبع فعال»: همان `WHERE`، همان ترتیب bind ها.
+ * کوئری‌ها فرق دارند (جدول و ستون‌ها)، ولی این شرط و سقف یکی است؛ اگر روزی
+ * تعریف «فعال» عوض شود، فقط این‌جا عوض می‌شود.
+ */
+function activeSourceClause(options: { targetChannelId?: number; limit?: number }): { where: string; binds: number[] } {
+	const limit = options.limit ?? 20;
+	if (options.targetChannelId === undefined) {
+		return { where: 'WHERE s.enabled = 1', binds: [limit] };
+	}
+	return { where: 'WHERE s.enabled = 1 AND s.target_channel_id = ?', binds: [options.targetChannelId, limit] };
+}
+
 export async function listActivePollSources(
 	db: D1Database,
 	options: { targetChannelId?: number; limit?: number } = {},
 ): Promise<Array<PollSourceRow & { rule: SourceRule }>> {
+	const { where, binds } = activeSourceClause(options);
 	const { results } = await db
 		.prepare(
 			`SELECT s.*, p.username AS poll_username, p.cursor_message_id, p.last_polled_at, p.last_error, p.failures
 			 FROM post_poll_sources p
 			 JOIN post_sources s ON s.id = p.rule_id
-			 WHERE s.enabled = 1 ${options.targetChannelId ? 'AND s.target_channel_id = ?' : ''}
+			 ${where}
 			 ORDER BY COALESCE(p.last_polled_at, 0) ASC
 			 LIMIT ?`,
 		)
-		.bind(...(options.targetChannelId ? [options.targetChannelId, options.limit ?? 20] : [options.limit ?? 20]))
+		.bind(...binds)
 		.all<RuleRow & { cursor_message_id: number; last_polled_at: number | null; last_error: string | null; failures: number }>();
 
 	return (results ?? []).map((row) => ({
@@ -425,6 +439,7 @@ export async function listActiveXSources(
 	db: D1Database,
 	options: { targetChannelId?: number; limit?: number } = {},
 ): Promise<Array<XSourceRow & { rule: SourceRule }>> {
+	const { where, binds } = activeSourceClause(options);
 	const { results } = await db
 		.prepare(
 			`SELECT s.*, p.username AS poll_username, x.handle AS x_handle, x.handle,
@@ -432,11 +447,11 @@ export async function listActiveXSources(
 			 FROM post_x_sources x
 			 JOIN post_sources s ON s.id = x.rule_id
 			 LEFT JOIN post_poll_sources p ON p.rule_id = s.id
-			 WHERE s.enabled = 1 ${options.targetChannelId ? 'AND s.target_channel_id = ?' : ''}
+			 ${where}
 			 ORDER BY COALESCE(x.last_polled_at, 0) ASC
 			 LIMIT ?`,
 		)
-		.bind(...(options.targetChannelId ? [options.targetChannelId, options.limit ?? 20] : [options.limit ?? 20]))
+		.bind(...binds)
 		.all<
 			RuleRow & {
 				handle: string;
@@ -622,17 +637,35 @@ export async function finalizePost(db: D1Database, queueId: number, publishAt: n
 
 /** پست‌های آماده (وقت انتشار رسیده یا آلبوم تمام‌شده) */
 export async function listReadyPosts(db: D1Database, now: number, limit: number): Promise<number[]> {
-	const { results } = await db
-		.prepare(
-			`SELECT id FROM post_queue
-			 WHERE (status = 'scheduled' AND publish_at <= ?)
-			    OR (status = 'collecting' AND finalize_at IS NOT NULL AND finalize_at <= ?)
-			 ORDER BY publish_at ASC
-			 LIMIT ?`,
-		)
-		.bind(now, now, limit)
-		.all<{ id: number }>();
-	return (results ?? []).map((r) => Number(r.id));
+	// چرا دو SELECT و نه یک `OR`؟ چون در `OR`، SQLite هر دو شاخه را جمع می‌کند و
+	// برای `ORDER BY publish_at` یک TEMP B-TREE روی **همه‌ی** ردیف‌های سررسیده
+	// می‌سازد (یعنی `LIMIT` زودتر تمام نمی‌شود) و شاخه‌ی `collecting` فقط با
+	// پیشوند `status = ?` جلو می‌رود. با دو کوئری، هر شاخه روی ایندکس خودش مرتب
+	// است و بعد از `LIMIT` تمام می‌شود؛ ادغامشان در حافظه روی حداکثر ۲×limit ردیف
+	// انجام می‌شود. `batch` یعنی این دو در **یک** رفت‌وبرگشت به D1 می‌روند.
+	const [scheduled, collecting] = await db.batch<{ id: number; publish_at: number }>([
+		db
+			.prepare(
+				`SELECT id, publish_at FROM post_queue
+				 WHERE status = 'scheduled' AND publish_at <= ?
+				 ORDER BY publish_at ASC
+				 LIMIT ?`,
+			)
+			.bind(now, limit),
+		db
+			.prepare(
+				`SELECT id, publish_at FROM post_queue
+				 WHERE status = 'collecting' AND finalize_at IS NOT NULL AND finalize_at <= ?
+				 ORDER BY publish_at ASC
+				 LIMIT ?`,
+			)
+			.bind(now, limit),
+	]);
+
+	// یک ردیف یا `scheduled` است یا `collecting`، پس ادغام تکراری ندارد.
+	const ready = [...(scheduled?.results ?? []), ...(collecting?.results ?? [])];
+	ready.sort((a, b) => Number(a.publish_at) - Number(b.publish_at));
+	return ready.slice(0, limit).map((row) => Number(row.id));
 }
 
 /**

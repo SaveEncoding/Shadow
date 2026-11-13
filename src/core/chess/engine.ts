@@ -8,11 +8,11 @@
  *  ۳. **seed صریح** برای تنوع کنترل‌شده در سطوح پایین → «موتور vs موتور» بازتولیدپذیر.
  */
 
-import { isInCheck, isSquareAttacked } from './board.js';
+import { isInCheck } from './board.js';
 import { evaluate } from './eval.js';
 import { applyMove, undoMove } from './make-move.js';
 import { legalMoves, legalMovesMatching } from './movegen.js';
-import { KING, type Move, type Position } from './types.js';
+import type { Move, Position } from './types.js';
 
 export const MATE_SCORE = 100_000;
 const INFINITY = 1_000_000;
@@ -92,7 +92,7 @@ export class Searcher {
 
 		if (moves.length === 0) {
 			// مات یا پات
-			const inCheck = this.isKingAttacked(pos);
+			const inCheck = isInCheck(pos.board, pos.turn);
 			return inCheck ? -MATE_SCORE + ply : 0;
 		}
 
@@ -144,14 +144,6 @@ export class Searcher {
 			if (alpha >= beta) break;
 		}
 		return best;
-	}
-
-	private isKingAttacked(pos: Position): boolean {
-		const kingValue = KING * (pos.turn === 'w' ? 1 : -1);
-		for (let sq = 0; sq < 64; sq++) {
-			if (pos.board[sq] === kingValue) return isSquareAttacked(pos.board, sq, pos.turn === 'w' ? 'b' : 'w');
-		}
-		return false;
 	}
 }
 
