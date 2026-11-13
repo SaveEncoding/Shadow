@@ -19,6 +19,7 @@
  */
 
 import { InlineKeyboard, InputFile } from 'grammy';
+import { escapeHtml } from '../../core/text/escape.js';
 import {
 	ENGINE_LEVELS,
 	IllegalMoveError,
@@ -371,8 +372,4 @@ export function chessFeature(bot, env) {
 			/* ignore */
 		}
 	});
-}
-
-function escapeHtml(text) {
-	return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

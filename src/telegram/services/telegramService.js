@@ -21,9 +21,13 @@ import { Api } from 'grammy';
  * feature/command handlers already do, and escape only the dynamic pieces
  * you interpolate (with this same escapeHtml) while keeping your own tags.
  */
-export function escapeHtml(str) {
-	return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+// پیاده‌سازی در `core/text` است تا همه‌ی لایه‌ها (بات، UI، خطاها) از یک نسخه
+// استفاده کنند؛ این import/re-export API فعلی این ماژول را حفظ می‌کند.
+// (توجه: `export { x } from '...'` در این ماژول نام محلی نمی‌سازد و
+// sendMessage/editMessage پایین‌تر به همین binding محلی نیاز دارند.)
+import { escapeHtml } from '../../core/text/escape.js';
+
+export { escapeHtml };
 
 /**
  * @param {object} env

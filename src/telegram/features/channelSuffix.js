@@ -1,4 +1,5 @@
 import { InlineKeyboard } from 'grammy';
+import { escapeHtml } from '../../core/text/escape.js';
 import {
 	getChannelByTelegramId,
 	isUserChannelAdmin,
@@ -379,8 +380,4 @@ export async function maybeOfferSuffixApply(ctx, env, channel) {
 		reply_parameters: { message_id: ctx.message.message_id },
 	});
 	return true;
-}
-
-function escapeHtml(str) {
-	return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
