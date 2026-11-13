@@ -3,6 +3,7 @@ import type { Env } from '../types.js';
 import { getChannelsNeedingAdminSync, syncChannelAdmins } from './db/channels.js';
 import { sendMessage } from './services/telegramService.js';
 import { getErrorLogTarget } from './db/settings.js';
+import { errorInfo } from './utils/errorInfo.js';
 
 // Each execution synchronizes at most this many channels, ensuring that—even with a very large number of channels—
 // the execution time of each cron job remains limited and predictable. Full coverage is achieved over the course of several
@@ -59,10 +60,11 @@ export async function refreshChannelAdmins(
 			await sendMessage(env, logChatId, summary, { threadId: target.threadId });
 		}
 	} catch (err) {
-		const reason = err?.description || err?.message || err?.name || String(err) || 'unknown error';
+		const info = errorInfo(err);
+		const reason = info.description || info.message || info.name || String(err) || 'unknown error';
 		console.error(
-			`[refreshChannelAdmins] Failed to notify log chat ${logChatId}: ${reason} (error_code=${err?.error_code ?? 'n/a'})`,
-			err?.stack,
+			`[refreshChannelAdmins] Failed to notify log chat ${logChatId}: ${reason} (error_code=${info.errorCode ?? 'n/a'})`,
+			info.stack,
 		);
 	}
 

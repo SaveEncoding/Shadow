@@ -4,6 +4,7 @@
  */
 
 import type { Context, InlineKeyboard } from 'grammy';
+import { errorText } from '../utils/errorInfo.js';
 
 /** همان گزینه‌هایی که هر دو مسیر edit/reply نیاز دارند */
 function screenOptions(keyboard: InlineKeyboard | null) {
@@ -34,7 +35,7 @@ export async function renderScreen(
 			await ctx.editMessageText(text, opts);
 			return { edited: true };
 		} catch (err) {
-			const desc = String(err?.description || err?.message || '');
+			const desc = errorText(err, '');
 			// Identical content — treat as success (no spam).
 			if (desc.includes('message is not modified')) {
 				return { edited: true, unchanged: true };
