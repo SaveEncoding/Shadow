@@ -16,6 +16,14 @@ export interface QueryCounter {
 	total: number;
 	/** تعداد رفت‌وبرگشت به D1؛ هر `batch` فقط یکی است */
 	roundTrips: number;
+	/**
+	 * مجموع زمان انتظار برای D1 (میلی‌ثانیه).
+	 *
+	 * زیرمجموعه‌ی `durationMs` است، نه مکملش: زمان انتظار تلگرام/`fetch` هم در
+	 * `durationMs` هست ولی این‌جا نه. برای جواب دادن به «کندی از D1 است یا شبکه؟»
+	 * لازم است، چون تعداد کوئری نمی‌تواند این را نشان دهد.
+	 */
+	dbMs: number;
 	/** الگوی SQL ← تعداد؛ برای پیدا کردن کوئری پرمصرف */
 	patterns: Map<string, number>;
 	reset(): void;
@@ -36,16 +44,30 @@ function patternOf(sql: string): string {
 	return sql.replace(/\s+/g, ' ').trim().slice(0, 80);
 }
 
+/**
+ * زمان‌گیری یک عملیات D1.
+ *
+ * چرا `performance.now()` و نه `Date.now()`؟ کوئری‌های تکی زیر یک میلی‌ثانیه‌اند
+ * و `Date.now()` آن‌ها را ۰ یا ۱ می‌شمارد؛ جمعشان با دقت میلی‌ثانیه بی‌معنا می‌شد.
+ * در workerd هر دو موجودند، ولی این یکی monotonic است و با تغییر ساعت سیستم
+ * (یا NTP) خراب نمی‌شود.
+ */
+function nowMs(): number {
+	return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
 export function countQueries(inner: D1Database): CountedDb {
 	const patterns = new Map<string, number>();
 
 	const counter: QueryCounter = {
 		total: 0,
 		roundTrips: 0,
+		dbMs: 0,
 		patterns,
 		reset() {
 			this.total = 0;
 			this.roundTrips = 0;
+			this.dbMs = 0;
 			patterns.clear();
 		},
 		summary() {
@@ -65,6 +87,16 @@ export function countQueries(inner: D1Database): CountedDb {
 		}
 	};
 
+	/** اجرای عملیات D1 + جمع‌زدن زمان انتظارش (حتی وقتی خطا بدهد) */
+	const timed = async <T>(operation: () => Promise<T>): Promise<T> => {
+		const startedAt = nowMs();
+		try {
+			return await operation();
+		} finally {
+			counter.dbMs += nowMs() - startedAt;
+		}
+	};
+
 	/** statement اصلی برای اینکه `batch` بتواند ورودی واقعی بگیرد */
 	const originals = new WeakMap<object, { stmt: D1PreparedStatement; sql: string }>();
 
@@ -73,20 +105,20 @@ export function countQueries(inner: D1Database): CountedDb {
 			bind: (...args: unknown[]) => wrap(stmt.bind(...args), sql),
 			run: () => {
 				record(sql);
-				return stmt.run();
+				return timed(() => stmt.run());
 			},
 			first: (...args: unknown[]) => {
 				record(sql);
 				// امضای `first` چند شکلی است؛ همان آرگومان‌ها را پاس می‌دهیم.
-				return (stmt.first as (...a: unknown[]) => Promise<unknown>)(...args);
+				return timed(() => (stmt.first as (...a: unknown[]) => Promise<unknown>)(...args));
 			},
 			all: () => {
 				record(sql);
-				return stmt.all();
+				return timed(() => stmt.all());
 			},
 			raw: (...args: unknown[]) => {
 				record(sql);
-				return (stmt.raw as (...a: unknown[]) => Promise<unknown[]>)(...args);
+				return timed(() => (stmt.raw as (...a: unknown[]) => Promise<unknown[]>)(...args));
 			},
 		};
 		originals.set(proxy, { stmt, sql });
@@ -107,13 +139,13 @@ export function countQueries(inner: D1Database): CountedDb {
 						record(known?.sql ?? '(batch statement)', index === 0 ? 1 : 0);
 						real.push(known?.stmt ?? statement);
 					});
-					return target.batch(real);
+					return timed(() => target.batch(real));
 				};
 			}
 			if (key === 'exec') {
 				return (sql: string) => {
 					record(sql);
-					return target.exec(sql);
+					return timed(() => target.exec(sql));
 				};
 			}
 			// بقیه‌ی متدها (از جمله `withSession`) بدون شمارش رد می‌شوند؛ در این مخزن

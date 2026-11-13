@@ -240,6 +240,16 @@ export async function recoverStuckPosts(api: SchedulerApi, db: D1Database, now: 
 export interface TickMetrics {
 	/** زمان دیواری کل تیک (میلی‌ثانیه)؛ شامل انتظار برای D1 و تلگرام */
 	durationMs: number;
+	/**
+	 * مجموع زمان انتظار برای D1 در این تیک.
+	 * زیرمجموعه‌ی `durationMs` است (نه بخشی جدای از آن) و با `pollMs`/`publishMs`
+	 * همپوشانی دارد: کوئری هم در فاز پولینگ هست، هم در فاز انتشار.
+	 */
+	dbMs: number;
+	/** فاز خواندن منابع (پیش‌نمایش وب/X)؛ شامل خودِ درخواست‌های شبکه */
+	pollMs: number;
+	/** فاز انتشار: قفل‌گرفتن، ارسال به تلگرام، اعلان‌ها (بدون پاک‌سازی ساعتی) */
+	publishMs: number;
 	/** تعداد statement های D1 در این تیک */
 	queries: number;
 	/** تعداد رفت‌وبرگشت به D1؛ `batch` فقط یکی حساب می‌شود */
@@ -267,6 +277,9 @@ export async function publishDuePosts(
 	metrics: TickMetrics;
 }> {
 	const startedAt = Date.now();
+	// فازها با ساعت monotonic اندازه‌گیری می‌شوند، نه Date.now؛ همان دلیلی که در
+	// queryCounter آمده است.
+	const pollStartedAt = performance.now();
 	const now = options.now ?? Math.floor(Date.now() / 1000);
 	// همه‌ی کوئری‌های تیک از این پروکسی رد می‌شوند تا عدد واقعی داشته باشیم.
 	const { db, counter } = countQueries(env.my_database);
@@ -318,6 +331,9 @@ export async function publishDuePosts(
 		console.error('[publishQueue] polling X sources failed:', err);
 	}
 
+	const pollMs = Math.round(performance.now() - pollStartedAt);
+
+	const publishStartedAt = performance.now();
 	const recovered = await recoverStuckPosts(api, db, now);
 
 	// یک کوئری برای «چه چیزی آماده است»، بعد بستن آلبوم‌های همان لیست.
@@ -348,6 +364,8 @@ export async function publishDuePosts(
 		}
 	}
 
+	const publishMs = Math.round(performance.now() - publishStartedAt);
+
 	// پاک‌سازی سبک، ساعتی یک‌بار
 	if (now % 3600 < 60) {
 		try {
@@ -359,7 +377,14 @@ export async function publishDuePosts(
 		}
 	}
 
-	const metrics: TickMetrics = { durationMs: Date.now() - startedAt, queries: counter.total, roundTrips: counter.roundTrips };
+	const metrics: TickMetrics = {
+		durationMs: Date.now() - startedAt,
+		dbMs: Math.round(counter.dbMs),
+		pollMs,
+		publishMs,
+		queries: counter.total,
+		roundTrips: counter.roundTrips,
+	};
 
 	// یک خط JSON در هر تیک؛ Workers Logs فیلدها را ایندکس می‌کند و می‌شود روی
 	// `event = "cron.publish"` فیلتر کرد و مثلاً میانگین `queries` را گرفت.
@@ -367,6 +392,9 @@ export async function publishDuePosts(
 		event: 'cron.publish',
 		now,
 		durationMs: metrics.durationMs,
+		dbMs: metrics.dbMs,
+		pollMs: metrics.pollMs,
+		publishMs: metrics.publishMs,
 		dbQueries: metrics.queries,
 		dbRoundTrips: metrics.roundTrips,
 		finalized: finalizedAlbums.length,
