@@ -60,3 +60,15 @@ export interface ChessGameRow {
 	created_at: string | null;
 	updated_at: string | null;
 }
+
+/** ردیف جدول `users` */
+export interface UserRow {
+	id: number;
+	username: string | null;
+	first_name: string;
+	last_name: string | null;
+	language_code: string | null;
+	role: number;
+	created_at: string | null;
+	updated_at: string | null;
+}

@@ -1,11 +1,26 @@
 import { Role, isValidRole } from '../constants/roles.js';
-import { resolveFounderId } from '../config.js';
+import { resolveFounderId, type FounderEnv } from '../config.js';
+import type { UserRow } from '../db/rows.js';
+
+/** فیلدهایی از پیام تلگرام که برای ثبت/به‌روزرسانی کاربر لازم است */
+export interface TelegramUserLike {
+	id: number;
+	username?: string | null;
+	first_name: string;
+	last_name?: string | null;
+	language_code?: string | null;
+}
+
+/** آمار تعداد کاربر در هر سطح نقش */
+export type RoleStats = Record<number, number>;
 
 /**
  * User Management Service in D1
  */
 export class UserService {
-	constructor(db) {
+	readonly db: D1Database;
+
+	constructor(db: D1Database) {
 		this.db = db; // env.my_database
 	}
 
@@ -15,7 +30,7 @@ export class UserService {
 	 * New-user detection uses created_at === updated_at (both set on insert;
 	 * only updated_at changes on subsequent upserts).
 	 */
-	async registerOrUpdate(user) {
+	async registerOrUpdate(user: TelegramUserLike | null | undefined): Promise<UserRow | null> {
 		if (!user || !user.id) return null;
 
 		const { id, username, first_name, last_name, language_code } = user;
@@ -36,7 +51,7 @@ export class UserService {
         `,
 				)
 				.bind(id, username || null, first_name, last_name || null, language_code || null)
-				.first();
+				.first<UserRow>();
 
 			// New user: created_at and updated_at were set together on INSERT
 			if (row && row.created_at === row.updated_at) {
@@ -50,16 +65,16 @@ export class UserService {
 		}
 	}
 
-	async getUser(userId) {
-		return await this.db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+	async getUser(userId: number): Promise<UserRow | null> {
+		return await this.db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first<UserRow>();
 	}
 
-	async isUserExists(userId) {
+	async isUserExists(userId: number): Promise<boolean> {
 		const user = await this.getUser(userId);
 		return !!user;
 	}
 
-	async logActivity(userId, action, details = null) {
+	async logActivity(userId: number, action: string, details: string | null = null): Promise<void> {
 		await this.db
 			.prepare(
 				`
@@ -71,18 +86,16 @@ export class UserService {
 			.run();
 	}
 
-	/**
-	 * Effective role: FOUNDER_TELEGRAM_ID (env) always wins over DB.
-	 * @param {number|string} userId
-	 * @param {object} [env]
-	 */
-	async getEffectiveRole(userId, env = null) {
+	/** نقش مؤثر: FOUNDER_TELEGRAM_ID (env) همیشه بر DB اولویت دارد. */
+	async getEffectiveRole(userId: number | string, env: FounderEnv | null = null): Promise<number> {
 		const founderId = resolveFounderId(env);
 		if (founderId != null && Number(userId) === Number(founderId)) {
 			return Role.FOUNDER;
 		}
 
-		const user = await this.getUser(userId);
+		// ستون `users.id` عددی است؛ ورودی رشته‌ای فقط از فراخوان‌های JS می‌آید و
+		// SQLite هم با affinity همین تبدیل را انجام می‌دهد، پس نتیجه یکی است.
+		const user = await this.getUser(Number(userId));
 		if (!user) return Role.NORMAL;
 
 		return Number(user.role ?? 0);
@@ -94,7 +107,7 @@ export class UserService {
 	 * - Actor must be EXEC_ADMIN+
 	 * - newRole must be strictly below actor's effective role (founder may assign up to DEVELOPER)
 	 */
-	async setRole(actorId, targetId, newRole, env = null) {
+	async setRole(actorId: number | string, targetId: number | string, newRole: number, env: FounderEnv | null = null): Promise<void> {
 		if (!isValidRole(newRole)) {
 			throw new Error('سطح نقش نامعتبر است.');
 		}
@@ -127,7 +140,7 @@ export class UserService {
 	 * Promote user to EXEC_ADMIN via role (replaces legacy is_admin flag).
 	 * @deprecated prefer setRole(actorId, userId, Role.EXEC_ADMIN, env)
 	 */
-	async setAsBotAdmin(userId) {
+	async setAsBotAdmin(userId: number): Promise<void> {
 		await this.db
 			.prepare(`UPDATE users SET role = CASE WHEN COALESCE(role, 0) < ? THEN ? ELSE role END, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
 			.bind(Role.EXEC_ADMIN, Role.EXEC_ADMIN, userId)
@@ -140,7 +153,7 @@ export class UserService {
 	 * Prefer setRole(actorId, userId, Role.VIP|NORMAL, env) when actor checks matter.
 	 * @deprecated prefer setRole
 	 */
-	async setAsVip(userId, isVip = true) {
+	async setAsVip(userId: number, isVip = true): Promise<void> {
 		if (isVip) {
 			await this.db
 				.prepare(`UPDATE users SET role = CASE WHEN COALESCE(role, 0) < ? THEN ? ELSE role END WHERE id = ?`)
@@ -159,10 +172,8 @@ export class UserService {
 	 * Users who still "own" channel rows are never deleted (registered_by is NOT NULL,
 	 * owner_id is FK): that would raise SQLITE_CONSTRAINT_FOREIGNKEY. Pure
 	 * channel_admins membership is cleared first, then logs, then the user row.
-	 *
-	 * @returns {Promise<{deletedCount: number, deletedIds: number[]}>}
 	 */
-	async deleteInactiveUsers(inactiveDays = 30) {
+	async deleteInactiveUsers(inactiveDays = 30): Promise<{ deletedCount: number; deletedIds: number[] }> {
 		const { results } = await this.db
 			.prepare(
 				`
@@ -174,7 +185,7 @@ export class UserService {
       `,
 			)
 			.bind(Role.VIP, `-${inactiveDays} days`)
-			.all();
+			.all<{ id: number }>();
 
 		const idsToDelete = results.map((row) => row.id);
 
@@ -195,12 +206,12 @@ export class UserService {
 	}
 
 	/** Count users per role level (0–4). */
-	async getRoleStats() {
+	async getRoleStats(): Promise<RoleStats> {
 		const { results } = await this.db
 			.prepare(`SELECT COALESCE(role, 0) AS role, COUNT(*) AS cnt FROM users GROUP BY COALESCE(role, 0)`)
-			.all();
+			.all<{ role: number; cnt: number }>();
 
-		const stats = {
+		const stats: RoleStats = {
 			[Role.NORMAL]: 0,
 			[Role.VIP]: 0,
 			[Role.EXEC_ADMIN]: 0,
@@ -215,7 +226,7 @@ export class UserService {
 	}
 
 	/** Users with role >= minRole, ordered by role desc. */
-	async listUsersWithMinRole(minRole = Role.VIP) {
+	async listUsersWithMinRole(minRole = Role.VIP): Promise<UserRow[]> {
 		const { results } = await this.db
 			.prepare(
 				`SELECT id, username, first_name, last_name, role
@@ -225,7 +236,7 @@ export class UserService {
          LIMIT 100`,
 			)
 			.bind(minRole)
-			.all();
+			.all<UserRow>();
 		return results || [];
 	}
 }
