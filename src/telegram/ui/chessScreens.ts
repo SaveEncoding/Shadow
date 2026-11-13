@@ -175,7 +175,7 @@ export function boardKeyboard({
 			} else if (square === selected) {
 				kb.text('◉', `cg:x`);
 			} else {
-				kb.text(piece !== 0 ? pieceSymbol(piece) : EMPTY_CELL, `cg:s:${square}`);
+				kb.text(pieceSymbol(piece) ?? EMPTY_CELL, `cg:s:${square}`);
 			}
 			if (file === 7 && rank > 0) kb.row();
 		}

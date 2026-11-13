@@ -59,8 +59,11 @@ export function chessContext(ctx: Context) {
 	};
 }
 
+/** نوع چت تلگرام، از خود grammY گرفته شده تا لیست دستی نگه نداریم. */
+type TelegramChatType = NonNullable<Context['chat']>['type'];
+
 /** آیا امکان بازی در این چت هست؟ (شطرنج در کانال بی‌معناست) */
-export function isPlayableChatType(type: string | undefined): boolean {
+export function isPlayableChatType(type: TelegramChatType | null | undefined): boolean {
 	return type === 'private' || type === 'group' || type === 'supergroup';
 }
 

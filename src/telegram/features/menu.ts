@@ -5,6 +5,7 @@ import type { ChannelRow } from '../db/rows.js';
 import type { Env } from '../../types.js';
 import { Role, RoleLabel } from '../constants/roles.js';
 import { renderScreen, toast } from '../ui/render.js';
+import { errorText } from '../utils/errorInfo.js';
 import { sanitizeEntities } from '../utils/messageSuffix.js';
 import { PENDING_INPUT_TTL_SECONDS, clearPendingInput, getPendingInput, setPendingInput } from '../db/pendingInput.js';
 import {
@@ -55,7 +56,8 @@ export function menuFeature(bot: Bot, env: Pick<Env, 'my_database' | 'FOUNDER_TE
 	}
 
 	async function requireChannelAdmin(ctx: Context, channelId: number): Promise<ChannelRow | null> {
-		const allowed = await isUserChannelAdmin(env.my_database, channelId, ctx.from.id);
+		const userId = ctx.from?.id;
+		const allowed = userId !== undefined && (await isUserChannelAdmin(env.my_database, channelId, userId));
 		if (!allowed) {
 			await toast(ctx, 'دسترسی به این کانال ندارید.');
 			return null;
@@ -265,13 +267,14 @@ export function menuFeature(bot: Bot, env: Pick<Env, 'my_database' | 'FOUNDER_TE
 	// ----- Collect text while a glass-button flow is pending -----
 	// Registered before channelsFeature/echo; only consumes when pending is set.
 	bot.on('message:text', async (ctx: Context, next) => {
-		if (ctx.chat?.type !== 'private' || !ctx.from?.id) return next();
+		const message = ctx.message;
+		if (!message || ctx.chat?.type !== 'private' || !ctx.from?.id) return next();
 
 		const pending = await getPendingInput(env.my_database, ctx.from.id, Math.floor(Date.now() / 1000));
 		if (!pending) return next();
 
 		// Ignore bot commands so /start etc. still work.
-		const text = (ctx.message.text || '').trim();
+		const text = (message.text || '').trim();
 		if (text.startsWith('/')) {
 			await dropPending(ctx);
 			return next();
@@ -293,13 +296,17 @@ export function menuFeature(bot: Bot, env: Pick<Env, 'my_database' | 'FOUNDER_TE
 
 		if (pending.type === 'suffix') {
 			// Preserve bold/spoiler/links/… from the user's formatted message.
-			const entities = sanitizeEntities(ctx.message.entities);
+			const entities = sanitizeEntities(message.entities);
 			await setOfficialSuffix(env.my_database, pending.channelId, text, entities);
 		} else if (pending.type === 'skip') {
 			await setSuffixSkipMarker(env.my_database, pending.channelId, text);
 		}
 
 		const ch = await getChannelByTelegramId(env.my_database, pending.channelId);
+		if (!ch) {
+			await ctx.reply('✅ مقدار ذخیره شد، اما کانال دیگر در فهرست ثبت‌شده نیست.');
+			return;
+		}
 		const screenText = pending.type === 'suffix' ? channelSuffixHelpText(ch) : channelSkipHelpText(ch);
 		const screenKb = pending.type === 'suffix' ? channelSuffixKeyboard(pending.channelId) : channelSkipKeyboard(pending.channelId);
 
@@ -313,12 +320,12 @@ export function menuFeature(bot: Bot, env: Pick<Env, 'my_database' | 'FOUNDER_TE
 				});
 				await ctx.reply(
 					pending.type === 'suffix'
-						? '✅ پسوند رسمی ذخیره شد' + (sanitizeEntities(ctx.message.entities).length ? ' (با فرمت).' : '.')
+						? '✅ پسوند رسمی ذخیره شد' + (sanitizeEntities(message.entities).length ? ' (با فرمت).' : '.')
 						: '✅ مارکر رد ذخیره شد.',
 				);
 				return;
 			} catch (err) {
-				console.warn('[menu] edit after input failed:', err?.message || err);
+				console.warn('[menu] edit after input failed:', errorText(err));
 			}
 		}
 

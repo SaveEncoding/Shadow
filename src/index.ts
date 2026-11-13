@@ -4,7 +4,7 @@ import { handleWebsiteUpdate } from './website/main-web.js';
 import { runScheduledCleanup } from './telegram/scheduled.js';
 import { refreshChannelAdmins } from './telegram/channelAdminSync.js';
 import { publishDuePosts } from './telegram/publishQueue.js';
-import { Env } from './types.js';
+import type { Env } from './types.js';
 
 const DAILY_CLEANUP_CRON = '30 23 * * *';
 const CHANNEL_ADMIN_SYNC_CRON = '30 14 * * *';
@@ -23,8 +23,8 @@ const CRON_HANDLERS: Record<string, (env: Env) => Promise<unknown>> = {
 	[PUBLISH_QUEUE_CRON]: (env) => publishDuePosts(env),
 };
 
-export default {
-	async fetch(request, env: Env, ctx) {
+const worker: ExportedHandler<Env> = {
+	async fetch(request, env, ctx) {
 		try {
 			const url = new URL(request.url);
 
@@ -42,7 +42,7 @@ export default {
 		}
 	},
 
-	async scheduled(event, env: Env, ctx) {
+	async scheduled(event, env, ctx) {
 		const handler = CRON_HANDLERS[event.cron];
 
 		if (!handler) {
@@ -60,3 +60,5 @@ export default {
 		);
 	},
 };
+
+export default worker;

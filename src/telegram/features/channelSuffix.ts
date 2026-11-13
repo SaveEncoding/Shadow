@@ -22,6 +22,7 @@ import {
 	parseEntitiesJson,
 } from '../utils/messageSuffix.js';
 import { editMessageTextWithEntities, editMessageCaptionWithEntities } from '../services/telegramService.js';
+import { errorText } from '../utils/errorInfo.js';
 
 /**
  * Official channel suffix:
@@ -286,7 +287,7 @@ export function channelSuffixFeature(bot: Bot, env: SuffixEnv): void {
 			}
 		} catch (err) {
 			console.error('[channelSuffix] edit failed:', err);
-			const desc = err?.description || err?.message || 'خطای تلگرام';
+			const desc = errorText(err, 'خطای تلگرام');
 			await ctx.answerCallbackQuery({
 				text: String(desc).slice(0, 180),
 				show_alert: true,
@@ -380,10 +381,12 @@ export async function maybeOfferSuffixApply(ctx: Context, env: SuffixEnv, channe
 	const suffix = await getOfficialSuffix(env.my_database, channel.id);
 	if (!suffix?.text) return false;
 
-	const origin = ctx.message?.forward_origin;
+	const message = ctx.message;
+	if (!message) return false;
+	const origin = message.forward_origin;
 	if (origin?.type !== 'channel' || origin.message_id == null) return false;
 
-	const content = extractEditableContent(ctx.message);
+	const content = extractEditableContent(message);
 	if (!content.kind) {
 		await ctx.reply('این پست متن/کپشن ندارد؛ پسوند فقط روی متن یا کپشن اعمال می‌شود.');
 		return true;
@@ -394,7 +397,7 @@ export async function maybeOfferSuffixApply(ctx: Context, env: SuffixEnv, channe
 
 	await ctx.reply(`پسوند رسمی برای «${channel.title}» تنظیم شده.\n` + `اگر می‌خواهید به همین پست در کانال اضافه شود:`, {
 		reply_markup: kb,
-		reply_parameters: { message_id: ctx.message.message_id },
+		reply_parameters: { message_id: message.message_id },
 	});
 	return true;
 }
