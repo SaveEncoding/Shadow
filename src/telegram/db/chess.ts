@@ -133,31 +133,49 @@ export async function getGame(db: D1Database, id: number): Promise<StoredGame | 
 }
 
 /**
+ * نوشتن وضعیت روی ردیف بازی — تنها جایی که `chess_games` را UPDATE می‌کند.
+ *
+ * `saveGame` و `closeGame` فقط در ستون `status` فرق دارند و هر کدام چهار نسخه
+ * از همین SQL داشتند (با/بدون `expectedFen`). حالا SET و WHERE ساخته می‌شوند و
+ * `expectedFen` همان قید «فقط اگر هنوز همان وضعیت است» را اضافه می‌کند.
+ */
+async function writeGame(
+	db: D1Database,
+	id: number,
+	game: GameRecord,
+	options: { status?: 'finished' | 'abandoned'; expectedFen?: string } = {},
+): Promise<boolean> {
+	const columns = ['fen = ?', 'moves = ?', 'result = ?', 'reason = ?', 'updated_at = CURRENT_TIMESTAMP'];
+	const values: unknown[] = [game.fen, JSON.stringify(game.moves), game.result, game.reason];
+
+	if (options.status) {
+		columns.unshift('status = ?');
+		values.unshift(options.status);
+	}
+
+	let sql = `UPDATE chess_games SET ${columns.join(', ')} WHERE id = ?`;
+	values.push(id);
+
+	if (options.expectedFen !== undefined) {
+		sql += ' AND fen = ?';
+		values.push(options.expectedFen);
+	}
+
+	const result = await db
+		.prepare(sql)
+		.bind(...values)
+		.run();
+	return Number(result.meta?.changes ?? 0) > 0;
+}
+
+/**
  * ذخیره‌ی وضعیت جدید. اگر `expectedFen` داده شود، فقط وقتی می‌نویسد که
  * ردیف هنوز همان وضعیت را داشته باشد.
  *
  * @returns آیا نوشته شد؟
  */
 export async function saveGame(db: D1Database, id: number, game: GameRecord, expectedFen?: string): Promise<boolean> {
-	const result = expectedFen
-		? await db
-				.prepare(
-					`UPDATE chess_games
-					 SET fen = ?, moves = ?, result = ?, reason = ?, updated_at = CURRENT_TIMESTAMP
-					 WHERE id = ? AND fen = ?`,
-				)
-				.bind(game.fen, JSON.stringify(game.moves), game.result, game.reason, id, expectedFen)
-				.run()
-		: await db
-				.prepare(
-					`UPDATE chess_games
-					 SET fen = ?, moves = ?, result = ?, reason = ?, updated_at = CURRENT_TIMESTAMP
-					 WHERE id = ?`,
-				)
-				.bind(game.fen, JSON.stringify(game.moves), game.result, game.reason, id)
-				.run();
-
-	return Number(result.meta?.changes ?? 0) > 0;
+	return writeGame(db, id, game, { expectedFen });
 }
 
 /**
@@ -172,25 +190,7 @@ export async function closeGame(
 	status: 'finished' | 'abandoned' = 'finished',
 	expectedFen?: string,
 ): Promise<boolean> {
-	const result = expectedFen
-		? await db
-				.prepare(
-					`UPDATE chess_games
-					 SET status = ?, fen = ?, moves = ?, result = ?, reason = ?, updated_at = CURRENT_TIMESTAMP
-					 WHERE id = ? AND fen = ?`,
-				)
-				.bind(status, game.fen, JSON.stringify(game.moves), game.result, game.reason, id, expectedFen)
-				.run()
-		: await db
-				.prepare(
-					`UPDATE chess_games
-					 SET status = ?, fen = ?, moves = ?, result = ?, reason = ?, updated_at = CURRENT_TIMESTAMP
-					 WHERE id = ?`,
-				)
-				.bind(status, game.fen, JSON.stringify(game.moves), game.result, game.reason, id)
-				.run();
-
-	return Number(result.meta?.changes ?? 0) > 0;
+	return writeGame(db, id, game, { status, expectedFen });
 }
 
 export interface ChessStats {
