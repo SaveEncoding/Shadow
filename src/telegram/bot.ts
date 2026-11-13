@@ -1,5 +1,4 @@
 import { Bot, Context, NextFunction } from 'grammy';
-import { conversations } from '@grammyjs/conversations';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Env } from '../types.js';
 import { UserService } from './services/userService.js';
@@ -20,8 +19,6 @@ export function createBot(env: Env): Bot {
 
 	const bot = new Bot(env.TELEGRAM_TOKEN);
 	const userService = new UserService(env.my_database);
-
-	bot.use(conversations());
 
 	bot.use(async (ctx: Context, next: NextFunction) => {
 		const from = ctx.from;
