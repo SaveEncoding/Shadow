@@ -7,7 +7,7 @@ import {
 	parsePublicFeed,
 	publicSourceChannelId,
 } from '../src/core/schedule/publicFeed.js';
-import { fetchPublicFeed, publicFeedUrl } from '../src/telegram/publicFeed.js';
+import { FEED_FETCH_TIMEOUT_MS, fetchPublicFeed, publicFeedUrl } from '../src/telegram/publicFeed.js';
 import { EMPTY_PAGE, feedPage } from './helpers/feedFixture.js';
 
 const CHANNEL = 'shadow_news';
@@ -153,6 +153,43 @@ describe('fetchPublicFeed', () => {
 		});
 		expect(result.ok).toBe(false);
 		expect(result.error).toContain('اتصال');
+	});
+
+	it('gives the request an abort signal so a hung t.me call cannot stall the tick', async () => {
+		let signal = null;
+		await fetchPublicFeed('chan', {
+			fetchImpl: async (_url, init) => {
+				signal = init.signal;
+				return new Response(page(), { status: 200 });
+			},
+		});
+
+		expect(signal).toBeInstanceOf(AbortSignal);
+		expect(signal.aborted).toBe(false);
+	});
+
+	it('aborts a request that never answers and says so in plain words', async () => {
+		const result = await fetchPublicFeed('chan', {
+			timeoutMs: 20,
+			// فقط سیگنال را رعایت می‌کند (مثل fetch واقعی)، پس تست واقعاً منتظر abort می‌ماند
+			fetchImpl: (_url, init) =>
+				new Promise((_resolve, reject) => {
+					init.signal.addEventListener('abort', () =>
+						reject(Object.assign(new Error('The operation was aborted.'), { name: 'TimeoutError' })),
+					);
+				}),
+		});
+
+		expect(result.ok).toBe(false);
+		expect(result.status).toBeNull();
+		expect(result.error).toContain('پاسخ نداد');
+		expect(result.error).toContain('1 ثانیه');
+		// پیام خام انگلیسیِ abort نباید به UI/گپ لاگ برسد
+		expect(result.error).not.toContain('aborted');
+	});
+
+	it('keeps a ten second default timeout', () => {
+		expect(FEED_FETCH_TIMEOUT_MS).toBe(10_000);
 	});
 
 	it('sends a browser-like user agent (t.me returns empty pages otherwise)', async () => {
