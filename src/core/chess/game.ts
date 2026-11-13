@@ -130,15 +130,34 @@ export interface MoveOutcome {
 	san: string;
 	status: GameStatus;
 	move: Move;
+	/**
+	 * وضعیت بعد از حرکت (تخته + شمارش تکرار).
+	 *
+	 * چرا برمی‌گردد؟ چون «حرکت کاربر، پاسخ موتور، رندر» سه مرحله‌ی یک کلیک‌اند و
+	 * هر مرحله پیش‌تر کل تاریخچه را بازپخش می‌کرد. با این مقدار، هر سه مرحله روی
+	 * همان بازپخش سوار می‌شوند.
+	 *
+	 * هشدار: `position` همان آبجکت تغییرکرده است، نه رونوشت. برای ادامه‌ی همین
+	 * زنجیره است؛ نگه‌داشتنش برای بعد یعنی نگه‌داشتن حالتی که دیگر معتبر نیست.
+	 */
+	state: ReplayResult;
 }
 
 /**
- * اجرای حرکت کاربر (از خانه‌ی مبدأ به مقصد).
+ * ثبت یک حرکت **از پیش قانونی** روی یک وضعیت بازپخش‌شده، بدون بازپخش.
+ * مسئولیت قانونی‌بودن با فراخوان است (مثلاً حرکتی که موتور از همین تخته انتخاب کرده).
+ */
+export function applyKnownMove(game: GameRecord, state: ReplayResult, move: Move): MoveOutcome {
+	const san = moveToSan(state.position, move, legalMoves(state.position));
+	return commitMove(game, state, move, san);
+}
+
+/**
+ * اجرای حرکت کاربر روی یک وضعیت از پیش بازپخش‌شده.
  * خطاها با `IllegalMoveError` و کد مشخص برمی‌گردند تا UI پیام فارسی مناسب بسازد.
  */
-export function applyUserMove(game: GameRecord, from: number, to: number, promo?: number): MoveOutcome {
-	// یک بازپخش برای هر سه نیاز: تخته، وضعیت فعلی و شمارش تکرارها.
-	const { position, counts } = replay(game.startFen, game.moves);
+export function applyUserMoveFrom(game: GameRecord, state: ReplayResult, from: number, to: number, promo?: number): MoveOutcome {
+	const { position, counts } = state;
 	const status = statusFrom(game, position, counts);
 	if (status.over) throw new IllegalMoveError('game-over', 'این بازی تمام شده است');
 
@@ -162,7 +181,20 @@ export function applyUserMove(game: GameRecord, from: number, to: number, promo?
 		move = candidates[0]!;
 	}
 
-	const san = moveToSan(position, move, all);
+	return commitMove(game, state, move, moveToSan(position, move, all));
+}
+
+/** اجرای حرکت کاربر (از خانه‌ی مبدأ به مقصد). */
+export function applyUserMove(game: GameRecord, from: number, to: number, promo?: number): MoveOutcome {
+	// یک بازپخش برای هر سه نیاز: تخته، وضعیت فعلی و شمارش تکرارها.
+	const { position, counts } = replay(game.startFen, game.moves);
+	return applyUserMoveFrom(game, { position, counts }, from, to, promo);
+}
+
+/** هسته‌ی مشترک: حرکت را روی `state.position` اعمال می‌کند و بازی/وضعیت تازه را می‌سازد. */
+function commitMove(game: GameRecord, state: ReplayResult, move: Move, san: string): MoveOutcome {
+	const { position, counts } = state;
+
 	const next: GameRecord = {
 		...game,
 		moves: [...game.moves, san],
@@ -179,7 +211,7 @@ export function applyUserMove(game: GameRecord, from: number, to: number, promo?
 
 	const nextStatus = getStatus(position, { repetitionCount: counts.get(nextKey) ?? 1 });
 
-	return { game: { ...next, result: nextStatus.result, reason: nextStatus.reason }, san, status: nextStatus, move };
+	return { game: { ...next, result: nextStatus.result, reason: nextStatus.reason }, san, status: nextStatus, move, state };
 }
 
 /** پایان دادن به بازی به دلیلی خارج از تخته (استعفا، وقت، توافق) */

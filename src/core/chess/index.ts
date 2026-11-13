@@ -42,7 +42,9 @@ export { buildPgn, pgnHeaders, pgnMoveText, type PgnOptions } from './pgn.js';
 export { evaluate, evaluateForSideToMove, PIECE_VALUE } from './eval.js';
 export {
 	IllegalMoveError,
+	applyKnownMove,
 	applyUserMove,
+	applyUserMoveFrom,
 	currentStatus,
 	finishGame,
 	gameState,

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	IllegalMoveError,
+	applyKnownMove,
 	applyUserMove,
 	currentStatus,
 	finishGame,
@@ -13,6 +14,7 @@ import {
 } from '../src/core/chess/game.js';
 import { parseSquare } from '../src/core/chess/board.js';
 import { toFen } from '../src/core/chess/fen.js';
+import { legalMoves } from '../src/core/chess/movegen.js';
 
 const SQ = (name) => parseSquare(name);
 
@@ -172,5 +174,42 @@ describe('PGN export', () => {
 	it('uses * for an unfinished game', () => {
 		const game = play(newGame(), 'e2', 'e4').game;
 		expect(gameToPgn(game)).toContain('[Result "*"]');
+	});
+});
+
+describe('applyKnownMove', () => {
+	it('matches applyUserMove for the same move', () => {
+		const game = newGame();
+		const state = replay(game.startFen, game.moves);
+		const move = legalMoves(state.position).find((m) => m.from === SQ('e2') && m.to === SQ('e4'));
+
+		const known = applyKnownMove(game, state, move);
+		const byCoords = applyUserMove(game, SQ('e2'), SQ('e4'));
+
+		expect(known.san).toBe(byCoords.san);
+		expect(known.game).toEqual(byCoords.game);
+		expect(known.status).toEqual(byCoords.status);
+	});
+
+	it('keeps counting repetitions on the state it was given', () => {
+		const shuffle = [
+			['g1', 'f3'],
+			['g8', 'f6'],
+			['f3', 'g1'],
+			['f6', 'g8'],
+		];
+		let game = newGame();
+		// هفت نیم‌حرکت: وضعیت شروع دو بار دیده شده است
+		for (const [from, to] of [...shuffle, ...shuffle].slice(0, 7)) game = play(game, from, to).game;
+
+		const state = replay(game.startFen, game.moves);
+		const [from, to] = shuffle[3];
+		const move = legalMoves(state.position).find((m) => m.from === SQ(from) && m.to === SQ(to));
+		const known = applyKnownMove(game, state, move);
+
+		// تکرار سوم از نقشه‌ی همان بازپخش تشخیص داده می‌شود
+		expect(known.status.over).toBe(true);
+		expect(known.status.reason).toBe('threefold');
+		expect(known.game.moves).toEqual(play(game, from, to).game.moves);
 	});
 });

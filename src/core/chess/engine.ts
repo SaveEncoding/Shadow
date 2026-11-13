@@ -145,7 +145,6 @@ export class Searcher {
 		}
 		return best;
 	}
-
 }
 
 /** جست‌وجوی کامل با عمق ثابت (و سقف گره اختیاری) */

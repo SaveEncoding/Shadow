@@ -24,16 +24,17 @@ import { escapeHtml } from '../../core/text/escape.js';
 import {
 	ENGINE_LEVELS,
 	IllegalMoveError,
+	applyKnownMove,
 	applyUserMove,
 	chooseMove,
 	finishGame,
 	gameState,
 	gameToPgn,
 	legalMoves,
-	positionOf,
+	replay,
 	takeBack,
 } from '../../core/chess/index.js';
-import type { GameStatus, Move, Position } from '../../core/chess/index.js';
+import type { GameState, GameStatus, Move, MoveOutcome, Position, ReplayResult } from '../../core/chess/index.js';
 import { closeGame, getActiveGame, getChessStats, saveGame, startGame } from '../db/chess.js';
 import type { StoredGame } from '../db/chess.js';
 import { renderScreen, toast, toastAlert } from '../ui/render.js';
@@ -76,18 +77,27 @@ export async function loadActiveGame(db: D1Database, chatId: number): Promise<St
  * نوبت موتور را (اگر نوبتش است) بازی می‌کند.
  * انتخاب حرکت **قطعی** است: همان بازی + همان شماره‌ی حرکت = همان پاسخ موتور.
  */
-export function playEngineTurn(row: StoredGame): StoredGame {
-	if (row.mode !== 'engine') return row;
-	if (row.game.result) return row;
+export interface EngineTurnResult {
+	row: StoredGame;
+	/** نتیجه‌ی حرکت موتور؛ `null` یعنی موتور حرکتی نکرد (نوبت او نبود، بازی تمام بود یا حرکتی نمانده) */
+	played: MoveOutcome | null;
+}
 
-	const position = positionOf(row.game);
-	if (position.turn !== 'b') return row;
+export function playEngineTurn(row: StoredGame, state?: ReplayResult): EngineTurnResult {
+	if (row.mode !== 'engine' || row.game.result) return { row, played: null };
 
-	const { move } = chooseMove(position, row.level, (row.seed + row.game.moves.length * 7919) >>> 0);
-	if (!move) return row;
+	// اگر فراخوان وضعیت را دارد (مثلاً از `applyUserMove`)، همان را می‌دهیم تا
+	// تاریخچه دو بار بازپخش نشود؛ وگرنه یک‌بار این‌جا بازپخش می‌شود.
+	const current = state ?? replay(row.game.startFen, row.game.moves);
+	if (current.position.turn !== 'b') return { row, played: null };
 
-	const outcome = applyUserMove(row.game, move.from, move.to, move.promo);
-	return { ...row, game: outcome.game };
+	const { move } = chooseMove(current.position, row.level, (row.seed + row.game.moves.length * 7919) >>> 0);
+	if (!move) return { row, played: null };
+
+	// حرکت از خود همین تخته انتخاب شده، پس قانونی است؛ نیازی به بازپخش و
+	// جست‌وجوی دوباره نیست.
+	const played = applyKnownMove(row.game, current, move);
+	return { row: { ...row, game: played.game }, played };
 }
 
 export interface ScreenForOptions {
@@ -150,6 +160,8 @@ export interface CommitMoveSuccess {
 	row: StoredGame;
 	san: string;
 	status: GameStatus;
+	/** تخته و وضعیت نهایی؛ رندر با همین انجام می‌شود تا دوباره بازپخش نشود */
+	state: GameState;
 }
 
 /**
@@ -173,7 +185,11 @@ export async function commitMove(
 	}
 
 	const afterUser = { ...row, game: outcome.game };
-	const finalRow = outcome.status.over ? afterUser : playEngineTurn(afterUser);
+	// پاسخ موتور روی همان وضعیتی سوار می‌شود که حرکت کاربر ساخت.
+	const turn = outcome.status.over ? { row: afterUser, played: null } : playEngineTurn(afterUser, outcome.state);
+	const finalRow = turn.row;
+	const finalStatus = turn.played?.status ?? outcome.status;
+	const finalState = turn.played?.state ?? outcome.state;
 
 	// اگر بازی تمام شد، ردیف باید از «فعال» خارج شود تا بازی بعدی روی آن سوار نشود.
 	const saved = outcome.status.over
@@ -184,8 +200,7 @@ export async function commitMove(
 		return { ok: false, code: 'stale', message: 'این حرکت ثبت نشد؛ صفحه به‌روز شد.' };
 	}
 
-	const { status } = gameState(finalRow.game);
-	return { ok: true, row: finalRow, san: outcome.san, status };
+	return { ok: true, row: finalRow, san: outcome.san, status: finalStatus, state: { position: finalState.position, status: finalStatus } };
 }
 
 /**
@@ -306,7 +321,7 @@ export function chessFeature(bot: Bot, env: Pick<Env, 'my_database'>): void {
 			return toast(ctx, illegalMoveMessage(result.code));
 		}
 
-		const screen = screenFor(result.row);
+		const screen = screenFor(result.row, { state: result.state });
 		return renderScreen(ctx, screen.text, screen.keyboard);
 	};
 
@@ -340,7 +355,7 @@ export function chessFeature(bot: Bot, env: Pick<Env, 'my_database'>): void {
 		if (!row) return toast(ctx, 'بازی فعالی ندارید.');
 		if (row.game.result) return toast(ctx, 'این بازی تمام شده است.');
 
-		const position = positionOf(row.game);
+		const { position } = gameState(row.game);
 		// در حالت دو نفره، «استعفا» به معنی تسلیم بازیکنی است که نوبتش است.
 		const result: '0-1' | '1-0' = position.turn === 'w' ? '0-1' : '1-0';
 		const finished = finishGame(row.game, result, 'resignation');
