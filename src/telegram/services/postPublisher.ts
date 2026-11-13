@@ -68,11 +68,6 @@ export function mediaRef(item: PostItem): string | null {
 	return typeof url === 'string' && url.length > 0 ? url : null;
 }
 
-/** JSON تلگرام برای entities؛ همیشه آرایه‌ی تازه (نه رفرنس مشترک) */
-function entitiesOf(item: PostItem): unknown[] | undefined {
-	return item.entities && item.entities.length > 0 ? item.entities : undefined;
-}
-
 /** entities آیتم به شکل قابل‌استفاده برای شکستن متن */
 function entityList(item: PostItem): HtmlTextEntity[] {
 	return (item.entities ?? []) as HtmlTextEntity[];

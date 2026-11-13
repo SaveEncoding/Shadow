@@ -1,9 +1,9 @@
 import { InlineKeyboard, type Bot } from 'grammy';
 import type { Env } from '../../types.js';
-import { Role, RoleLabel, ASSIGNABLE_ROLES, roleLabel, isValidRole } from '../constants/roles.js';
+import { Role, roleLabel, isValidRole } from '../constants/roles.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { UserService } from '../services/userService.js';
-import { rolePickerKeyboard, userRoleActionsKeyboard } from '../keyboards/adminPanel.js';
+import { userRoleActionsKeyboard } from '../keyboards/adminPanel.js';
 import { renderScreen } from '../ui/render.js';
 import { errorText } from '../utils/errorInfo.js';
 

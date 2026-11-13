@@ -121,7 +121,6 @@ export function pseudoMoves(pos: Position): Move[] {
 	const enemy = -sign;
 	const startRank = turn === 'w' ? 1 : 6;
 	const promoRank = turn === 'w' ? 7 : 0;
-	const pawnDir = turn === 'w' ? 8 : -8;
 
 	for (let from = 0; from < 64; from++) {
 		const piece = board[from];

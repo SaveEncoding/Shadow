@@ -211,7 +211,6 @@ export function postSchedulerFeature(
 		const minutes = Number(ctx.match[2]);
 		if (!(await canManage(db, channelId, ctx.from?.id))) return toast(ctx, 'دسترسی ندارید.');
 
-		const channel = await getChannelByTelegramId(db, channelId);
 		const now = nowSeconds();
 		await startCaptureSession(db, {
 			userId: ctx.from.id,

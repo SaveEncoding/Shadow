@@ -35,7 +35,7 @@ import {
 } from '../../core/chess/index.js';
 import type { GameStatus, Move, Position } from '../../core/chess/index.js';
 import { closeGame, getActiveGame, getChessStats, saveGame, startGame } from '../db/chess.js';
-import type { ChessStats, StoredGame } from '../db/chess.js';
+import type { StoredGame } from '../db/chess.js';
 import { renderScreen, toast, toastAlert } from '../ui/render.js';
 import {
 	boardKeyboard,

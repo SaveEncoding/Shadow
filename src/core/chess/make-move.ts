@@ -69,7 +69,6 @@ export function applyMove(pos: Position, move: Move): Undo {
 export function undoMove(pos: Position, undo: Undo): void {
 	const move = undo.move;
 	const board = pos.board;
-	const sign = move.piece > 0 ? 1 : -1;
 
 	board[move.to] = 0;
 
