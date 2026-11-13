@@ -21,7 +21,6 @@
 		"wrangler": "^4.95.0"
 	},
 	"dependencies": {
-		"@grammyjs/conversations": "^2.1.1",
 		"grammy": "^1.44.0"
 	}
 }
