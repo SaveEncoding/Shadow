@@ -1,4 +1,5 @@
 import { Api } from 'grammy';
+import type { Env } from '../types.js';
 import { getChannelsNeedingAdminSync, syncChannelAdmins } from './db/channels.js';
 import { sendMessage } from './services/telegramService.js';
 import { getErrorLogTarget } from './db/settings.js';
@@ -13,7 +14,9 @@ const BATCH_SIZE = 200;
  * Unlike checking on a per-user basis at the moment of the click, here a single request per channel
  * (`getChatAdministrators`) suffices to retrieve all its admins at once.
  */
-export async function refreshChannelAdmins(env) {
+export async function refreshChannelAdmins(
+	env: Pick<Env, 'TELEGRAM_TOKEN' | 'my_database'>,
+): Promise<{ synced: number; added: number; removed: number; failed: number }> {
 	const api = new Api(env.TELEGRAM_TOKEN);
 	const channels = await getChannelsNeedingAdminSync(env.my_database, BATCH_SIZE);
 
