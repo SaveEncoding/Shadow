@@ -190,9 +190,10 @@ export async function commitMove(
 
 /**
  * جداکردن نتیجه‌ی ناموفق.
- * چرا predicate و نه `if (!result.ok)`؟ چون `strictNullChecks` در tsconfig این
- * پروژه خاموش است و آن‌جا literal typeها به `boolean` گشاد می‌شوند، پس narrowing
- * روی union کار نمی‌کند.
+ *
+ * چرا predicate و نه `if (!result.ok)`؟ چون بدون آن، `ok` در هر دو شاخه‌ی
+ * union یک `boolean` است و TypeScript نمی‌تواند فیلدهای اختصاصی `row`/`code`
+ * را از هم جدا کند؛ predicate این کار را در یک جا انجام می‌دهد.
  */
 function isMoveFailure(result: CommitMoveSuccess | CommitMoveFailure): result is CommitMoveFailure {
 	return !result.ok;
