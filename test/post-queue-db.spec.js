@@ -347,6 +347,34 @@ describe('publishing guards', () => {
 		expect(await listReadyPosts(db, NOW + 10_000, 10)).toHaveLength(0);
 	});
 
+	it('lets the admin claim a failed post again and resets the attempt counter', async () => {
+		const db = env.my_database;
+		const id = await makeScheduledPost();
+
+		await claimForPublish(db, id, NOW);
+		await markFailed(db, id, 'باز هم خطا', NOW, null, 3);
+		expect((await getPost(db, id)).status).toBe('failed');
+
+		// دکمه‌ی «انتشار الان» تنها راهِ نجات پستِ شکست‌خورده است
+		expect(await claimForPublish(db, id, NOW + 60)).toBe(true);
+		const post = await getPost(db, id);
+		expect(post.status).toBe('publishing');
+		// نردبانِ تلاش از نو شروع می‌شود، وگرنه با اولین خطای موقت دوباره می‌شکست
+		expect(post.attempts).toBe(0);
+		// و باز هم فقط یک فراخواننده برنده می‌شود
+		expect(await claimForPublish(db, id, NOW + 61)).toBe(false);
+	});
+
+	it('never claims a post that is already published', async () => {
+		const db = env.my_database;
+		const id = await makeScheduledPost();
+
+		expect(await claimForPublish(db, id, NOW)).toBe(true);
+		await markPublished(db, id, 55, NOW);
+
+		expect(await claimForPublish(db, id, NOW + 1)).toBe(false);
+	});
+
 	it('finds posts stuck in publishing (Worker died mid-send)', async () => {
 		const db = env.my_database;
 		const id = await makeScheduledPost();
