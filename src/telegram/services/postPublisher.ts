@@ -40,11 +40,22 @@ export type SendMethod =
 	| 'sendSticker'
 	| 'sendMediaGroup';
 
+/** یک فراخوانی واقعیِ تلگرام (همه‌ی مراحل یک `sequence` از همین نوع‌اند) */
+export type SingleStepPlan = { method: SendMethod; args: unknown[]; items: number };
+
 export type PublishPlan =
-	| { method: SendMethod; args: unknown[]; items: number }
+	| SingleStepPlan
 	/** چند پیام پشت‌سرهم (متن بلندتر از سقف تلگرام، یا کپشن + ادامه‌ی متن) */
-	| { method: 'sequence'; steps: PublishPlan[]; items: number }
+	| { method: 'sequence'; steps: SingleStepPlan[]; items: number }
 	| { method: 'unsupported'; reason: string; items: number };
+
+/** نتیجه‌ی اجرای نقشه؛ `ok: false` همراه با متن و کد خطای تلگرام */
+export interface PublishResult {
+	ok: boolean;
+	messageId: number | null;
+	error: string | null;
+	errorCode: number | null;
+}
 
 const SINGLE_MEDIA_METHOD: Record<string, SendMethod> = {
 	photo: 'sendPhoto',
@@ -88,7 +99,7 @@ function mediaExtra(item: PostItem): Record<string, unknown> {
  * @param post پست صف (آیتم‌ها مرتب‌شده)
  * @param targetChannelId کانال مقصد
  */
-function textPlan(chatId: number, text: string, entities: unknown[]): PublishPlan {
+function textPlan(chatId: number, text: string, entities: unknown[]): SingleStepPlan {
 	const other: Record<string, unknown> = {};
 	if (entities.length > 0) other.entities = entities;
 	return { method: 'sendMessage', args: [chatId, text, other], items: 1 };
@@ -138,7 +149,7 @@ export function buildPublishPlan(post: QueuePost, targetChannelId: number): Publ
 			if (caption.entities.length > 0) other.caption_entities = caption.entities;
 		}
 
-		const plan: PublishPlan = { method, args: [targetChannelId, ref, other], items: 1 };
+		const plan: SingleStepPlan = { method, args: [targetChannelId, ref, other], items: 1 };
 		const overflow = captionParts.slice(1);
 		if (overflow.length === 0) return plan;
 		return {
@@ -192,6 +203,135 @@ export function buildPublishPlan(post: QueuePost, targetChannelId: number): Publ
 	return { method: 'sendMediaGroup', args: [targetChannelId, media, {}], items: items.length };
 }
 
+/** یک آیتم آلبوم در قالب `InputMedia*` تلگرام */
+interface AlbumMediaEntry {
+	type: string;
+	media: string;
+	caption?: string;
+	caption_entities?: unknown[];
+	width?: number;
+	height?: number;
+	duration?: number;
+	supports_streaming?: boolean;
+}
+
+/**
+ * خطاهایی که یعنی تلگرام نتوانست یک URL را خودش بگیرد.
+ *
+ * `WEBPAGE_CURL_FAILED` معروف‌ترینِ آن‌هاست: سرور تلگرام سراغ URL رفته (برای
+ * دانلود رسانه یا ساختن پیش‌نمایش لینک) و شکست خورده — معمولاً ۴۰۳ یا تایم‌اوت
+ * برای User-Agentِ خودش. کدش ۴۰۰ است، پس در حلقه‌ی انتشار «غیرقابل تلاش مجدد»
+ * حساب می‌شود و پست برای همیشه می‌شکست.
+ */
+const UNFETCHABLE_URL_ERRORS = /WEBPAGE_(CURL_FAILED|MEDIA_EMPTY|NOT_FOUND|URL_INVALID)/i;
+
+export function isUnfetchableUrlError(message: string | null): boolean {
+	return message !== null && UNFETCHABLE_URL_ERRORS.test(message);
+}
+
+/** مرجعی که تلگرام باید خودش از اینترنت بگیرد (یعنی `file_id` نیست) */
+function isUrlOnlyRef(ref: string): boolean {
+	return /^https?:\/\//i.test(ref);
+}
+
+/** شماره‌ی آیتمی که تلگرام در پیام خطا نام برده: `failed to send message #4` */
+function failedItemIndex(message: string | null): number | null {
+	const match = message?.match(/message #(\d+)/i);
+	if (!match) return null;
+	const index = Number(match[1]) - 1;
+	return Number.isInteger(index) && index >= 0 ? index : null;
+}
+
+/** رونوشت یک آیتم آلبوم بدون کپشن (کپشن بعداً فقط روی آیتم اول می‌نشیند) */
+function withoutCaption(entry: AlbumMediaEntry): AlbumMediaEntry {
+	const next: AlbumMediaEntry = { type: entry.type, media: entry.media };
+	if (typeof entry.width === 'number') next.width = entry.width;
+	if (typeof entry.height === 'number') next.height = entry.height;
+	if (typeof entry.duration === 'number') next.duration = entry.duration;
+	if (typeof entry.supports_streaming === 'boolean') next.supports_streaming = entry.supports_streaming;
+	return next;
+}
+
+/** تنظیمات رسانه برای ارسال تک‌رسانه (آرگومان سوم متدهای `send*`) */
+function mediaOptions(entry: AlbumMediaEntry): Record<string, unknown> {
+	const other: Record<string, unknown> = {};
+	if (typeof entry.width === 'number') other.width = entry.width;
+	if (typeof entry.height === 'number') other.height = entry.height;
+	if (typeof entry.duration === 'number') other.duration = entry.duration;
+	if (typeof entry.supports_streaming === 'boolean') other.supports_streaming = entry.supports_streaming;
+	return other;
+}
+
+/**
+ * نقشه‌ی جایگزین برای وقتی که تلگرام یکی از آیتم‌های آلبوم را نتوانست بگیرد:
+ * همان آلبوم، بدون آن آیتم.
+ *
+ * چرا؟ تلگرام آلبوم را یک‌جا می‌فرستد؛ اگر نتواند یکی از آیتم‌ها را بگیرد،
+ * هیچ‌کدام منتشر نمی‌شوند. یعنی یک لینکِ خراب، سه عکسِ سالم را هم می‌کشد.
+ *
+ * کدام آیتم حذف می‌شود؟
+ *   ۱. همانی که تلگرام در پیام خطا نام برده (`message #4`)؛
+ *   ۲. وگرنه همه‌ی آیتم‌هایی که فقط URL دارند (مرجعشان `file_id` نیست، پس
+ *      تلگرام باید خودش دانلود کند — دقیقاً همان‌جایی که ممکن است شکست بخورد).
+ *
+ * @returns نقشه‌ی تازه، یا `null` اگر کوتاه‌کردن ممکن نباشد (تک‌رسانه، آلبومی
+ *   که هیچ آیتم URL-محور ندارد، یا آلبومی که با حذف چیزی از آن نمی‌ماند)
+ */
+export function albumWithoutFailingItem(plan: PublishPlan, errorMessage: string | null): SingleStepPlan | null {
+	if (plan.method !== 'sendMediaGroup') return null;
+	const [chatId, media] = plan.args;
+	if (typeof chatId !== 'number' || !Array.isArray(media)) return null;
+
+	const entries: AlbumMediaEntry[] = [];
+	for (const entry of media) {
+		if (typeof entry !== 'object' || entry === null) return null;
+		const candidate = entry as { type?: unknown; media?: unknown };
+		if (typeof candidate.type !== 'string' || typeof candidate.media !== 'string') return null;
+		entries.push(entry as AlbumMediaEntry);
+	}
+	if (entries.length < 2) return null;
+
+	// فقط آیتم‌هایی حذف می‌شوند که مرجعشان URL است. چرا؟ آیتمی که `file_id` دارد
+	// نیازی به دانلود ندارد، پس اگر تلگرام خطای WEBPAGE داده، تقصیرِ آن آیتم
+	// نبوده (مثلاً پیش‌نمایشِ لینکی داخل کپشن بوده) و حذفش یعنی از دست رفتن
+	// محتوایی که تلگرام می‌توانسته تحویل بدهد.
+	const named = failedItemIndex(errorMessage);
+	const drop = new Set<number>();
+	if (named !== null && named < entries.length && isUrlOnlyRef(entries[named]!.media)) {
+		drop.add(named);
+	} else {
+		entries.forEach((entry, index) => {
+			if (isUrlOnlyRef(entry.media)) drop.add(index);
+		});
+	}
+	if (drop.size === 0) return null;
+
+	// کپشن ممکن است روی همان آیتمی بوده باشد که حذف می‌شود؛ نگهش می‌داریم تا
+	// متن پست همراهِ رسانه گم نشود.
+	const captionEntry = entries.find((entry) => (entry.caption ?? '').trim().length > 0) ?? null;
+	const kept = entries.filter((_, index) => !drop.has(index)).map(withoutCaption);
+	if (kept.length === 0) return null;
+
+	// یک آیتم مانده ⇒ دیگر آلبوم نیست و باید با متد تک‌رسانه فرستاده شود
+	if (kept.length === 1) {
+		const only = kept[0]!;
+		const method = SINGLE_MEDIA_METHOD[only.type];
+		if (!method) return null;
+		const other = mediaOptions(only);
+		if (captionEntry) {
+			other.caption = captionEntry.caption;
+			if (captionEntry.caption_entities) other.caption_entities = captionEntry.caption_entities;
+		}
+		return { method, args: [chatId, only.media, other], items: 1 };
+	}
+
+	if (captionEntry) {
+		kept[0]!.caption = captionEntry.caption;
+		if (captionEntry.caption_entities) kept[0]!.caption_entities = captionEntry.caption_entities;
+	}
+	return { method: 'sendMediaGroup', args: [chatId, kept, {}], items: kept.length };
+}
+
 /** استخراج کد/متن خطای تلگرام به شکل یکسان */
 export function describeTelegramError(err: unknown): { message: string; code: number | null } {
 	const anyErr = err as { description?: string; message?: string; error_code?: number; name?: string } | null;
@@ -204,10 +344,7 @@ export function describeTelegramError(err: unknown): { message: string; code: nu
  * اجرای نقشه روی کلاینت. خطاها گرفته و به شکل ساختاری برگردانده می‌شوند
  * تا حلقه‌ی کرون هرگز با یک پست خراب متوقف نشود.
  */
-export async function executePublishPlan(
-	api: PublisherApi,
-	plan: PublishPlan,
-): Promise<{ ok: boolean; messageId: number | null; error: string | null; errorCode: number | null }> {
+export async function executePublishPlan(api: PublisherApi, plan: PublishPlan): Promise<PublishResult> {
 	if (plan.method === 'unsupported') {
 		return { ok: false, messageId: null, error: plan.reason, errorCode: null };
 	}
@@ -217,7 +354,7 @@ export async function executePublishPlan(
 	if (plan.method === 'sequence') {
 		let firstId: number | null = null;
 		for (const step of plan.steps) {
-			const result = await executePublishPlan(api, step);
+			const result = await executePlanOnce(api, step);
 			if (!result.ok) {
 				return { ok: false, messageId: firstId, error: result.error, errorCode: result.errorCode };
 			}
@@ -226,6 +363,23 @@ export async function executePublishPlan(
 		return { ok: firstId !== null, messageId: firstId, error: null, errorCode: null };
 	}
 
+	const result = await executePlanOnce(api, plan);
+
+	// تلگرام نتوانسته یکی از آیتم‌ها را بگیرد ⇒ همان آلبوم بدون آن آیتم.
+	// فقط یک بار: اگر باز هم شکست خورد، خطا به همان شکل قبل برمی‌گردد تا پست
+	// طبق روال «غیرقابل تلاش مجدد» ثبت شود و ادمین خبر دار شود.
+	if (!result.ok && isUnfetchableUrlError(result.error)) {
+		const shorter = albumWithoutFailingItem(plan, result.error);
+		if (shorter) {
+			console.warn('[postPublisher] Telegram could not fetch an album item; retrying without it:', result.error);
+			return executePlanOnce(api, shorter);
+		}
+	}
+
+	return result;
+}
+
+async function executePlanOnce(api: PublisherApi, plan: SingleStepPlan): Promise<PublishResult> {
 	try {
 		const fn = (api as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[plan.method];
 		if (typeof fn !== 'function') {
