@@ -24,7 +24,7 @@ Both parts are served from a single Worker and rely on **D1** (SQLite) and **KV*
 
 ## Stack
 
-- **Runtime:** Cloudflare Workers (migrating to TypeScript, part JS, part TS)
+- **Runtime:** Cloudflare Workers — the whole `src` tree is TypeScript with `strict`, `noUnusedLocals` and `noUncheckedIndexedAccess` (`npm run typecheck`)
 - **Telegram Bot:** [grammY](https://grammy.dev) (inline keyboards; بدون پلاگین گفت‌وگو)
 - **Database:** Cloudflare D1
 - **Caching:** Cloudflare KV (throttling error reporting)
@@ -98,7 +98,7 @@ npm test
 - [x] Global error handling system (`withErrorHandling`, throttling error reporting with KV, `UserFacingError`/`CriticalError` classes)
 - [x] Fix "body already used" bug in webhook error reporting path (clone `request` before it is consumed by handler)
 - [x] Cache bot instance at the level isolate, instead of building from scratch on every request
-- [x] `FEATURES` structure in `main-tel.js` to add new features without cluttering the main file
+- [x] `FEATURES` structure in `main-tel.ts` to add new features without cluttering the main file
 - [x] Main menu with inline buttons (`homeInlineKeyboard`)
 - [x] Automatic registration of users who interact directly with the bot (private chat, command or reply to the bot in the group) in D1
 - [x] Automatic cleaning of inactive users (more than 30 days without interaction), except users with role >= VIP — with daily Cron Trigger + notification to admins
@@ -114,7 +114,7 @@ npm test
 - [x] **Sources where the bot is not a member**: public channels are polled through the `t.me/s/<username>` web preview (text/photo/small video, polled once a minute, media converted to durable `file_id`s), with an automatic offer when a forwarded channel rejects the bot as non-admin
 - [x] **X (Twitter) sources** _(suspended — code ships off by default behind `X_SOURCES_ENABLED`, until a stable RSS bridge or API key is in place; turning it on is one variable)_: connect one or more `@handle`s to a target channel; new tweets are queued in full (text with expanded `t.co` links, `note_tweet` long text, up to 4 photos spooled to durable `file_id`s, video kept as a link) and published on schedule. Reads through the official X API (`X_BEARER_TOKEN`) or a self-hosted RSS bridge (`X_RSS_TEMPLATE`); never scrapes X. Built as a platform-agnostic scanner (`src/core/sources/`) so more websites can be added as adapters — see [`docs/SCHEDULED-POSTS.md`](./docs/SCHEDULED-POSTS.md)
 - [ ] Use Gemini
-- [ ] Connect the rest Menu buttons: "Admin Panel", "Settings", "Statistics", "Help" — now nothing happens if the user clicks them (no response, not even the loading state of Telegram closes) because none of them have a callback handler
+- [x] Menu buttons ("Admin Panel", "Settings", "Statistics", "Help", "Support") all have handlers — role-gated where needed
 - [ ] UI for managing registered channels from within "My Channels" (now just a raw text list; no delete channel button)
 - [x] Hierarchical roles (`role`) replace `is_admin` / `is_vip`; founder panel + `/setrole` for privilege management
 - [ ] Store statistics from each purge run (number of users removed over time) in a small table, instead of just logging, so it can be tracked
@@ -129,10 +129,9 @@ npm test
 
 ### Infrastructure
 
-- [x] Partial migration to TypeScript (`index.ts`, `types.ts`, `assets.d.ts`)
+- [x] Full migration to TypeScript: no `.js` files under `src`, everything type-checked under `strict`
 - [x] Committing essential files that were previously mistakenly gitignored (`package.json`, `tsconfig.json`, `wrangler.jsonc`, `package-lock.json`, `vitest.config.js`, `test/`)
-- [ ] Setting up GitHub Actions to automatically run tests on every push/PR
+- [x] GitHub Actions on every push/PR: `typecheck`, `typecheck:core`, `prettier --check`, `wrangler deploy --dry-run`, `vitest run`
 - [ ] Migrate to `wrangler d1 migrations` instead of manually running `schema.sql` on remote database (safer and more trackable for future schema changes)
-- [ ] Complete TypeScript migration for remaining `.js` files
 - [ ] A health-check endpoint (e.g. `GET /health`) that returns the connection status to D1/KV — for monitoring and uptime checks
 - [ ] A `.dev.vars.example` file that documents all the secrets/environment variables needed by the project (without the actual values), for faster setup by anyone who is just cloning the project
