@@ -25,7 +25,7 @@ Both parts are served from a single Worker and rely on **D1** (SQLite) and **KV*
 ## Stack
 
 - **Runtime:** Cloudflare Workers (migrating to TypeScript, part JS, part TS)
-- **Telegram Bot:** [grammY](https://grammy.dev) + `@grammyjs/conversations` plugin
+- **Telegram Bot:** [grammY](https://grammy.dev) (inline keyboards; بدون پلاگین گفت‌وگو)
 - **Database:** Cloudflare D1
 - **Caching:** Cloudflare KV (throttling error reporting)
 - **Test:** Vitest + `@cloudflare/vitest-pool-workers` — some tests run with mocks, some run directly on real D1 (test version)

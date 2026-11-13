@@ -309,10 +309,12 @@ export function can(actor: AccessContext, cap: Capability, resource: ResourceRef
 
 ### ۴.۵ متن (`core/text`)
 
-`escapeHtml` امروز در **سه جا** کپی شده (`services/telegramService.js`، `utils/Error.ts`،
-`features/channelSuffix.js`). یک نسخه می‌شود + توابع `truncateForTelegram()`، `chunkForTelegram()`
-(بریدن امن روی مرز entity نه وسط کدپوینت)، و `sanitizeEntities()` (که الان در
-`utils/messageSuffix.js` است و جای درستش همین‌جاست).
+`escapeHtml` قبلاً در چهار جا کپی شده بود (`services/telegramService.js`، `ui/screens.js`،
+`features/channelSuffix.js`، `features/chess.js`) و یکی‌شان ورودی غیر رشته‌ای را نمی‌پذیرفت.
+حالا **یک** نسخه در `core/text/escape.ts` است و `telegramService` فقط re-export می‌کند.
+قدم بعدی همین بخش: `truncateForTelegram()`، `chunkForTelegram()` (بریدن امن روی مرز entity
+نه وسط کدپوینت)، و `sanitizeEntities()` (که الان در `utils/messageSuffix.js` است و جای درستش
+همین‌جاست).
 
 ---
 
@@ -824,20 +826,20 @@ move played → GameDO: ذخیره‌ی حرکت، محاسبه‌ی نوبت ب
 
 این‌ها یافته‌های واقعی از همین کدبیس‌اند، به‌ترتیب اهمیت:
 
-| #   | مشکل                                                                 | جا                   | اثر واقعی                                                                    | راه‌حل                                                       |
-| --- | -------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| ۱   | ~~`pendingInput` یک `Map` درون‌ایزوله است~~ **رفع شد**               | `db/pendingInput.ts` | کاربر «منتظر متن» را بین درخواست‌ها از دست می‌داد (چند ایزوله همزمان)        | جدول `ui_pending_inputs` (یک ردیف برای هر کاربر)             |
-| ۲   | `conversations()` ثبت شده ولی **هیچ گفت‌وگویی** وجود ندارد           | `bot.ts`             | وابستگی مرده + اگر روزی استفاده شود، با storage درون‌حافظه در وبهوک می‌شکند  | حذف، یا اتصال با storage روی DO                              |
-| ۳   | بدون dedupe روی `update_id`                                          | `main-tel.ts`        | تلگرام وبهوک را retry می‌کند → ثبت دوباره‌ی کانال، پسوند دوباره، پیام تکراری | `DedupeDO` یا جدول dedupe                                    |
-| ۴   | بدون throttle و auto-retry                                           | `bot.ts`             | با رشد کاربر، `429` و `retry_after` پیام‌ها را می‌اندازد                     | `@grammyjs/auto-retry` + `transformer-throttler`             |
-| ۵   | مدیریت کرون با مقایسه‌ی رشته‌ی `event.cron` و «همه‌ی بقیه → cleanup» | `index.ts`           | افزودن کرون سوم، بی‌صدا cleanup را دوباره اجرا می‌کند                        | `platform/cron-router.ts` با نگاشت صریح و default = log منفی |
-| ۶   | `schema.sql` دستی اجرا می‌شود                                        | `db/schema.sql`      | تغییر اسکیما در پروداکشن ردیابی‌شدنی نیست                                    | `wrangler d1 migrations` + مهاجرت هر فیچر در manifest        |
-| ۷   | `escapeHtml` سه بار کپی شده                                          | ۳ فایل               | یکسان‌سازی نشدن رفتار و باگ‌های ظریف                                         | انتقال به `core/text`                                        |
-| ۸   | ستون‌های تنظیمات فیچر روی جدول `channels`                            | `schema.sql`         | با فیچر سوم، جدول پر از ستون‌های تک‌کاربردی می‌شود                           | `space_settings`                                             |
-| ۹   | `strict: false` و ترکیب JS/TS بی‌نوع                                 | `tsconfig.json`      | نبود محافظ در برابر خطای رایج                                                | `src/core` با `strict: true`، مهاجرت تدریجی                  |
-| ۱۰  | نبود rate limit روی ثبت کانال                                        | README هم گفته       | یک نفر با فوروارد زیاد، `getChatMember` را می‌سوزاند                         | `RateLimiter` (DO) روی capability `space:manage`             |
-| ۱۱  | دکمه‌هایی که کار نمی‌کنند                                            | README               | کاربر فکر می‌کند بات خراب است                                                | منو از روی `manifest` ساخته شود → مرده‌دکمه ناممکن           |
-| ۱۲  | نبود `.dev.vars.example` و `/health`                                 | README               | راه‌اندازی برای نفر بعد کند است؛ مانیتورینگ نداریم                           | بخش ۱۵ همین سند + قدم ۰.۲ در ROADMAP                         |
+| #   | مشکل                                                                  | جا                    | اثر واقعی                                                                    | راه‌حل                                                       |
+| --- | --------------------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| ۱   | ~~`pendingInput` یک `Map` درون‌ایزوله است~~ **رفع شد**                | `db/pendingInput.ts`  | کاربر «منتظر متن» را بین درخواست‌ها از دست می‌داد (چند ایزوله همزمان)        | جدول `ui_pending_inputs` (یک ردیف برای هر کاربر)             |
+| ۲   | ~~`conversations()` ثبت شده ولی هیچ گفت‌وگویی وجود ندارد~~ **رفع شد** | `bot.ts`              | وابستگی مرده بود؛ ثبتش storage درون‌حافظه می‌ساخت که در وبهوک می‌شکست        | پلاگین و وابستگی حذف شد (باندل ۱۶۰KiB کمتر)                  |
+| ۳   | بدون dedupe روی `update_id`                                           | `main-tel.ts`         | تلگرام وبهوک را retry می‌کند → ثبت دوباره‌ی کانال، پسوند دوباره، پیام تکراری | `DedupeDO` یا جدول dedupe                                    |
+| ۴   | بدون throttle و auto-retry                                            | `bot.ts`              | با رشد کاربر، `429` و `retry_after` پیام‌ها را می‌اندازد                     | `@grammyjs/auto-retry` + `transformer-throttler`             |
+| ۵   | مدیریت کرون با مقایسه‌ی رشته‌ی `event.cron` و «همه‌ی بقیه → cleanup»  | `index.ts`            | افزودن کرون سوم، بی‌صدا cleanup را دوباره اجرا می‌کند                        | `platform/cron-router.ts` با نگاشت صریح و default = log منفی |
+| ۶   | `schema.sql` دستی اجرا می‌شود                                         | `db/schema.sql`       | تغییر اسکیما در پروداکشن ردیابی‌شدنی نیست                                    | `wrangler d1 migrations` + مهاجرت هر فیچر در manifest        |
+| ۷   | ~~`escapeHtml` سه بار کپی شده~~ **رفع شد**                            | `core/text/escape.ts` | یکسان‌سازی نشدن رفتار و باگ‌های ظریف                                         | انجام شد؛ ۴ کپی حذف و یک پیاده‌سازی                          |
+| ۸   | ستون‌های تنظیمات فیچر روی جدول `channels`                             | `schema.sql`          | با فیچر سوم، جدول پر از ستون‌های تک‌کاربردی می‌شود                           | `space_settings`                                             |
+| ۹   | `strict: false` و ترکیب JS/TS بی‌نوع                                  | `tsconfig.json`       | نبود محافظ در برابر خطای رایج                                                | `src/core` با `strict: true`، مهاجرت تدریجی                  |
+| ۱۰  | نبود rate limit روی ثبت کانال                                         | README هم گفته        | یک نفر با فوروارد زیاد، `getChatMember` را می‌سوزاند                         | `RateLimiter` (DO) روی capability `space:manage`             |
+| ۱۱  | دکمه‌هایی که کار نمی‌کنند                                             | README                | کاربر فکر می‌کند بات خراب است                                                | منو از روی `manifest` ساخته شود → مرده‌دکمه ناممکن           |
+| ۱۲  | نبود `.dev.vars.example` و `/health`                                  | README                | راه‌اندازی برای نفر بعد کند است؛ مانیتورینگ نداریم                           | بخش ۱۵ همین سند + قدم ۰.۲ در ROADMAP                         |
 
 ---
 
