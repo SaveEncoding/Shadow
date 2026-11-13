@@ -39,7 +39,6 @@ import { fetchPublicFeed } from '../publicFeed.js';
 import { isValidXHandle, normalizeXHandle, xSourceChannelId } from '../../core/sources/x.js';
 import { fetchXTimeline, isXSourcesEnabled, resolveXProvider, X_NOT_CONFIGURED_MESSAGE, X_SUSPENDED_MESSAGE } from '../xSource.js';
 import { upsertXSource } from '../db/postQueue.js';
-import type { PostItem } from '../../core/schedule/types.js';
 import { getChannelByTelegramId, getChannels, isUserChannelAdmin } from '../db/channels.js';
 import {
 	clearCaptureSession,
@@ -150,7 +149,7 @@ export function postSchedulerFeature(
 	bot.command('schedule', openHub);
 	bot.command('post', openHub);
 	bot.callbackQuery('ps:h', openHub);
-	bot.callbackQuery('ps:help', async (ctx: Context) => {
+	bot.callbackQuery('ps:help', async (ctx) => {
 		await renderScreen(ctx, helpText(isXSourcesEnabled(env)), undefined);
 	});
 
@@ -182,12 +181,12 @@ export function postSchedulerFeature(
 		return renderScreen(ctx, channelScheduleText(model), channelScheduleKeyboard(model));
 	};
 
-	bot.callbackQuery(/^ps:c:(-?\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:c:(-?\d+)$/, async (ctx) => {
 		await openChannel(ctx, Number(ctx.match[1]));
 	});
 
 	// ── افزودن منبع ──
-	bot.callbackQuery(/^ps:src:(-?\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:src:(-?\d+)$/, async (ctx) => {
 		const channelId = Number(ctx.match[1]);
 		if (!(await canManage(db, channelId, ctx.from?.id))) return toast(ctx, 'دسترسی ندارید.');
 
@@ -207,7 +206,7 @@ export function postSchedulerFeature(
 	});
 
 	/** انتخاب تأخیر پیش‌فرض قبل از فوروارد کردن پست */
-	bot.callbackQuery(/^ps:sd:(-?\d+):(\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:sd:(-?\d+):(\d+)$/, async (ctx) => {
 		const channelId = Number(ctx.match[1]);
 		const minutes = Number(ctx.match[2]);
 		if (!(await canManage(db, channelId, ctx.from?.id))) return toast(ctx, 'دسترسی ندارید.');
@@ -226,7 +225,7 @@ export function postSchedulerFeature(
 	});
 
 	// ── کپی دستی ──
-	bot.callbackQuery(/^ps:man:(-?\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:man:(-?\d+)$/, async (ctx) => {
 		const channelId = Number(ctx.match[1]);
 		if (!(await canManage(db, channelId, ctx.from?.id))) return toast(ctx, 'دسترسی ندارید.');
 
@@ -247,7 +246,7 @@ export function postSchedulerFeature(
 	});
 
 	// ── حساب X (توییتر) ──
-	bot.callbackQuery(/^ps:xsrc:(-?\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:xsrc:(-?\d+)$/, async (ctx) => {
 		// فیچر تعلیق است: دکمه در صفحه‌های تازه پنهان می‌شود، ولی ممکن است
 		// کاربر روی دکمه‌ی یک پیام قدیمی بزند — همان‌جا صادقانه توضیح می‌دهیم.
 		if (!isXSourcesEnabled(env)) return toastAlert(ctx, '⏸ منابع X فعلاً تعلیق شده‌اند. راهنما در /schedule است.');
@@ -327,7 +326,7 @@ export function postSchedulerFeature(
 	};
 
 	// ── کانال عمومی (بدون عضویت بات) ──
-	bot.callbackQuery(/^ps:pubsrc:(-?\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:pubsrc:(-?\d+)$/, async (ctx) => {
 		const channelId = Number(ctx.match[1]);
 		if (!(await canManage(db, channelId, ctx.from?.id))) return toast(ctx, 'دسترسی ندارید.');
 
@@ -392,13 +391,14 @@ export function postSchedulerFeature(
 	};
 
 	// پیشنهاد حالت عمومی، وقتی بات در کانال مبدأ ادمین نیست
-	bot.callbackQuery(/^ps:usepub:(-?\d+):(@?[A-Za-z0-9_]+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:usepub:(-?\d+):(@?[A-Za-z0-9_]+)$/, async (ctx) => {
 		const channelId = Number(ctx.match[1]);
 		const username = ctx.match[2];
-		if (!(await canManage(db, channelId, ctx.from?.id))) return toast(ctx, 'دسترسی ندارید.');
+		const userId = ctx.from?.id;
+		if (userId === undefined || !(await canManage(db, channelId, userId))) return toast(ctx, 'دسترسی ندارید.');
 
 		const channel = await getChannelByTelegramId(db, channelId);
-		const result = await registerPublicSource(ctx.from!.id, channelId, ctx.chat?.id ?? ctx.from!.id, username, DEFAULT_DELAY_MINUTES);
+		const result = await registerPublicSource(userId, channelId, ctx.chat?.id ?? userId, username, DEFAULT_DELAY_MINUTES);
 
 		if (result.ok === false) {
 			await toast(ctx, 'انجام نشد.');
@@ -411,7 +411,7 @@ export function postSchedulerFeature(
 	});
 
 	// ── انتخاب تأخیر / زمان ──
-	bot.callbackQuery(/^ps:dp:([rp]-?\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:dp:([rp]-?\d+)$/, async (ctx) => {
 		const scope = ctx.match[1];
 		const isRule = scope.startsWith('r');
 
@@ -428,7 +428,7 @@ export function postSchedulerFeature(
 		return renderScreen(ctx, delayPickerText('post', null, nowSeconds()), delayPickerKeyboard(scope, 'post'));
 	});
 
-	bot.callbackQuery(/^ps:ds:([rp]-?\d+):(\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:ds:([rp]-?\d+):(\d+)$/, async (ctx) => {
 		const scope = ctx.match[1];
 		const minutes = Number(ctx.match[2]);
 		const now = nowSeconds();
@@ -454,7 +454,7 @@ export function postSchedulerFeature(
 	});
 
 	// ── مدیریت قانون‌ها ──
-	bot.callbackQuery(/^ps:tog:(-?\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:tog:(-?\d+)$/, async (ctx) => {
 		const sourceId = Number(ctx.match[1]);
 		const rule = await getSourceRule(db, sourceId);
 		if (!rule) return toast(ctx, 'این منبع پیدا نشد.');
@@ -465,7 +465,7 @@ export function postSchedulerFeature(
 		return openChannel(ctx, rule.targetChannelId);
 	});
 
-	bot.callbackQuery(/^ps:rdel:(-?\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:rdel:(-?\d+)$/, async (ctx) => {
 		const sourceId = Number(ctx.match[1]);
 		const rule = await getSourceRule(db, sourceId);
 		if (!rule) return toast(ctx, 'این منبع پیدا نشد.');
@@ -487,7 +487,7 @@ export function postSchedulerFeature(
 		return renderScreen(ctx, queueText(posts, channel.title, now), queueKeyboard(posts, channelId));
 	};
 
-	bot.callbackQuery(/^ps:q:(-?\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:q:(-?\d+)$/, async (ctx) => {
 		await openQueue(ctx, Number(ctx.match[1]));
 	});
 
@@ -502,12 +502,12 @@ export function postSchedulerFeature(
 		return renderScreen(ctx, postDetailText(post, channel?.title ?? String(post.targetChannelId), now), postDetailKeyboard(post, now));
 	};
 
-	bot.callbackQuery(/^ps:p:(\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:p:(\d+)$/, async (ctx) => {
 		await openPost(ctx, Number(ctx.match[1]));
 	});
 
 	// ── انتشار فوری ──
-	bot.callbackQuery(/^ps:pub:(\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:pub:(\d+)$/, async (ctx) => {
 		const postId = Number(ctx.match[1]);
 		const post = await getPost(db, postId);
 		if (!post) return toast(ctx, 'پست پیدا نشد.');
@@ -527,7 +527,7 @@ export function postSchedulerFeature(
 	});
 
 	// ── ویرایش متن/کپشن ──
-	bot.callbackQuery(/^ps:txt:(\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:txt:(\d+)$/, async (ctx) => {
 		const postId = Number(ctx.match[1]);
 		const post = await getPost(db, postId);
 		if (!post) return toast(ctx, 'پست پیدا نشد.');
@@ -539,10 +539,13 @@ export function postSchedulerFeature(
 		const field = item.kind === 'text' ? 'text' : 'caption';
 		const now = nowSeconds();
 
+		const editChatId = ctx.chat?.id ?? post.previewChatId ?? post.createdBy;
+		if (editChatId === null) return toast(ctx, 'چت مقصد این پست پیدا نشد.');
+
 		await startEditSession(db, {
 			postId,
 			userId: ctx.from.id,
-			chatId: ctx.chat?.id ?? post.previewChatId ?? post.createdBy,
+			chatId: editChatId,
 			messageId: ctx.callbackQuery?.message?.message_id ?? 0,
 			field,
 			targetMessageId: item.sourceMessageId,
@@ -552,13 +555,15 @@ export function postSchedulerFeature(
 		return renderScreen(ctx, awaitingEditText(field, item.text), awaitingEditKeyboard(postId));
 	});
 
-	bot.callbackQuery(/^ps:txtcancel:(\d+)$/, async (ctx: Context) => {
-		await clearEditSession(db, ctx.from!.id);
+	bot.callbackQuery(/^ps:txtcancel:(\d+)$/, async (ctx) => {
+		const userId = ctx.from?.id;
+		if (userId === undefined) return toast(ctx, 'شناسه‌ی کاربر پیدا نشد.');
+		await clearEditSession(db, userId);
 		await openPost(ctx, Number(ctx.match[1]));
 	});
 
 	// ── لغو پست ──
-	bot.callbackQuery(/^ps:del:(\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:del:(\d+)$/, async (ctx) => {
 		const postId = Number(ctx.match[1]);
 		const post = await getPost(db, postId);
 		if (!post) return toast(ctx, 'پست پیدا نشد.');
@@ -570,7 +575,7 @@ export function postSchedulerFeature(
 	});
 
 	// ── پیش‌نمایش اصل پست (کپی در چت ادمین) ──
-	bot.callbackQuery(/^ps:view:(\d+)$/, async (ctx: Context) => {
+	bot.callbackQuery(/^ps:view:(\d+)$/, async (ctx) => {
 		const post = await getPost(db, Number(ctx.match[1]));
 		if (!post) return toast(ctx, 'پست پیدا نشد.');
 		if (!(await canManage(db, post.targetChannelId, ctx.from?.id))) return toast(ctx, 'دسترسی ندارید.');
@@ -725,7 +730,7 @@ export function postSchedulerFeature(
 
 		// حالت ۱: ثبت منبع — از فوروارد می‌فهمیم کانال مبدأ کدام است
 		if (session.mode === 'source') {
-			const source = getForwardedChannel(ctx.message) as { id: number; title: string; username: string | null } | null;
+			const source = getForwardedChannel(ctx.message);
 			if (!source) {
 				return ctx.reply('❌ این پیام از یک کانال فوروارد نشده است.\nیک پست از کانال مبدأ را فوروارد کن، یا /cancel را بزن.');
 			}
@@ -777,20 +782,26 @@ export function postSchedulerFeature(
 		}
 
 		// حالت ۲: کپی دستی — خود پیام فورواردشده محتواست
-		const reason = unsupportedReason(ctx.message as any);
+		const message = ctx.message;
+		if (!message) {
+			await clearCaptureSession(db, userId);
+			return ctx.reply('⛔️ پیامی برای کپی پیدا نشد.');
+		}
+
+		const reason = unsupportedReason(message);
 		if (reason) {
 			await clearCaptureSession(db, userId);
 			return ctx.reply(`⛔️ این نوع پست (${reason}) پشتیبانی نمی‌شود.`);
 		}
 
-		const item = extractPostItem(ctx.message as any);
+		const item = extractPostItem(message);
 		if (!item) {
 			await clearCaptureSession(db, userId);
 			return ctx.reply('⛔️ از این پیام محتوایی برای کپی پیدا نشد.');
 		}
 
 		const now = nowSeconds();
-		const queued = await queueManualPost(db, [item as PostItem], {
+		const queued = await queueManualPost(db, [item], {
 			targetChannelId: session.targetChannelId,
 			delayMinutes: session.delayMinutes,
 			createdBy: userId,
@@ -810,7 +821,7 @@ export function postSchedulerFeature(
 	bot.on(['channel_post', 'edited_channel_post'], async (ctx: Context, next: () => Promise<void>) => {
 		try {
 			const isEdit = Boolean(ctx.editedChannelPost);
-			const message = (ctx.channelPost ?? ctx.editedChannelPost) as any;
+			const message = ctx.channelPost ?? ctx.editedChannelPost;
 			if (!message) return;
 
 			const now = nowSeconds();

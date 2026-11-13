@@ -1,4 +1,27 @@
-import { Api } from 'grammy';
+import { Api, type RawApi } from 'grammy';
+import type { Env } from '../../types.js';
+import type { MessageEntityLike } from '../utils/messageSuffix.js';
+
+/**
+ * grammY این دو نوع را از ریشه export نمی‌کند، ولی خودِ امضای متدهای `Api`
+ * دقیقاً همان چیزی است که می‌خواهیم؛ پس بی‌واسطه از آن استخراج می‌شوند تا
+ * هر ارتقای grammY خودش این تایپ‌ها را به‌روز کند.
+ */
+type SendArgs = Parameters<RawApi['sendMessage']>[0];
+type ReplyMarkup = NonNullable<SendArgs['reply_markup']>;
+type EditMessageTextArgs = Parameters<RawApi['editMessageText']>[0];
+type MessageEntityList = NonNullable<EditMessageTextArgs['entities']>;
+type InlineMarkup = NonNullable<EditMessageTextArgs['reply_markup']>;
+
+/**
+ * فهرست entity ای که از دیتابیس/تلگرام می‌آید و در `sanitizeEntities` اعتبارسنجی
+ * شده است. نوع اتحادی grammY برای هر `type` یک literal جدا دارد و پویایی این
+ * فهرست در زمان کامپایل قابل اثبات نیست؛ تبدیل فقط همین‌جا، در مرز خروجی به
+ * API، انجام می‌شود.
+ */
+function asTelegramEntities(entities: readonly MessageEntityLike[]): MessageEntityList {
+	return entities as MessageEntityList;
+}
 
 /**
  * Both helpers below go through grammy's Api client instead of a hand-rolled
@@ -29,16 +52,24 @@ import { escapeHtml } from '../../core/text/escape.js';
 
 export { escapeHtml };
 
-/**
- * @param {object} env
- * @param {number|string} chatId
- * @param {string} text
- * @param {{ threadId?: number|null, replyMarkup?: object|null }} [options]
- *   threadId - message_thread_id of a forum topic. Pass this whenever the
- *   target chat may be topic-split, or Telegram silently drops the message
- *   into "General" instead of the topic it was actually configured from.
- */
-export async function sendMessage(env, chatId, text, { threadId = null, replyMarkup = null } = {}) {
+/** حداقل چیزی که این ماژول از env لازم دارد */
+type TelegramEnv = Pick<Env, 'TELEGRAM_TOKEN'>;
+
+export interface SendMessageOptions {
+	/**
+	 * message_thread_id یک تاپیک انجمن. هر جا مقصد ممکن است topic-split باشد
+	 * این را بدهید، وگرنه تلگرام پیام را بی‌صدا به «General» می‌اندازد.
+	 */
+	threadId?: number | null;
+	replyMarkup?: ReplyMarkup | null;
+}
+
+export async function sendMessage(
+	env: TelegramEnv,
+	chatId: number | string,
+	text: string,
+	{ threadId = null, replyMarkup = null }: SendMessageOptions = {},
+) {
 	if (!env.TELEGRAM_TOKEN) {
 		throw new Error('TELEGRAM_TOKEN is not set');
 	}
@@ -61,7 +92,13 @@ export async function sendMessage(env, chatId, text, { threadId = null, replyMar
  * "در حال پردازش..." status message to its final result). Mirrors
  * sendMessage's shape and, like it, HTML-escapes `text` automatically.
  */
-export async function editMessage(env, chatId, messageId, text, replyMarkup = null) {
+export async function editMessage(
+	env: TelegramEnv,
+	chatId: number | string,
+	messageId: number,
+	text: string,
+	replyMarkup: InlineMarkup | null = null,
+) {
 	if (!env.TELEGRAM_TOKEN) {
 		throw new Error('TELEGRAM_TOKEN is not set');
 	}
@@ -82,7 +119,7 @@ export async function editMessage(env, chatId, messageId, text, replyMarkup = nu
 	});
 }
 
-export async function answerCallbackQuery(env, callbackQueryId, text = '', showAlert = false) {
+export async function answerCallbackQuery(env: TelegramEnv, callbackQueryId: string, text = '', showAlert = false) {
 	if (!env.TELEGRAM_TOKEN) {
 		throw new Error('TELEGRAM_TOKEN is not set');
 	}
@@ -98,39 +135,37 @@ export async function answerCallbackQuery(env, callbackQueryId, text = '', showA
 /**
  * Edit a channel (or chat) text message while preserving MessageEntity formatting.
  * Do NOT pass parse_mode together with entities.
- *
- * @param {object} env
- * @param {number|string} chatId
- * @param {number} messageId
- * @param {string} text
- * @param {Array<object>} [entities]
  */
-export async function editMessageTextWithEntities(env, chatId, messageId, text, entities = []) {
+export async function editMessageTextWithEntities(
+	env: TelegramEnv,
+	chatId: number | string,
+	messageId: number,
+	text: string,
+	entities: readonly MessageEntityLike[] = [],
+) {
 	if (!env.TELEGRAM_TOKEN) {
 		throw new Error('TELEGRAM_TOKEN is not set');
 	}
 	const api = new Api(env.TELEGRAM_TOKEN);
 	return api.editMessageText(chatId, messageId, text, {
-		entities: entities?.length ? entities : undefined,
+		entities: entities?.length ? asTelegramEntities(entities) : undefined,
 	});
 }
 
-/**
- * Edit caption of a media message while preserving caption_entities.
- *
- * @param {object} env
- * @param {number|string} chatId
- * @param {number} messageId
- * @param {string} caption
- * @param {Array<object>} [captionEntities]
- */
-export async function editMessageCaptionWithEntities(env, chatId, messageId, caption, captionEntities = []) {
+/** Edit caption of a media message while preserving caption_entities. */
+export async function editMessageCaptionWithEntities(
+	env: TelegramEnv,
+	chatId: number | string,
+	messageId: number,
+	caption: string,
+	captionEntities: readonly MessageEntityLike[] = [],
+) {
 	if (!env.TELEGRAM_TOKEN) {
 		throw new Error('TELEGRAM_TOKEN is not set');
 	}
 	const api = new Api(env.TELEGRAM_TOKEN);
 	return api.editMessageCaption(chatId, messageId, {
 		caption,
-		caption_entities: captionEntities?.length ? captionEntities : undefined,
+		caption_entities: captionEntities?.length ? asTelegramEntities(captionEntities) : undefined,
 	});
 }

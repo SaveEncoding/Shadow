@@ -6,28 +6,19 @@
  *                         when it was set from a topic instead of "General"
  */
 
+import type { SettingRow } from './rows.js';
+
 export const SETTING_ERROR_LOG_CHAT_ID = 'error_log_chat_id';
 export const SETTING_ERROR_LOG_THREAD_ID = 'error_log_thread_id';
 
-/**
- * @param {D1Database} db
- * @param {string} key
- * @returns {Promise<string|null>}
- */
-export async function getSetting(db, key) {
-	/** @type {{ value: string } | null} */
-	const row = await db.prepare('SELECT value FROM bot_settings WHERE key = ?').bind(key).first();
+export async function getSetting(db: D1Database, key: string): Promise<string | null> {
+	const row = await db.prepare('SELECT value FROM bot_settings WHERE key = ?').bind(key).first<Pick<SettingRow, 'value'>>();
 
 	if (row == null || row.value == null) return null;
 	return String(row.value);
 }
 
-/**
- * @param {D1Database} db
- * @param {string} key
- * @param {string} value
- */
-export async function setSetting(db, key, value) {
+export async function setSetting(db: D1Database, key: string, value: string): Promise<void> {
 	await db
 		.prepare(
 			`
@@ -42,11 +33,8 @@ export async function setSetting(db, key, value) {
 		.run();
 }
 
-/**
- * @param {D1Database} db
- * @returns {Promise<number|null>} Telegram chat id, or null if not configured
- */
-export async function getErrorLogChatId(db) {
+/** شناسه‌ی چت تلگرامِ لاگ خطا؛ `null` یعنی تنظیم نشده */
+export async function getErrorLogChatId(db: D1Database): Promise<number | null> {
 	const raw = await getSetting(db, SETTING_ERROR_LOG_CHAT_ID);
 	if (raw === null || raw === undefined || raw === '') return null;
 	const id = Number(raw);
@@ -54,11 +42,10 @@ export async function getErrorLogChatId(db) {
 }
 
 /**
- * @param {D1Database} db
- * @returns {Promise<number|null>} message_thread_id, or null if the group
- *   isn't topic-split or the log was set from the "General" topic.
+ * message_thread_id؛ `null` یعنی گروه topic-split نیست یا لاگ از تاپیک
+ * «General» تنظیم شده است.
  */
-export async function getErrorLogThreadId(db) {
+export async function getErrorLogThreadId(db: D1Database): Promise<number | null> {
 	const raw = await getSetting(db, SETTING_ERROR_LOG_THREAD_ID);
 	if (raw === null || raw === undefined || raw === '') return null;
 	const id = Number(raw);
@@ -66,25 +53,20 @@ export async function getErrorLogThreadId(db) {
 }
 
 /**
- * Convenience combo of getErrorLogChatId + getErrorLogThreadId — every
- * call site that sends a log message needs both together, so this saves
- * duplicating the "unset thread id" handling everywhere.
- * @param {D1Database} db
- * @returns {Promise<{ chatId: number|null, threadId: number|null }>}
+ * ترکیب getErrorLogChatId + getErrorLogThreadId — هر جا پیام لاگ فرستاده
+ * می‌شود هر دو با هم لازم است، پس این تابع تکرارِ «thread id تنظیم نشده» را
+ * یک‌جا جمع می‌کند.
  */
-export async function getErrorLogTarget(db) {
+export async function getErrorLogTarget(db: D1Database): Promise<{ chatId: number | null; threadId: number | null }> {
 	const [chatId, threadId] = await Promise.all([getErrorLogChatId(db), getErrorLogThreadId(db)]);
 	return { chatId, threadId };
 }
 
 /**
- * @param {D1Database} db
- * @param {number|string} chatId
- * @param {number|string|null} [threadId] - message_thread_id of the topic
- *   the command was run in, or null/omitted for a non-topic group so any
- *   previously-stored thread id is cleared.
+ * @param threadId message_thread_id تاپیکی که دستور در آن اجرا شده، یا
+ *   `null`/داده‌نشده برای گروه بدون تاپیک (تا هر thread id قبلی پاک شود).
  */
-export async function setErrorLogChatId(db, chatId, threadId = null) {
+export async function setErrorLogChatId(db: D1Database, chatId: number | string, threadId: number | string | null = null): Promise<void> {
 	await setSetting(db, SETTING_ERROR_LOG_CHAT_ID, String(chatId));
 	await setSetting(db, SETTING_ERROR_LOG_THREAD_ID, threadId === null || threadId === undefined ? '' : String(threadId));
 }

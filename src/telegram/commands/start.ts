@@ -1,12 +1,14 @@
+import type { Bot } from 'grammy';
 import { UserService } from '../services/userService.js';
 import { Role } from '../constants/roles.js';
 import { homeText, homeKeyboard } from '../ui/screens.js';
+import type { Env } from '../../types.js';
 
 /**
  * Registers the /start command on the bot.
  * Sends a single home-screen message (navigation continues via editMessage).
  */
-export function startCommand(bot, env) {
+export function startCommand(bot: Bot, env: Pick<Env, 'my_database' | 'FOUNDER_TELEGRAM_ID'>): void {
 	bot.command('start', async (ctx) => {
 		let role = Role.NORMAL;
 		try {

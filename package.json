@@ -9,6 +9,7 @@
 		"test": "vitest",
 		"test:run": "vitest run",
 		"typecheck": "tsc --noEmit",
+		"typecheck:core": "tsc -p tsconfig.core.json --noEmit",
 		"format": "prettier --write .",
 		"format:check": "prettier --check ."
 	},

@@ -25,7 +25,8 @@ export function createBot(env: Env): Bot {
 
 		if (isDirectUserInteraction(ctx) && from?.id) {
 			const now = Date.now();
-			if (!lastSeen.has(from.id) || now - lastSeen.get(from.id) > THROTTLE_MS) {
+			const lastWrite = lastSeen.get(from.id);
+			if (lastWrite === undefined || now - lastWrite > THROTTLE_MS) {
 				lastSeen.set(from.id, now);
 
 				// Fire-and-forget: do not block the webhook response on the D1 write.

@@ -16,17 +16,32 @@ import {
 	renderBoardLines,
 	squareName,
 } from '../../core/chess/index.js';
+import type { GameRecord, GameStatus, Move, Position } from '../../core/chess/index.js';
 
 /**
  * نمای ساختاری یک بازی — عمداً نه خودِ `GameRecord` تایپ‌شده‌ی هسته،
  * تا ردیف‌های D1 (که رشته برمی‌گردانند) بدون cast بپذیریم.
- * @typedef {{ startFen: string, fen: string, moves: string[], result: string|null, reason: string|null }} GameLike
  */
+export interface GameLike {
+	startFen: string;
+	fen: string;
+	moves: string[];
+	result: string | null;
+	reason: string | null;
+}
 
-export const LEVEL_ICONS = { 1: '🙂', 2: '🤖', 3: '😈', 4: '🐉' };
+/** آمار شطرنج، همان شکل `getChessStats` — عمداً محلی تا ui به لایه‌ی db وابسته نشود */
+export interface ChessStatsLike {
+	played: number;
+	wins: number;
+	losses: number;
+	draws: number;
+}
+
+export const LEVEL_ICONS: Record<number, string> = { 1: '🙂', 2: '🤖', 3: '😈', 4: '🐉' };
 export const EMPTY_BUTTON = '·';
 
-const REASON_LABELS = {
+const REASON_LABELS: Record<string, string> = {
 	checkmate: 'مات',
 	stalemate: 'پات',
 	'insufficient-material': 'مهره‌ی کافی برای مات نیست',
@@ -37,31 +52,24 @@ const REASON_LABELS = {
 	agreement: 'توافق دو طرف',
 };
 
-/** @param {string|null} reason */
-export function reasonLabel(reason) {
+export function reasonLabel(reason: string | null): string {
 	return reason ? (REASON_LABELS[reason] ?? 'پایان بازی') : 'پایان بازی';
 }
 
-/** @param {string|null} result @param {string} mode */
-export function winnerLabel(result, mode) {
+export function winnerLabel(result: string | null, mode: string): string {
 	if (result === '1/2-1/2') return 'مساوی';
 	if (result === '1-0') return mode === 'engine' ? 'شما' : 'سفید';
 	if (result === '0-1') return mode === 'engine' ? 'موتور' : 'سیاه';
 	return '—';
 }
 
-/** @param {number} level */
-export function levelLabel(level) {
+export function levelLabel(level: number): string {
 	const config = ENGINE_LEVELS[level] ?? ENGINE_LEVELS[2];
 	return `${LEVEL_ICONS[level] ?? '🤖'} ${config.label}`;
 }
 
-/**
- * خلاصه‌ی تاریخچه‌ی حرکات برای نمایش زیر تخته.
- * @param {string[]} moves
- * @param {number} [maxPlies]
- */
-export function moveHistoryLine(moves, maxPlies = 10) {
+/** خلاصه‌ی تاریخچه‌ی حرکات برای نمایش زیر تخته. */
+export function moveHistoryLine(moves: readonly string[], maxPlies = 10): string {
 	if (moves.length === 0) return 'هنوز حرکتی انجام نشده است.';
 	const shown = moves.slice(-maxPlies);
 	const startNumber = Math.floor((moves.length - shown.length) / 2) + 1;
@@ -72,22 +80,24 @@ export function moveHistoryLine(moves, maxPlies = 10) {
 	return `آخرین حرکات: ${parts.join(' ')}${startNumber > 1 ? ' …' : ''}`;
 }
 
-/**
- * تخته به‌صورت متن `<pre>` — از دید سفید (همیشه).
- * @param {import('../../core/chess/types.js').Position} position
- * @param {number[]} [targets]
- * @param {number|null} [selected]
- */
-export function boardText(position, targets = [], selected = null) {
+/** تخته به‌صورت متن `<pre>` — از دید سفید (همیشه). */
+export function boardText(position: Position, targets: readonly number[] = [], selected: number | null = null): string {
 	const lines = renderBoardLines(position, { perspective: 'w', targets, selected: selected ?? undefined });
 	return `<pre>${lines.join('\n')}</pre>`;
 }
 
-/**
- * متن صفحه‌ی بازی.
- * @param {{ position: import('../../core/chess/types.js').Position, game: GameLike, status: { over: boolean, check: boolean }, mode: string, level: number, selected?: number|null, targets?: any[] }} input
- */
-export function gameText({ position, game, status, mode, level, selected = null, targets = [] }) {
+export interface GameTextInput {
+	position: Position;
+	game: GameLike;
+	status: Pick<GameStatus, 'over' | 'check'>;
+	mode: string;
+	level: number;
+	selected?: number | null;
+	targets?: readonly Move[];
+}
+
+/** متن صفحه‌ی بازی. */
+export function gameText({ position, game, status, mode, level, selected = null, targets = [] }: GameTextInput): string {
 	const header = mode === 'engine' ? `♟ <b>شطرنج</b> — ${levelLabel(level)}` : '♟ <b>شطرنج</b> — دو نفره';
 
 	const moveNumber = Math.floor(game.moves.length / 2) + 1;
@@ -116,7 +126,7 @@ export function gameText({ position, game, status, mode, level, selected = null,
 }
 
 /** متن پایان بازی */
-export function gameOverText({ position, game, mode }) {
+export function gameOverText({ position, game, mode }: { position: Position; game: GameLike; mode: string }): string {
 	const result = game.result ?? '1/2-1/2';
 	const winner = winnerLabel(result, mode);
 	const reason = reasonLabel(game.reason);
@@ -140,9 +150,16 @@ export function gameOverText({ position, game, mode }) {
  * هر خانه یا «انتخاب مهره» است یا (اگر مقصد قانونی باشد) «اجرای حرکت».
  * چون `from` و `to` داخل callback_data هستند، هیچ حالت انتخابی‌ای در سرور ذخیره نمی‌شود.
  *
- * @param {{ position: import('../../core/chess/types.js').Position, selected?: number|null, targets?: import('../../core/chess/types.js').Move[] }} input
  */
-export function boardKeyboard({ position, selected = null, targets = [] }) {
+export function boardKeyboard({
+	position,
+	selected = null,
+	targets = [],
+}: {
+	position: Position;
+	selected?: number | null;
+	targets?: readonly Move[];
+}): InlineKeyboard {
 	const kb = new InlineKeyboard();
 	const targetMap = new Map(targets.map((move) => [move.to, move]));
 
@@ -158,7 +175,7 @@ export function boardKeyboard({ position, selected = null, targets = [] }) {
 			} else if (square === selected) {
 				kb.text('◉', `cg:x`);
 			} else {
-				kb.text(piece !== 0 ? pieceSymbol(piece) : EMPTY_CELL, `cg:s:${square}`);
+				kb.text(pieceSymbol(piece) ?? EMPTY_CELL, `cg:s:${square}`);
 			}
 			if (file === 7 && rank > 0) kb.row();
 		}
@@ -170,7 +187,7 @@ export function boardKeyboard({ position, selected = null, targets = [] }) {
 }
 
 /** کیبورد انتخاب مهره‌ی ترفیع */
-export function promotionKeyboard(from, to) {
+export function promotionKeyboard(from: number, to: number): InlineKeyboard {
 	return new InlineKeyboard()
 		.text('♕ وزیر', `cg:pr:${from}-${to}-5`)
 		.text('♖ رخ', `cg:pr:${from}-${to}-4`)
@@ -179,7 +196,7 @@ export function promotionKeyboard(from, to) {
 }
 
 /** صفحه‌ی خانه‌ی شطرنج */
-export function chessHomeText({ stats, activeGame }) {
+export function chessHomeText({ stats, activeGame }: { stats?: ChessStatsLike | null; activeGame?: { game: GameRecord } | null }): string {
 	const lines = [
 		'♟ <b>شطرنج</b>',
 		'',
@@ -200,11 +217,8 @@ export function chessHomeText({ stats, activeGame }) {
 	return lines.join('\n');
 }
 
-/**
- * کیبورد خانه‌ی شطرنج
- * @param {{ activeGame?: any }} [options]
- */
-export function chessHomeKeyboard({ activeGame } = {}) {
+/** کیبورد خانه‌ی شطرنج */
+export function chessHomeKeyboard({ activeGame }: { activeGame?: { game: GameRecord } | null } = {}): InlineKeyboard {
 	const kb = new InlineKeyboard();
 	if (activeGame) kb.text('▶️ ادامه‌ی بازی', 'cg:resume').row();
 	kb.text(`${LEVEL_ICONS[1]} ${ENGINE_LEVELS[1].label}`, 'cg:l:1')
@@ -221,7 +235,7 @@ export function chessHomeKeyboard({ activeGame } = {}) {
 }
 
 /** صفحه‌ی آمار */
-export function chessStatsText(stats) {
+export function chessStatsText(stats: ChessStatsLike): string {
 	return [
 		'📊 <b>آمار شطرنج شما</b>',
 		'',
@@ -232,7 +246,6 @@ export function chessStatsText(stats) {
 	].join('\n');
 }
 
-/** @param {import('../../core/chess/types.js').GameEndReason|null} reason */
-export function describeEnd(reason) {
+export function describeEnd(reason: string | null): string {
 	return reasonLabel(reason);
 }

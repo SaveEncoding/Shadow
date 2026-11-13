@@ -1,7 +1,27 @@
+import type { BotError, Context } from 'grammy';
 import { reportError } from './Error.js';
 import { executionCtxStorage } from '../bot.js';
+import type { Env } from '../../types.js';
 
 const DEFAULT_USER_MESSAGE = '⚠️ مشکلی پیش اومد، لطفاً چند لحظه دیگه دوباره تلاش کن.';
+
+/**
+ * خواندن فیلدهای اختیاریِ خطا بدون cast.
+ * `botError.error` از نوع `unknown` است و کلاس‌های خودمان
+ * (`UserFacingError`/`CriticalError`) فیلدهای اضافه دارند؛ با `in` تایپ‌سیستم
+ * خودش باریک می‌کند و لازم نیست به `any` پناه ببریم.
+ */
+function reportToAdminFlag(error: unknown): boolean | undefined {
+	if (typeof error !== 'object' || error === null || !('reportToAdmin' in error)) return undefined;
+	const flag = error.reportToAdmin;
+	return typeof flag === 'boolean' ? flag : undefined;
+}
+
+function userMessageOf(error: unknown): string | null {
+	if (typeof error !== 'object' || error === null || !('userMessage' in error)) return null;
+	const message = error.userMessage;
+	return typeof message === 'string' && message.length > 0 ? message : null;
+}
 
 /**
  * Central grammy error handler — covers every feature registered on the bot
@@ -9,15 +29,10 @@ const DEFAULT_USER_MESSAGE = '⚠️ مشکلی پیش اومد، لطفاً چ�
  *
  * Wire once in createBot:
  *   bot.catch((err) => handleGrammyError(err, env));
- *
- * @param {import("grammy").BotError} botError
- * @param {object} env
  */
-export async function handleGrammyError(botError, env) {
+export async function handleGrammyError(botError: BotError<Context>, env: Env): Promise<void> {
 	const ctx = botError.ctx;
-	// grammY types BotError#error as `unknown`; our own UserFacingError/CriticalError
-	// classes attach reportToAdmin/userMessage, which TS can't know about statically.
-	const error = /** @type {any} */ (botError.error);
+	const error = botError.error;
 	const userId = ctx?.from?.id ?? null;
 	const updateType = ctx?.update ? (Object.keys(ctx.update).find((k) => k !== 'update_id') ?? 'unknown') : 'unknown';
 	const context = `grammy:${updateType}`;
@@ -30,7 +45,7 @@ export async function handleGrammyError(botError, env) {
 	// bot.js's registration middleware, instead of making Telegram wait on them.
 	const background = async () => {
 		// UserFacingError sets reportToAdmin = false; CriticalError / plain Error report by default.
-		const shouldReport = error?.reportToAdmin !== false;
+		const shouldReport = reportToAdminFlag(error) !== false;
 		if (shouldReport) {
 			try {
 				await reportError(env, context, error, userId);
@@ -40,7 +55,7 @@ export async function handleGrammyError(botError, env) {
 		}
 
 		// Friendly reply to the user (private chat or the chat where the update happened).
-		const userMsg = error?.userMessage || DEFAULT_USER_MESSAGE;
+		const userMsg = userMessageOf(error) ?? DEFAULT_USER_MESSAGE;
 		if (ctx?.chat?.id) {
 			try {
 				if (ctx.callbackQuery) {
@@ -66,19 +81,13 @@ export async function handleGrammyError(botError, env) {
 /**
  * Optional wrapper for non-grammy async work (cron, one-off tasks).
  * Prefer handleGrammyError for bot updates.
- *
- * @template T
- * @param {() => Promise<T>} fn
- * @param {object} env
- * @param {string} context
- * @returns {Promise<T|undefined>}
  */
-export async function runWithErrorReporting(fn, env, context) {
+export async function runWithErrorReporting<T>(fn: () => Promise<T>, env: Env, context: string): Promise<T> {
 	try {
 		return await fn();
 	} catch (error) {
 		console.error(`[${context}]`, error);
-		if (error?.reportToAdmin !== false) {
+		if (reportToAdminFlag(error) !== false) {
 			await reportError(env, context, error).catch((e) => console.error('Failed to report error:', e));
 		}
 		throw error;

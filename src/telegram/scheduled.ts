@@ -2,6 +2,8 @@ import { UserService } from './services/userService.js';
 import { sendMessage } from './services/telegramService.js';
 import { reportError } from './utils/Error.js';
 import { getErrorLogTarget } from './db/settings.js';
+import type { Env } from '../types.js';
+import { errorInfo } from './utils/errorInfo.js';
 
 const INACTIVE_DAYS = 30;
 
@@ -9,7 +11,7 @@ const INACTIVE_DAYS = 30;
  * Automatic cleanup of inactive users (older than INACTIVE_DAYS), excluding users with role >= VIP.
  * Invoked via Cron Trigger (wrangler.jsonc -> triggers.crons).
  */
-export async function runScheduledCleanup(env) {
+export async function runScheduledCleanup(env: Env): Promise<void> {
 	const userService = new UserService(env.my_database);
 
 	try {
@@ -27,8 +29,9 @@ export async function runScheduledCleanup(env) {
 			try {
 				await sendMessage(env, logChatId, summary, { threadId: logThreadId });
 			} catch (err) {
-				const reason = err?.description || err?.message || err?.name || String(err) || 'unknown error';
-				console.error(`[cleanup] Failed to notify log chat ${logChatId}: ${reason} (error_code=${err?.error_code ?? 'n/a'})`, err?.stack);
+				const info = errorInfo(err);
+				const reason = info.description || info.message || info.name || String(err) || 'unknown error';
+				console.error(`[cleanup] Failed to notify log chat ${logChatId}: ${reason} (error_code=${info.errorCode ?? 'n/a'})`, info.stack);
 			}
 		}
 	} catch (err) {

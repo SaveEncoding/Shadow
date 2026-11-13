@@ -18,7 +18,8 @@
  * داخل callback_data هستند. پس دو کاربر هم‌زمان (یا دو isolate) با هم تداخل ندارند.
  */
 
-import { InlineKeyboard, InputFile } from 'grammy';
+import { InlineKeyboard, InputFile, type Bot, type Context } from 'grammy';
+import type { Env } from '../../types.js';
 import { escapeHtml } from '../../core/text/escape.js';
 import {
 	ENGINE_LEVELS,
@@ -32,7 +33,9 @@ import {
 	positionOf,
 	takeBack,
 } from '../../core/chess/index.js';
+import type { GameStatus, Move, Position } from '../../core/chess/index.js';
 import { closeGame, getActiveGame, getChessStats, saveGame, startGame } from '../db/chess.js';
+import type { ChessStats, StoredGame } from '../db/chess.js';
 import { renderScreen, toast, toastAlert } from '../ui/render.js';
 import {
 	boardKeyboard,
@@ -44,14 +47,8 @@ import {
 	promotionKeyboard,
 } from '../ui/chessScreens.js';
 
-/** @typedef {import('../../core/chess/index.js').GameRecord} GameRecord */
-/** @typedef {import('../db/chess.js').StoredGame} StoredGame */
-
-/**
- * شناسه‌ی چت و کاربر برای callback و command.
- * @param {import('grammy').Context} ctx
- */
-export function chessContext(ctx) {
+/** شناسه‌ی چت و کاربر برای callback و command. */
+export function chessContext(ctx: Context) {
 	const chat = ctx.chat ?? ctx.callbackQuery?.message?.chat ?? null;
 	const user = ctx.from ?? null;
 	return {
@@ -62,26 +59,24 @@ export function chessContext(ctx) {
 	};
 }
 
+/** نوع چت تلگرام، از خود grammY گرفته شده تا لیست دستی نگه نداریم. */
+type TelegramChatType = NonNullable<Context['chat']>['type'];
+
 /** آیا امکان بازی در این چت هست؟ (شطرنج در کانال بی‌معناست) */
-export function isPlayableChatType(type) {
+export function isPlayableChatType(type: TelegramChatType | null | undefined): boolean {
 	return type === 'private' || type === 'group' || type === 'supergroup';
 }
 
-/**
- * یک بازی فعال را می‌گیرد و بررسی می‌کند مال همین چت است.
- * @param {D1Database} db
- * @param {number} chatId
- */
-export async function loadActiveGame(db, chatId) {
+/** یک بازی فعال را می‌گیرد و بررسی می‌کند مال همین چت است. */
+export async function loadActiveGame(db: D1Database, chatId: number): Promise<StoredGame | null> {
 	return (await getActiveGame(db, chatId)) ?? null;
 }
 
 /**
  * نوبت موتور را (اگر نوبتش است) بازی می‌کند.
  * انتخاب حرکت **قطعی** است: همان بازی + همان شماره‌ی حرکت = همان پاسخ موتور.
- * @param {{ mode: string, level: number, seed: number, game: GameRecord }} row
  */
-export function playEngineTurn(row) {
+export function playEngineTurn(row: StoredGame): StoredGame {
 	if (row.mode !== 'engine') return row;
 	if (row.game.result) return row;
 
@@ -95,15 +90,20 @@ export function playEngineTurn(row) {
 	return { ...row, game: outcome.game };
 }
 
+export interface ScreenForOptions {
+	selected?: number | null;
+	targets?: readonly Move[];
+	/** تخته/وضعیت از پیش محاسبه‌شده (با `gameState`) تا دوباره بازپخش نشود */
+	state?: { position: Position; status: GameStatus } | null;
+}
+
 /**
  * ساخت متن/کیبورد صفحه برای یک ردیف بازی.
  *
  * `state` اختیاری است: اگر فراخوان از قبل تخته و وضعیت را دارد (با `gameState`
  * که یک‌بار بازپخش می‌کند)، دوباره بازپخش نمی‌کنیم.
- * @param {StoredGame} row
- * @param {{ selected?: number|null, targets?: any[], state?: { position: any, status: any } }} [options]
  */
-export function screenFor(row, { selected = null, targets = [], state = null } = {}) {
+export function screenFor(row: StoredGame, { selected = null, targets = [], state = null }: ScreenForOptions = {}) {
 	const { position, status } = state ?? gameState(row.game);
 
 	if (status.over || row.game.result) {
@@ -131,23 +131,37 @@ export function screenFor(row, { selected = null, targets = [], state = null } =
 	};
 }
 
-/**
- * شروع بازی جدید.
- * @param {D1Database} db
- * @param {{ chatId: number, userId: number, level: number }} options
- */
-export async function createGame(db, { chatId, userId, level }) {
+/** شروع بازی جدید. */
+export async function createGame(db: D1Database, { chatId, userId, level }: { chatId: number; userId: number; level: number }) {
 	/** @type {'engine'|'local'} */
 	const mode = level === 0 ? 'local' : 'engine';
 	const seed = Math.abs((chatId ^ (userId * 2654435761)) % 1_000_000);
 	return startGame(db, { chatId, userId, mode, level, seed });
 }
 
+export interface CommitMoveFailure {
+	ok: false;
+	code: string;
+	message: string;
+}
+
+export interface CommitMoveSuccess {
+	ok: true;
+	row: StoredGame;
+	san: string;
+	status: GameStatus;
+}
+
 /**
  * اجرای حرکت و پاسخ موتور، با ذخیره‌ی اتمیک.
- * @returns {Promise<{ ok: boolean, row?: any, san?: string, status?: any, code?: string, message?: string }>}
  */
-export async function commitMove(db, row, from, to, promo) {
+export async function commitMove(
+	db: D1Database,
+	row: StoredGame,
+	from: number,
+	to: number,
+	promo?: number,
+): Promise<CommitMoveSuccess | CommitMoveFailure> {
 	let outcome;
 	try {
 		outcome = applyUserMove(row.game, from, to, promo);
@@ -174,8 +188,18 @@ export async function commitMove(db, row, from, to, promo) {
 	return { ok: true, row: finalRow, san: outcome.san, status };
 }
 
+/**
+ * جداکردن نتیجه‌ی ناموفق.
+ * چرا predicate و نه `if (!result.ok)`؟ چون `strictNullChecks` در tsconfig این
+ * پروژه خاموش است و آن‌جا literal typeها به `boolean` گشاد می‌شوند، پس narrowing
+ * روی union کار نمی‌کند.
+ */
+function isMoveFailure(result: CommitMoveSuccess | CommitMoveFailure): result is CommitMoveFailure {
+	return !result.ok;
+}
+
 /** پیام فارسی برای خطاهای حرکت */
-export function illegalMoveMessage(code) {
+export function illegalMoveMessage(code: string | undefined): string {
 	switch (code) {
 		case 'no-piece':
 			return 'مهره‌ای از نوبت شما در این خانه نیست.';
@@ -190,16 +214,11 @@ export function illegalMoveMessage(code) {
 	}
 }
 
-/**
- * ثبت فیچر روی بات.
- * @param {import('grammy').Bot} bot
- * @param {{ my_database: D1Database }} env
- */
-export function chessFeature(bot, env) {
+/** ثبت فیچر روی بات. */
+export function chessFeature(bot: Bot, env: Pick<Env, 'my_database'>): void {
 	const db = env.my_database;
 
-	/** @param {import('grammy').Context} ctx */
-	const openHome = async (ctx) => {
+	const openHome = async (ctx: Context) => {
 		const { chatId, userId, chatType } = chessContext(ctx);
 		if (!isPlayableChatType(chatType)) {
 			return renderScreen(ctx, '♟ شطرنج فقط در چت خصوصی یا گروه قابل بازی است.');
@@ -273,20 +292,13 @@ export function chessFeature(bot, env) {
 		return renderScreen(ctx, screen.text, screen.keyboard);
 	});
 
-	/**
-	 * @param {import('grammy').Context} ctx
-	 * @param {number} from
-	 * @param {number} to
-	 * @param {number|undefined} promo
-	 */
-	const executeMove = async (ctx, from, to, promo) => {
+	const executeMove = async (ctx: Context, from: number, to: number, promo: number | undefined) => {
 		const { chatId } = chessContext(ctx);
 		const row = chatId ? await loadActiveGame(db, chatId) : null;
 		if (!row) return toast(ctx, 'بازی فعالی ندارید.');
 
 		const result = await commitMove(db, row, from, to, promo);
-		if (!result.ok) {
-			// code همیشه برای شکست پر است؛ برای TS صریح می‌نویسیم
+		if (isMoveFailure(result)) {
 			if (result.code === 'promotion-required') {
 				return renderScreen(ctx, '♻️ <b>ترفیع</b>\n\nمهره‌ای که پیاده به آن تبدیل می‌شود را انتخاب کنید.', promotionKeyboard(from, to));
 			}
@@ -329,8 +341,7 @@ export function chessFeature(bot, env) {
 
 		const position = positionOf(row.game);
 		// در حالت دو نفره، «استعفا» به معنی تسلیم بازیکنی است که نوبتش است.
-		/** @type {'0-1'|'1-0'} */
-		const result = position.turn === 'w' ? '0-1' : '1-0';
+		const result: '0-1' | '1-0' = position.turn === 'w' ? '0-1' : '1-0';
 		const finished = finishGame(row.game, result, 'resignation');
 		await closeGame(db, row.id, finished, 'finished');
 

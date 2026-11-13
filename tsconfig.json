@@ -5,9 +5,7 @@
 		"module": "es2022",
 		"moduleResolution": "bundler",
 		"types": ["@cloudflare/workers-types"],
-		"allowJs": true,
-		"checkJs": true,
-		"strict": false,
+		"strict": true,
 		"skipLibCheck": true,
 		"resolveJsonModule": true,
 		"noEmit": true

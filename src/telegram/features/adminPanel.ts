@@ -1,16 +1,18 @@
-import { InlineKeyboard } from 'grammy';
+import { InlineKeyboard, type Bot } from 'grammy';
+import type { Env } from '../../types.js';
 import { Role, RoleLabel, ASSIGNABLE_ROLES, roleLabel, isValidRole } from '../constants/roles.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { UserService } from '../services/userService.js';
 import { rolePickerKeyboard, userRoleActionsKeyboard } from '../keyboards/adminPanel.js';
 import { renderScreen } from '../ui/render.js';
+import { errorText } from '../utils/errorInfo.js';
 
 /**
  * Admin / founder control panel.
  * - panel / stats / settings callbacks (previously no-ops)
  * - role management UI for founder (and EXEC_ADMIN for VIP only if desired)
  */
-export function adminPanelFeature(bot, env) {
+export function adminPanelFeature(bot: Bot, env: Pick<Env, 'my_database' | 'FOUNDER_TELEGRAM_ID'>): void {
 	const userService = new UserService(env.my_database);
 	const needAdmin = requireRole(Role.EXEC_ADMIN, env);
 	const needFounder = requireRole(Role.FOUNDER, env);
@@ -67,7 +69,7 @@ export function adminPanelFeature(bot, env) {
 			await userService.setRole(ctx.from.id, targetId, newRole, env);
 			await ctx.reply(`✅ نقش کاربر <code>${targetId}</code> به <b>${roleLabel(newRole)}</b> تغییر کرد.`, { parse_mode: 'HTML' });
 		} catch (err) {
-			await ctx.reply(`❌ ${err.message || err}`);
+			await ctx.reply(`❌ ${errorText(err)}`);
 		}
 	});
 
@@ -93,15 +95,16 @@ export function adminPanelFeature(bot, env) {
 		}
 		const targetId = Number(parts[1]);
 		const newRole = Number(parts[2]);
-		if (!Number.isFinite(targetId) || !isValidRole(newRole)) {
+		const actorId = ctx.from?.id;
+		if (!Number.isFinite(targetId) || !isValidRole(newRole) || actorId === undefined) {
 			return ctx.reply('شناسه یا سطح نامعتبر است.');
 		}
 		try {
-			await userService.setRole(ctx.from.id, targetId, newRole, env);
-			await userService.logActivity(ctx.from.id, 'set_role', `target=${targetId} role=${newRole}`);
+			await userService.setRole(actorId, targetId, newRole, env);
+			await userService.logActivity(actorId, 'set_role', `target=${targetId} role=${newRole}`);
 			await ctx.reply(`✅ نقش <code>${targetId}</code> → <b>${roleLabel(newRole)}</b>`, { parse_mode: 'HTML' });
 		} catch (err) {
-			await ctx.reply(`❌ ${err.message || err}`);
+			await ctx.reply(`❌ ${errorText(err)}`);
 		}
 	});
 
@@ -114,7 +117,7 @@ export function adminPanelFeature(bot, env) {
 
 	bot.command('getrole', needAdmin, async (ctx) => {
 		const parts = (ctx.message?.text || '').trim().split(/\s+/);
-		const targetId = parts[1] ? Number(parts[1]) : ctx.from?.id;
+		const targetId = parts[1] ? Number(parts[1]) : (ctx.from?.id ?? NaN);
 		if (!Number.isFinite(targetId)) {
 			return ctx.reply('فرمت: <code>/getrole &lt;telegram_id&gt;</code>', {
 				parse_mode: 'HTML',

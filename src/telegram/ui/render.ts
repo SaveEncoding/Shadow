@@ -3,17 +3,24 @@
  * stays clean. Falls back to reply only when there is nothing to edit.
  */
 
-/**
- * @param {import("grammy").Context} ctx
- * @param {string} text
- * @param {import("grammy").InlineKeyboard | object | null} [keyboard]
- */
-export async function renderScreen(ctx, text, keyboard = null) {
-	const opts = {
-		parse_mode: 'HTML',
+import type { Context, InlineKeyboard } from 'grammy';
+import { errorText } from '../utils/errorInfo.js';
+
+/** همان گزینه‌هایی که هر دو مسیر edit/reply نیاز دارند */
+function screenOptions(keyboard: InlineKeyboard | null) {
+	return {
+		parse_mode: 'HTML' as const,
 		reply_markup: keyboard ?? undefined,
 		link_preview_options: { is_disabled: true },
 	};
+}
+
+export async function renderScreen(
+	ctx: Context,
+	text: string,
+	keyboard: InlineKeyboard | null = null,
+): Promise<{ edited: boolean; unchanged?: boolean }> {
+	const opts = screenOptions(keyboard);
 
 	if (ctx.callbackQuery) {
 		try {
@@ -28,7 +35,7 @@ export async function renderScreen(ctx, text, keyboard = null) {
 			await ctx.editMessageText(text, opts);
 			return { edited: true };
 		} catch (err) {
-			const desc = String(err?.description || err?.message || '');
+			const desc = errorText(err, '');
 			// Identical content — treat as success (no spam).
 			if (desc.includes('message is not modified')) {
 				return { edited: true, unchanged: true };
@@ -42,12 +49,8 @@ export async function renderScreen(ctx, text, keyboard = null) {
 	return { edited: false };
 }
 
-/**
- * Toast-only answer for dead/soon buttons without changing the screen.
- * @param {import("grammy").Context} ctx
- * @param {string} text
- */
-export async function toast(ctx, text) {
+/** Toast-only answer for dead/soon buttons without changing the screen. */
+export async function toast(ctx: Context, text: string): Promise<void> {
 	try {
 		await ctx.answerCallbackQuery({ text, show_alert: false });
 	} catch {
@@ -55,7 +58,7 @@ export async function toast(ctx, text) {
 	}
 }
 
-export async function toastAlert(ctx, text) {
+export async function toastAlert(ctx: Context, text: string): Promise<void> {
 	try {
 		await ctx.answerCallbackQuery({ text, show_alert: true });
 	} catch {

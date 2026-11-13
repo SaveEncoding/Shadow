@@ -14,6 +14,29 @@
  * text the stamp no longer matches and the bot may apply the suffix again.
  */
 
+/**
+ * شکلی از MessageEntity تلگرام که این ماژول تولید و مصرف می‌کند.
+ * عمداً از نوع اتحادی grammY جدا است: ورودی این‌جا می‌تواند JSON دیتابیس یا
+ * خروجی `JSON.parse` باشد، و اعتبارسنجی واقعی داخل `sanitizeEntities` انجام می‌شود.
+ */
+export interface MessageEntityLike {
+	type: string;
+	offset: number;
+	length: number;
+	url?: string;
+	language?: string;
+	custom_emoji_id?: string;
+	user?: { id: number };
+}
+
+/** حداقل شکل پیامی که متن/کپشن و entityهایش را می‌خوانیم */
+export interface EditableMessageLike {
+	text?: string;
+	entities?: readonly MessageEntityLike[];
+	caption?: string;
+	caption_entities?: readonly MessageEntityLike[];
+}
+
 /** Caption limit on Telegram. */
 export const CAPTION_MAX_LENGTH = 1024;
 /** Text message limit on Telegram. */
@@ -27,9 +50,8 @@ const BIT1 = '\u200c'; // zero-width non-joiner
 
 /**
  * Fast non-crypto hash → 8 hex chars. Only used for anti-loop stamping, not security.
- * @param {string} s
  */
-export function hashContent(s) {
+export function hashContent(s: string): string {
 	let h = 5381;
 	for (let i = 0; i < s.length; i++) {
 		h = Math.imul(h, 33) ^ s.charCodeAt(i);
@@ -37,8 +59,7 @@ export function hashContent(s) {
 	return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-/** @param {string} hex */
-function encodeHexToZw(hex) {
+function encodeHexToZw(hex: string): string {
 	let out = '';
 	for (const ch of hex) {
 		const n = parseInt(ch, 16);
@@ -51,8 +72,7 @@ function encodeHexToZw(hex) {
 	return out;
 }
 
-/** @param {string} zw */
-function decodeZwToHex(zw) {
+function decodeZwToHex(zw: string): string | null {
 	if (!zw || zw.length % 4 !== 0) return null;
 	let hex = '';
 	for (let i = 0; i < zw.length; i += 4) {
@@ -71,20 +91,21 @@ function decodeZwToHex(zw) {
 /**
  * Append an invisible stamp that authenticates `text` as last written by the bot.
  * Stamp = START + ZW-encoded hash(text) + END
- * @param {string} text
  */
-export function attachBotStamp(text) {
+export function attachBotStamp(text: string | null | undefined): string {
 	const base = text ?? '';
 	const hex = hashContent(base);
 	return base + BOT_STAMP_START + encodeHexToZw(hex) + BOT_STAMP_END;
 }
 
-/**
- * Strip a trailing bot stamp if present (valid or not).
- * @param {string|null|undefined} text
- * @returns {{ text: string, hadStamp: boolean, valid: boolean }}
- */
-export function stripBotStamp(text) {
+export interface StampStripResult {
+	text: string;
+	hadStamp: boolean;
+	valid: boolean;
+}
+
+/** Strip a trailing bot stamp if present (valid or not). */
+export function stripBotStamp(text: string | null | undefined): StampStripResult {
 	const raw = text ?? '';
 	const start = raw.lastIndexOf(BOT_STAMP_START);
 	if (start < 0) {
@@ -111,22 +132,30 @@ export function stripBotStamp(text) {
 	return { text: body, hadStamp: true, valid };
 }
 
-/**
- * True when the message ends with a stamp that matches the body (bot's own edit).
- * @param {string|null|undefined} text
- */
-export function hasValidBotStamp(text) {
+/** True when the message ends with a stamp that matches the body (bot's own edit). */
+export function hasValidBotStamp(text: string | null | undefined): boolean {
 	return stripBotStamp(text).valid;
 }
 
-/**
- * @param {string|null|undefined} text
- * @param {Array<object>|null|undefined} entities
- * @param {string|null|undefined} suffix
- * @param {{ maxLen?: number, sep?: string, suffixEntities?: Array<object> }} [opts]
- * @returns {{ text: string, entities: Array<object>, skipped: null|string }}
- */
-export function appendSuffixPreservingEntities(text, entities, suffix, { maxLen = 4096, sep = '\n\n', suffixEntities = [] } = {}) {
+export interface AppendSuffixResult {
+	text: string;
+	entities: MessageEntityLike[];
+	/** دلیل رد شدن، اگر اعمال نشد */
+	skipped: 'empty_suffix' | 'already_present' | 'too_long' | null;
+}
+
+export interface AppendSuffixOptions {
+	maxLen?: number;
+	sep?: string;
+	suffixEntities?: readonly MessageEntityLike[];
+}
+
+export function appendSuffixPreservingEntities(
+	text: string | null | undefined,
+	entities: unknown,
+	suffix: string | null | undefined,
+	{ maxLen = 4096, sep = '\n\n', suffixEntities = [] }: AppendSuffixOptions = {},
+): AppendSuffixResult {
 	// Work on stamp-free body so "already_present" and length checks are clean.
 	const stripped = stripBotStamp(text);
 	const base = stripped.text;
@@ -161,11 +190,15 @@ export function appendSuffixPreservingEntities(text, entities, suffix, { maxLen 
 	};
 }
 
-/**
- * Pick text/entities from a message-like object (channel post or forward copy).
- * @returns {{ kind: 'text'|'caption'|null, text: string, entities: Array<object>, maxLen: number }}
- */
-export function extractEditableContent(message) {
+export interface EditableContent {
+	kind: 'text' | 'caption' | null;
+	text: string;
+	entities: readonly MessageEntityLike[];
+	maxLen: number;
+}
+
+/** Pick text/entities from a message-like object (channel post or forward copy). */
+export function extractEditableContent(message: EditableMessageLike | null | undefined): EditableContent {
 	if (!message) {
 		return { kind: null, text: '', entities: [], maxLen: TEXT_MAX_LENGTH };
 	}
@@ -191,11 +224,8 @@ export function extractEditableContent(message) {
 /**
  * True when channel admins opted this post out of auto-suffix via a marker substring.
  * Matching is plain substring (case-sensitive) so admins control exact characters.
- *
- * @param {string|null|undefined} text
- * @param {string|null|undefined} marker
  */
-export function shouldSkipAutoSuffix(text, marker) {
+export function shouldSkipAutoSuffix(text: string | null | undefined, marker: string | null | undefined): boolean {
 	if (marker == null || marker === '') return false;
 	// Ignore invisible stamp when looking for the admin marker.
 	const body = stripBotStamp(text).text;
@@ -204,22 +234,22 @@ export function shouldSkipAutoSuffix(text, marker) {
 
 /**
  * Keep only JSON-serializable fields Telegram accepts on editMessage* entities.
- * @param {Array<object>|null|undefined} entities
- * @returns {Array<object>}
+ *
+ * ورودی از تلگرام یا از ستون JSON دیتابیس می‌آید، پس واقعاً `unknown` است و
+ * همین‌جا اعتبارسنجی می‌شود؛ ادعای نوع دقیق‌تر در امضا، دروغِ تایپی می‌شد.
  */
-export function sanitizeEntities(entities) {
+export function sanitizeEntities(entities: unknown): MessageEntityLike[] {
 	if (!Array.isArray(entities)) return [];
-	const out = [];
-	for (const e of entities) {
+	const out: MessageEntityLike[] = [];
+	for (const e of entities as Array<Partial<MessageEntityLike>>) {
 		if (!e || typeof e.type !== 'string') continue;
-		if (!Number.isFinite(e.offset) || !Number.isFinite(e.length) || e.length <= 0) {
+		if (!Number.isFinite(e.offset) || !Number.isFinite(e.length) || (e.length as number) <= 0) {
 			continue;
 		}
-		/** @type {Record<string, unknown>} */
-		const row = {
+		const row: MessageEntityLike = {
 			type: e.type,
-			offset: Math.trunc(e.offset),
-			length: Math.trunc(e.length),
+			offset: Math.trunc(e.offset as number),
+			length: Math.trunc(e.length as number),
 		};
 		if (typeof e.url === 'string') row.url = e.url;
 		if (typeof e.language === 'string') row.language = e.language;
@@ -233,13 +263,8 @@ export function sanitizeEntities(entities) {
 	return out;
 }
 
-/**
- * Rebase entities that fall inside [start, end) so offsets are relative to start.
- * @param {Array<object>|null|undefined} entities
- * @param {number} start
- * @param {number} end
- */
-export function sliceEntities(entities, start, end) {
+/** Rebase entities that fall inside [start, end) so offsets are relative to start. */
+export function sliceEntities(entities: unknown, start: number, end: number): MessageEntityLike[] {
 	if (!Array.isArray(entities) || end <= start) return [];
 	return sanitizeEntities(entities)
 		.filter((e) => e.offset + e.length > start && e.offset < end)
@@ -251,11 +276,8 @@ export function sliceEntities(entities, start, end) {
 		.filter((e) => e.length > 0);
 }
 
-/**
- * Parse JSON entity list from DB; always returns an array.
- * @param {string|null|undefined} json
- */
-export function parseEntitiesJson(json) {
+/** Parse JSON entity list from DB; always returns an array. */
+export function parseEntitiesJson(json: string | null | undefined): MessageEntityLike[] {
 	if (json == null || json === '') return [];
 	try {
 		const parsed = typeof json === 'string' ? JSON.parse(json) : json;

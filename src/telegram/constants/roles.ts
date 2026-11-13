@@ -10,8 +10,7 @@ export const Role = {
 	FOUNDER: 4,
 };
 
-/** @type {Record<number, string>} */
-export const RoleLabel = {
+export const RoleLabel: Record<number, string> = {
 	[Role.NORMAL]: 'کاربر عادی',
 	[Role.VIP]: 'کاربر ویژه',
 	[Role.EXEC_ADMIN]: 'ادمین اجرایی',
@@ -23,12 +22,13 @@ export const RoleLabel = {
  * Roles that a non-founder admin is allowed to assign via the panel.
  * FOUNDER can never be assigned through setRole API.
  */
-export const ASSIGNABLE_ROLES = [Role.NORMAL, Role.VIP, Role.EXEC_ADMIN, Role.DEVELOPER];
+export const ASSIGNABLE_ROLES: readonly number[] = [Role.NORMAL, Role.VIP, Role.EXEC_ADMIN, Role.DEVELOPER];
 
-export function isValidRole(role) {
-	return Number.isInteger(role) && role >= Role.NORMAL && role <= Role.FOUNDER;
+/** آیا عدد، یک سطح نقش معتبر است؟ (رشته و null معتبر نیستند) */
+export function isValidRole(role: unknown): role is number {
+	return typeof role === 'number' && Number.isInteger(role) && role >= Role.NORMAL && role <= Role.FOUNDER;
 }
 
-export function roleLabel(role) {
+export function roleLabel(role: number): string {
 	return RoleLabel[role] ?? `سطح ${role}`;
 }
