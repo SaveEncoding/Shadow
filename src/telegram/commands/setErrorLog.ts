@@ -1,4 +1,6 @@
+import type { Bot } from 'grammy';
 import { Role } from '../constants/roles.js';
+import type { Env } from '../../types.js';
 import { UserService } from '../services/userService.js';
 import { setErrorLogChatId, getErrorLogTarget } from '../db/settings.js';
 import { escapeHtml } from '../services/telegramService.js';
@@ -9,7 +11,7 @@ import { escapeHtml } from '../services/telegramService.js';
  *
  * /geterrorlog — show the currently configured log chat id (admins only).
  */
-export function setErrorLogCommand(bot, env) {
+export function setErrorLogCommand(bot: Bot, env: Pick<Env, 'my_database' | 'FOUNDER_TELEGRAM_ID'>): void {
 	const userService = new UserService(env.my_database);
 
 	bot.command('seterrorlog', async (ctx) => {
