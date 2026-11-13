@@ -13,13 +13,13 @@
  * دقیقاً مثل بقیه‌ی منابع کار می‌کند.
  */
 
-import { ALBUM_GRACE_SECONDS, computePublishAt } from '../core/schedule/timing.js';
-import type { PostItem, SourceRule } from '../core/schedule/types.js';
+import type { SourceRule } from '../core/schedule/types.js';
 import { MAX_X_IMAGES, normalizeXHandle, xItemKey } from '../core/sources/x.js';
 import { DEFAULT_NETWORK_CONCURRENCY, mapLimit } from '../core/util/concurrency.js';
-import { appendItem, createQueuedPost, finalizePost, markMessageSeen, recordXPollResult, type XSourceRow } from './db/postQueue.js';
+import { markMessageSeen, recordXPollResult, type XSourceRow } from './db/postQueue.js';
+import { queueExternalPost, type QueueEntry } from './queueExternalPost.js';
 import { spoolMedia } from './mediaSpool.js';
-import { notifyQueued, type SchedulerApi } from './publishQueue.js';
+import type { SchedulerApi } from './publishQueue.js';
 import { fetchXTimeline, resolveXProvider, type XProvider } from './xSource.js';
 
 /** حداقل فاصله‌ی بین دو خواندن یک حساب X (کنترل هزینه و نرخ) */
@@ -145,17 +145,7 @@ async function captureXPost(
 
 	if (!text && photos.length === 0) return 'skipped';
 
-	const postId = await createQueuedPost(db, {
-		sourceChannelId: row.rule.sourceChannelId,
-		sourceTitle: row.rule.sourceTitle,
-		sourceUsername: row.handle,
-		targetChannelId: row.rule.targetChannelId,
-		mediaGroupId: null,
-		createdBy: row.rule.notifyChatId ?? row.rule.addedBy,
-		now,
-	});
-
-	const items: Array<{ item: PostItem; patch: Record<string, unknown> | null }> = [];
+	const items: QueueEntry[] = [];
 
 	if (photos.length === 0) {
 		items.push({
@@ -191,18 +181,20 @@ async function captureXPost(
 		}
 	}
 
-	let appended = 0;
-	for (const entry of items) {
-		const ok = await appendItem(db, postId, entry.item, now, now + ALBUM_GRACE_SECONDS, entry.patch);
-		if (ok) appended++;
-	}
-	if (appended === 0) return 'skipped';
-
-	const publishAt = computePublishAt(now, row.rule.delayMinutes);
-	if (!(await finalizePost(db, postId, publishAt, now))) return 'skipped';
-
-	await notifyQueued(api, db, postId, now);
-	return 'queued';
+	return queueExternalPost(
+		db,
+		api,
+		{
+			sourceChannelId: row.rule.sourceChannelId,
+			sourceTitle: row.rule.sourceTitle,
+			sourceUsername: row.handle,
+			targetChannelId: row.rule.targetChannelId,
+			createdBy: row.rule.notifyChatId ?? row.rule.addedBy,
+			delayMinutes: row.rule.delayMinutes,
+		},
+		items,
+		now,
+	);
 }
 
 /** خواندن همه‌ی منابع X فعال (از کرون دقیقه‌ای صدا زده می‌شود) */

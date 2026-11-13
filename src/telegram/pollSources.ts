@@ -12,15 +12,15 @@
  *   - عکس/ویدیوی کوچک و متن بله؛ فایل، ویس، استیکر و نظرسنجی خیر
  */
 
-import { ALBUM_GRACE_SECONDS, MAX_PUBLISH_PER_TICK, computePublishAt, retryDelaySeconds } from '../core/schedule/timing.js';
+import { MAX_PUBLISH_PER_TICK, retryDelaySeconds } from '../core/schedule/timing.js';
 import { DEFAULT_NETWORK_CONCURRENCY, mapLimit } from '../core/util/concurrency.js';
 import type { PostItem } from '../core/schedule/types.js';
 import { MAX_FEED_MEDIA, type FeedPost } from '../core/schedule/publicFeed.js';
-import { appendItem, createQueuedPost, finalizePost, markMessageSeen, recordPollResult } from './db/postQueue.js';
+import { markMessageSeen, recordPollResult } from './db/postQueue.js';
+import { queueExternalPost } from './queueExternalPost.js';
 import { fetchPublicFeed } from './publicFeed.js';
 import { spoolMedia } from './mediaSpool.js';
 import type { SchedulerApi } from './publishQueue.js';
-import { notifyQueued } from './publishQueue.js';
 import type { PollSourceRow } from './db/postQueue.js';
 import type { SourceRule } from '../core/schedule/types.js';
 
@@ -177,28 +177,20 @@ async function captureFeedPost(
 		}
 	}
 
-	const postId = await createQueuedPost(db, {
-		sourceChannelId,
-		sourceTitle: row.rule.sourceTitle,
-		sourceUsername: row.rule.sourceUsername ?? row.username,
-		targetChannelId: row.rule.targetChannelId,
-		mediaGroupId: null,
-		createdBy: row.rule.notifyChatId ?? row.rule.addedBy,
+	return queueExternalPost(
+		db,
+		api,
+		{
+			sourceChannelId,
+			sourceTitle: row.rule.sourceTitle,
+			sourceUsername: row.rule.sourceUsername ?? row.username,
+			targetChannelId: row.rule.targetChannelId,
+			createdBy: row.rule.notifyChatId ?? row.rule.addedBy,
+			delayMinutes: row.rule.delayMinutes,
+		},
+		items.map((item, index) => ({ item, patch: extraPatches[index] })),
 		now,
-	});
-
-	let appended = 0;
-	for (let index = 0; index < items.length; index++) {
-		const ok = await appendItem(db, postId, items[index]!, now, now + ALBUM_GRACE_SECONDS, extraPatches[index]);
-		if (ok) appended++;
-	}
-	if (appended === 0) return 'skipped';
-
-	const publishAt = computePublishAt(now, row.rule.delayMinutes);
-	if (!(await finalizePost(db, postId, publishAt, now))) return 'skipped';
-
-	await notifyQueued(api, db, postId, now);
-	return 'queued';
+	);
 }
 
 /**
