@@ -31,7 +31,7 @@
  *   ps:help                     راهنما
  */
 
-import { InlineKeyboard, type Context } from 'grammy';
+import { InlineKeyboard, type Bot, type Context } from 'grammy';
 import { captureSourcePost, applySourceEdit, extractPostItem, queueManualPost, unsupportedReason } from '../capturePost.js';
 import { computePublishAt, DEFAULT_DELAY_MINUTES, formatDelay, SECONDS_PER_MINUTE } from '../../core/schedule/timing.js';
 import { latestMessageId, isValidChannelUsername, normalizeUsername, publicSourceChannelId } from '../../core/schedule/publicFeed.js';
@@ -121,7 +121,7 @@ async function canManage(db: D1Database, channelId: number, userId: number | und
  * برای `channel_post` زنجیره‌ی middleware را متوقف می‌کند.
  */
 export function postSchedulerFeature(
-	bot: any,
+	bot: Bot,
 	env: { my_database: D1Database; TELEGRAM_TOKEN?: string; X_BEARER_TOKEN?: string; X_RSS_TEMPLATE?: string },
 ): void {
 	const db = env.my_database;
