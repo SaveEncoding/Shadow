@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import { publishDuePosts } from '../src/telegram/publishQueue.js';
-import { appendItem, createQueuedPost, finalizePost, listPendingPosts, listReadyPosts } from '../src/telegram/db/postQueue.js';
+import {
+	appendItem,
+	createQueuedPost,
+	finalizePost,
+	listPendingPosts,
+	listReadyPosts,
+	saveSourceRule,
+} from '../src/telegram/db/postQueue.js';
 import { CHANNELS_TABLE, createScheduleTables, resetScheduleTables } from './helpers/scheduleSchema.js';
 import { countingDb } from './helpers/countingDb.js';
 
@@ -61,6 +68,29 @@ describe('cron tick query budget', () => {
 		// با `batch` در یک رفت‌وبرگشت می‌روند؛ پس یک statement بیشتر، همان ۳ رفت‌وبرگشت.
 		expect(counter.total, counter.summary()).toBe(4);
 		expect(counter.roundTrips).toBe(3);
+	});
+
+	it('counts the polling path writes (a polled source = 5 statements)', async () => {
+		// رگرسیون: `publishDueSources` قبلاً `env` خام می‌گرفت، پس `recordPollResult`
+		// و نوشتن‌های صف از شمارنده جا می‌ماندند و لاگ پروداکشن عددی کمتر از واقعیت
+		// نشان می‌داد. حالا پولینگ هم از همان `db` شماره‌دار رد می‌شود.
+		await saveSourceRule(env.my_database, {
+			sourceChannelId: -1001234567,
+			sourceTitle: '@demo_channel',
+			sourceUsername: 'demo_channel',
+			targetChannelId: TARGET,
+			delayMinutes: 30,
+			addedBy: 5,
+			notifyChatId: null,
+			pollUsername: 'demo_channel',
+			now: NOW,
+		});
+
+		// fetch تست ۴۰۴ برمی‌گرداند → مسیر خطای پولینگ (یک UPDATE برای failures)
+		const { result, counter } = await tick();
+		expect(result.polled).toBe(1);
+		expect(counter.total, counter.summary()).toBe(5);
+		expect(counter.roundTrips).toBe(4);
 	});
 
 	it('adds only the hourly prune on the hourly tick', async () => {

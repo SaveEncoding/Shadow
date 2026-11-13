@@ -270,6 +270,10 @@ export async function publishDuePosts(
 	const now = options.now ?? Math.floor(Date.now() / 1000);
 	// همه‌ی کوئری‌های تیک از این پروکسی رد می‌شوند تا عدد واقعی داشته باشیم.
 	const { db, counter } = countQueries(env.my_database);
+	// پولینگ هم باید از همین پروکسی رد شود. قبلاً `env` خام می‌رفت و نوشتن‌هایش
+	// (به‌روزرسانی cursor/failures و صف‌شدن پست تازه) از شمارش جا می‌ماندند؛
+	// یعنی `dbQueries` در تیک‌هایی که منبع داشتند کمتر از واقعیت بود.
+	const countedEnv = { my_database: db };
 	const api = options.api ?? createSchedulerApi(env.TELEGRAM_TOKEN ?? '');
 
 	// ── منابع عمومی (بدون عضویت بات) ──
@@ -279,7 +283,7 @@ export async function publishDuePosts(
 	try {
 		const sources = await listActivePollSources(db, { limit: MAX_PUBLISH_PER_TICK });
 		if (sources.length > 0) {
-			const result = await pollDueSources(env, { api, now, fetchImpl: options.fetchImpl, sources });
+			const result = await pollDueSources(countedEnv, { api, now, fetchImpl: options.fetchImpl, sources });
 			polled = result.polled;
 			queued = result.queued;
 		}
@@ -299,7 +303,7 @@ export async function publishDuePosts(
 		if (provider.kind !== 'none') {
 			const sources = await listActiveXSources(db, { limit: MAX_PUBLISH_PER_TICK });
 			if (sources.length > 0) {
-				const result = await pollDueXSources(env, {
+				const result = await pollDueXSources(countedEnv, {
 					api,
 					now,
 					sources,
