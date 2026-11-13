@@ -76,7 +76,7 @@ export function extractElementInner(html: string, contentStart: number, tagName 
 /** URL تصویر یک بلوک عکس از `style="background-image:url('...')"` */
 function backgroundUrl(tag: string): string | null {
 	const match = tag.match(/background-image\s*:\s*url\(\s*['"]?([^'")\s]+)['"]?\s*\)/i);
-	return match ? unescapeUrl(match[1]) : null;
+	return match ? unescapeUrl(match[1]!) : null;
 }
 
 /**
@@ -91,7 +91,7 @@ export function parsePublicFeed(html: string, username?: string): FeedPost[] {
 	const starts: Array<{ index: number; name: string; id: number }> = [];
 	let match: RegExpExecArray | null;
 	while ((match = marker.exec(source)) !== null) {
-		starts.push({ index: match.index, name: match[1], id: Number(match[2]) });
+		starts.push({ index: match.index, name: match[1]!, id: Number(match[2]!) });
 	}
 
 	const wanted = username?.replace(/^@/, '').toLowerCase();
@@ -99,11 +99,11 @@ export function parsePublicFeed(html: string, username?: string): FeedPost[] {
 	const seen = new Set<number>();
 
 	for (let i = 0; i < starts.length; i++) {
-		const start = starts[i];
+		const start = starts[i]!;
 		if (wanted && start.name.toLowerCase() !== wanted) continue;
 		if (seen.has(start.id)) continue;
 
-		const blockEnd = i + 1 < starts.length ? starts[i + 1].index : source.length;
+		const blockEnd = i + 1 < starts.length ? starts[i + 1]!.index : source.length;
 		const block = source.slice(start.index, blockEnd);
 		seen.add(start.id);
 		posts.push(parsePostBlock(block, start.id));
@@ -144,7 +144,7 @@ function parsePostBlock(block: string, messageId: number): FeedPost {
 	for (const tag of block.matchAll(/<video\b[^>]*>/gi)) {
 		const src = tag[0].match(/\s(?:src|data-src)\s*=\s*"([^"]+)"/i);
 		if (!src) continue;
-		const url = unescapeUrl(src[1]);
+		const url = unescapeUrl(src[1]!);
 		if (seenUrls.has(url)) continue;
 		seenUrls.add(url);
 		media.push({ kind: 'video', url });
@@ -152,7 +152,7 @@ function parsePostBlock(block: string, messageId: number): FeedPost {
 	for (const tag of block.matchAll(/<source\b[^>]*>/gi)) {
 		const src = tag[0].match(/\ssrc\s*=\s*"([^"]+)"/i);
 		if (!src) continue;
-		const url = unescapeUrl(src[1]);
+		const url = unescapeUrl(src[1]!);
 		if (seenUrls.has(url) || media.some((m) => m.kind === 'video')) continue;
 		seenUrls.add(url);
 		media.push({ kind: 'video', url });

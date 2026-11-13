@@ -260,7 +260,7 @@ export function menuFeature(bot: Bot, env: Pick<Env, 'my_database' | 'FOUNDER_TE
 	// ----- Coming soon stubs -----
 	bot.callbackQuery(/^m:soon:(.+)$/, async (ctx) => {
 		await dropPending(ctx);
-		const key = ctx.match[1];
+		const key = ctx.match[1]!;
 		await renderScreen(ctx, soonText(key), soonKeyboard());
 	});
 

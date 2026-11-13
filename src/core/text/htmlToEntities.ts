@@ -98,7 +98,7 @@ function attrValue(tag: string, name: string): string | null {
 function formatOfTag(tag: string): OpenFormat | null {
 	const nameMatch = tag.match(/^<\s*([a-zA-Z][\w-]*)/);
 	if (!nameMatch) return null;
-	const name = nameMatch[1].toLowerCase();
+	const name = nameMatch[1]!.toLowerCase();
 
 	// <span class="tg-spoiler">
 	if (name === 'span') {
@@ -132,7 +132,7 @@ function formatOfTag(tag: string): OpenFormat | null {
 function closes(tag: string, open: OpenFormat): boolean {
 	const nameMatch = tag.match(/^<\s*\/\s*([a-zA-Z][\w-]*)/);
 	if (!nameMatch) return false;
-	const name = nameMatch[1].toLowerCase();
+	const name = nameMatch[1]!.toLowerCase();
 
 	if (open.type === 'text_link') return name === 'a';
 	if (open.type === 'spoiler') return name === 'span';
@@ -209,7 +209,7 @@ export function htmlToTextAndEntities(html: string, options: { trim?: boolean } 
 		}
 
 		const nameMatch = tag.match(/^<\s*([a-zA-Z][\w-]*)/);
-		const name = nameMatch?.[1].toLowerCase();
+		const name = nameMatch?.[1]!.toLowerCase();
 
 		if (name === 'br') {
 			pushText('\n');
@@ -276,19 +276,19 @@ export function flatten(entities: HtmlTextEntity[], textLength: number): HtmlTex
 
 	const active: Array<Set<number>> = Array.from({ length: textLength }, () => new Set<number>());
 	valid.forEach((entity, index) => {
-		for (let p = entity.offset; p < entity.offset + entity.length; p++) active[p].add(index);
+		for (let p = entity.offset; p < entity.offset + entity.length; p++) active[p]!.add(index);
 	});
 
 	const result: HtmlTextEntity[] = [];
 	let i = 0;
 	while (i < textLength) {
-		const set = active[i];
+		const set = active[i]!;
 		let j = i + 1;
-		while (j < textLength && sameSet(active[j], set)) j++;
+		while (j < textLength && sameSet(active[j]!, set)) j++;
 
 		if (set.size > 0) {
 			for (const index of [...set].sort((a, b) => a - b)) {
-				const entity = valid[index];
+				const entity = valid[index]!;
 				const piece: HtmlTextEntity = { type: entity.type, offset: i, length: j - i };
 				if (entity.type === 'text_link' && entity.url) piece.url = entity.url;
 				if (entity.type === 'pre' && entity.language) piece.language = entity.language;

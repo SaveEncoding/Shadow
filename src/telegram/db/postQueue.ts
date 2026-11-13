@@ -590,7 +590,7 @@ export async function appendItem(
 			),
 		db.prepare('UPDATE post_queue SET updated_at = ?, finalize_at = ? WHERE id = ?').bind(now, finalizeAt, queueId),
 	]);
-	return Number(insert.meta?.changes ?? 0) > 0;
+	return Number(insert!.meta?.changes ?? 0) > 0;
 }
 
 /**

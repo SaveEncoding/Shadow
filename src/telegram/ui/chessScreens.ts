@@ -64,7 +64,7 @@ export function winnerLabel(result: string | null, mode: string): string {
 }
 
 export function levelLabel(level: number): string {
-	const config = ENGINE_LEVELS[level] ?? ENGINE_LEVELS[2];
+	const config = ENGINE_LEVELS[level] ?? ENGINE_LEVELS[2]!;
 	return `${LEVEL_ICONS[level] ?? '🤖'} ${config.label}`;
 }
 
@@ -112,7 +112,7 @@ export function gameText({ position, game, status, mode, level, selected = null,
 	lines.push('', `<i>${moveHistoryLine(game.moves)}</i>`);
 
 	const selectedLabel =
-		selected !== null && position.board[selected] !== 0 ? `${pieceSymbol(position.board[selected])} ${squareName(selected)}` : null;
+		selected !== null && position.board[selected] !== 0 ? `${pieceSymbol(position.board[selected]!)} ${squareName(selected)}` : null;
 
 	if (selected !== null && targets.length > 0) {
 		lines.push('', `👆 انتخاب: <b>${selectedLabel}</b> — خانه‌ی مقصد را از کیبورد بزنید.`);
@@ -166,7 +166,7 @@ export function boardKeyboard({
 	for (let rank = 7; rank >= 0; rank--) {
 		for (let file = 0; file < 8; file++) {
 			const square = rank * 8 + file;
-			const piece = position.board[square];
+			const piece = position.board[square]!;
 			const target = targetMap.get(square);
 
 			if (target && selected !== null) {
@@ -221,11 +221,11 @@ export function chessHomeText({ stats, activeGame }: { stats?: ChessStatsLike | 
 export function chessHomeKeyboard({ activeGame }: { activeGame?: { game: GameRecord } | null } = {}): InlineKeyboard {
 	const kb = new InlineKeyboard();
 	if (activeGame) kb.text('▶️ ادامه‌ی بازی', 'cg:resume').row();
-	kb.text(`${LEVEL_ICONS[1]} ${ENGINE_LEVELS[1].label}`, 'cg:l:1')
-		.text(`${LEVEL_ICONS[2]} ${ENGINE_LEVELS[2].label}`, 'cg:l:2')
+	kb.text(`${LEVEL_ICONS[1]} ${ENGINE_LEVELS[1]!.label}`, 'cg:l:1')
+		.text(`${LEVEL_ICONS[2]} ${ENGINE_LEVELS[2]!.label}`, 'cg:l:2')
 		.row()
-		.text(`${LEVEL_ICONS[3]} ${ENGINE_LEVELS[3].label}`, 'cg:l:3')
-		.text(`${LEVEL_ICONS[4]} ${ENGINE_LEVELS[4].label}`, 'cg:l:4')
+		.text(`${LEVEL_ICONS[3]} ${ENGINE_LEVELS[3]!.label}`, 'cg:l:3')
+		.text(`${LEVEL_ICONS[4]} ${ENGINE_LEVELS[4]!.label}`, 'cg:l:4')
 		.row()
 		.text('👥 دو نفره', 'cg:l:0')
 		.row()

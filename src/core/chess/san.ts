@@ -70,7 +70,7 @@ function coreSan(pos: Position, move: Move, legal?: readonly Move[]): string {
 	if (rivals.length > 0) {
 		const sameFile = rivals.some((m) => fileOf(m.from) === fileOf(move.from));
 		const sameRank = rivals.some((m) => rankOf(m.from) === rankOf(move.from));
-		if (!sameFile) disambiguation = 'abcdefgh'[fileOf(move.from)];
+		if (!sameFile) disambiguation = 'abcdefgh'[fileOf(move.from)]!;
 		else if (!sameRank) disambiguation = String(rankOf(move.from) + 1);
 		else disambiguation = squareName(move.from);
 	}

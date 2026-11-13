@@ -77,7 +77,7 @@ export function extractPostItem(message: TelegramPostMessage): PostItem | null {
 	}
 
 	if (message.photo && message.photo.length > 0) {
-		const best = message.photo[message.photo.length - 1];
+		const best = message.photo[message.photo.length - 1]!;
 		return {
 			...base,
 			kind: 'photo',

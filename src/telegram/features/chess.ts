@@ -35,7 +35,7 @@ import {
 } from '../../core/chess/index.js';
 import type { GameStatus, Move, Position } from '../../core/chess/index.js';
 import { closeGame, getActiveGame, getChessStats, saveGame, startGame } from '../db/chess.js';
-import type { ChessStats, StoredGame } from '../db/chess.js';
+import type { StoredGame } from '../db/chess.js';
 import { renderScreen, toast, toastAlert } from '../ui/render.js';
 import {
 	boardKeyboard,
@@ -280,7 +280,7 @@ export function chessFeature(bot: Bot, env: Pick<Env, 'my_database'>): void {
 		const square = Number(ctx.match[1]);
 		const state = gameState(row.game);
 		const position = state.position;
-		const piece = position.board[square];
+		const piece = position.board[square]!;
 		const mine = piece !== 0 && piece > 0 === (position.turn === 'w');
 
 		if (!mine) return toast(ctx, 'این مهره از نوبت شما نیست.');

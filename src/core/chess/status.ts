@@ -23,7 +23,7 @@ export function isInsufficientMaterial(pos: Position): boolean {
 	const minors: Array<{ type: number; square: number; color: Color }> = [];
 
 	for (let sq = 0; sq < 64; sq++) {
-		const piece = pos.board[sq];
+		const piece = pos.board[sq]!;
 		if (piece === 0) continue;
 		const type = Math.abs(piece);
 		const color: Color = piece > 0 ? 'w' : 'b';
@@ -36,7 +36,8 @@ export function isInsufficientMaterial(pos: Position): boolean {
 	if (minors.length === 1) return true; // K+B یا K+N vs K
 
 	if (minors.length === 2) {
-		const [a, b] = minors;
+		const a = minors[0]!;
+		const b = minors[1]!;
 		if (a.color === b.color) return false; // K+B+B یا K+N+N — مات ممکن است
 		if (a.type === KNIGHT || b.type === KNIGHT) return false; // K+N vs K+N
 		// دو فیل در خانه‌های هم‌رنگ → مات غیرممکن

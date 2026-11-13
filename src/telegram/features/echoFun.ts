@@ -29,7 +29,7 @@ export async function echo(bot: Bot): Promise<void> {
 		if (!message) return null;
 
 		if (message.photo && message.photo.length > 0) {
-			const largest = message.photo[message.photo.length - 1]; // Telegram offers several different photo qualities, and we choose the highest one.
+			const largest = message.photo[message.photo.length - 1]!; // Telegram offers several different photo qualities, and we choose the highest one.
 			return { caption: message.caption, send: (api, chatId, extra) => api.sendPhoto(chatId, largest.file_id, extra) };
 		}
 		if (message.animation) {

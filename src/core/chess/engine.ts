@@ -165,7 +165,7 @@ export function search(pos: Position, options: SearchOptions): SearchResult {
 	}
 
 	let best: SearchResult = {
-		move: legal[0],
+		move: legal[0]!,
 		score: 0,
 		depth: 0,
 		nodes: 0,
@@ -250,7 +250,7 @@ export function makeRandom(seed: number): () => number {
  * قطعی است: همان وضعیت + همان seed + همان سطح = همان حرکت.
  */
 export function chooseMove(pos: Position, level = 2, seed = 0): SearchResult {
-	const config = ENGINE_LEVELS[level] ?? ENGINE_LEVELS[2];
+	const config = ENGINE_LEVELS[level] ?? ENGINE_LEVELS[2]!;
 	const result = search(pos, { depth: config.depth, nodeLimit: config.nodeLimit });
 
 	if (!result.move || result.rootScores.length === 0) return result;
@@ -259,6 +259,6 @@ export function chooseMove(pos: Position, level = 2, seed = 0): SearchResult {
 
 	const random = makeRandom(seed ^ (pos.board.reduce((acc, p) => acc + p, 0) & 0xffff));
 	const candidates = result.rootScores.filter((s) => s.score >= result.score - config.noise);
-	const pick = candidates[Math.floor(random() * candidates.length)] ?? result.rootScores[0];
+	const pick = candidates[Math.floor(random() * candidates.length)] ?? result.rootScores[0]!;
 	return { ...result, move: pick.move, score: pick.score };
 }

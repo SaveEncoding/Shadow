@@ -171,8 +171,9 @@ async function captureFeedPost(
 
 		// متن/کپشن روی آیتم اول می‌نشیند (مثل پست اصلی تلگرام)
 		if (post.text.trim()) {
-			items[0].text = post.text;
-			items[0].entities = post.entities;
+			const first = items[0]!;
+			first.text = post.text;
+			first.entities = post.entities;
 		}
 	}
 
@@ -188,7 +189,7 @@ async function captureFeedPost(
 
 	let appended = 0;
 	for (let index = 0; index < items.length; index++) {
-		const ok = await appendItem(db, postId, items[index], now, now + ALBUM_GRACE_SECONDS, extraPatches[index]);
+		const ok = await appendItem(db, postId, items[index]!, now, now + ALBUM_GRACE_SECONDS, extraPatches[index]);
 		if (ok) appended++;
 	}
 	if (appended === 0) return 'skipped';

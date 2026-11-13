@@ -202,20 +202,20 @@ export function stripHtml(input: string): string {
 function firstTag(block: string, names: string[]): string | null {
 	for (const name of names) {
 		const match = block.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`, 'i'));
-		if (match) return decodeXml(match[1]).trim();
+		if (match) return decodeXml(match[1]!).trim();
 	}
 	return null;
 }
 
 function attr(block: string, tag: string, name: string): string | null {
 	const match = block.match(new RegExp(`<${tag}\\b[^>]*\\s${name}\\s*=\\s*["']([^"']+)["'][^>]*>`, 'i'));
-	return match ? decodeXml(match[1]) : null;
+	return match ? decodeXml(match[1]!) : null;
 }
 
 /** شناسه‌ی توییت را از لینک/guid RSS بیرون می‌کشد */
 export function tweetIdFromUrl(url: string): string | null {
 	const match = String(url ?? '').match(/\/status(?:es)?\/(\d+)/);
-	return match ? match[1] : null;
+	return match ? match[1]! : null;
 }
 
 /**
@@ -246,11 +246,12 @@ export function parseXRss(xml: string, handle: string, sinceId: string | null = 
 			media.push(enclosureType.startsWith('video') ? { kind: 'video', url: enclosure } : { kind: 'photo', url: enclosure });
 		}
 		for (const match of block.matchAll(/<media:(?:content|thumbnail)\b[^>]*\surl\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
-			if (!media.some((m) => m.url === match[1])) media.push({ kind: 'photo', url: decodeXml(match[1]) });
+			const url = decodeXml(match[1]!);
+			if (!media.some((m) => m.url === url)) media.push({ kind: 'photo', url });
 		}
 		// پل‌هایی که HTML داخل description می‌گذارند
 		for (const match of block.matchAll(/<img\b[^>]*\ssrc\s*=\s*["']([^"']+)["']/gi)) {
-			const url = decodeXml(match[1]);
+			const url = decodeXml(match[1]!);
 			if (!media.some((m) => m.url === url)) media.push({ kind: 'photo', url });
 		}
 

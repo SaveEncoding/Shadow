@@ -159,7 +159,7 @@ export function applyUserMove(game: GameRecord, from: number, to: number, promo?
 		if (!chosen) throw new IllegalMoveError('illegal', 'ترفیع به این مهره مجاز نیست');
 		move = chosen;
 	} else {
-		move = candidates[0];
+		move = candidates[0]!;
 	}
 
 	const san = moveToSan(position, move, all);

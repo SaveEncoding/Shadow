@@ -55,7 +55,8 @@ export function pgnMoveText(moves: string[], result: GameResult | '*', lineWidth
 	const atoms: string[] = [];
 	for (let i = 0; i < moves.length; i++) {
 		// فقط حرکت سفید شماره می‌گیرد؛ «n...» تنها وقتی لازم است که نوبت سیاه شروع شود.
-		atoms.push(i % 2 === 0 ? `${Math.floor(i / 2) + 1}. ${moves[i]}` : moves[i]);
+		const move = moves[i]!;
+		atoms.push(i % 2 === 0 ? `${Math.floor(i / 2) + 1}. ${move}` : move);
 	}
 	atoms.push(result);
 

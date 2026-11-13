@@ -30,7 +30,7 @@ export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, in
 		for (;;) {
 			const index = next++;
 			if (index >= items.length) return;
-			results[index] = await fn(items[index], index);
+			results[index] = await fn(items[index]!, index);
 		}
 	};
 
