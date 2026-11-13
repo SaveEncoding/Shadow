@@ -1,9 +1,7 @@
 import { UserService } from './services/userService.js';
-import { sendMessage } from './services/telegramService.js';
+import { notifyCronLog } from './services/cronLog.js';
 import { reportError } from './utils/Error.js';
-import { getErrorLogTarget } from './db/settings.js';
 import type { Env } from '../types.js';
-import { errorInfo } from './utils/errorInfo.js';
 
 const INACTIVE_DAYS = 30;
 
@@ -20,20 +18,12 @@ export async function runScheduledCleanup(env: Env): Promise<void> {
 
 		// Always report the run's outcome to the log chat (not just when something was
 		// deleted), so it can be tracked periodically even on a no-op run.
+		// از پنل مدیریت می‌شود فقط همین پیام را خاموش کرد؛ خودِ پاک‌سازی همیشه اجرا می‌شود.
 		const summary =
 			deletedCount > 0
 				? `🧹 پاکسازی خودکار انجام شد.\n${deletedCount} کاربر غیرفعال (بیش از ${INACTIVE_DAYS} روز، role = 0) حذف شد.`
 				: `🧹 پاکسازی خودکار انجام شد.\nهیچ کاربر غیرفعالی برای حذف پیدا نشد.`;
-		const { chatId: logChatId, threadId: logThreadId } = await getErrorLogTarget(env.my_database);
-		if (logChatId !== null) {
-			try {
-				await sendMessage(env, logChatId, summary, { threadId: logThreadId });
-			} catch (err) {
-				const info = errorInfo(err);
-				const reason = info.description || info.message || info.name || String(err) || 'unknown error';
-				console.error(`[cleanup] Failed to notify log chat ${logChatId}: ${reason} (error_code=${info.errorCode ?? 'n/a'})`, info.stack);
-			}
-		}
+		await notifyCronLog(env, 'cleanup', summary, 'cleanup');
 	} catch (err) {
 		console.error('[cleanup] Scheduled cleanup failed:', err);
 		await reportError(env, 'runScheduledCleanup', err);

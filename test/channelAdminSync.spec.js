@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { getChatAdministratorsMock, getChannelsNeedingAdminSyncMock, syncChannelAdminsMock } = vi.hoisted(() => ({
+const { getChatAdministratorsMock, getChannelsNeedingAdminSyncMock, syncChannelAdminsMock, notifyCronLogMock } = vi.hoisted(() => ({
 	getChatAdministratorsMock: vi.fn(),
 	getChannelsNeedingAdminSyncMock: vi.fn(),
 	syncChannelAdminsMock: vi.fn(),
+	notifyCronLogMock: vi.fn(),
 }));
 
 vi.mock('grammy', () => ({
@@ -15,6 +16,9 @@ vi.mock('../src/telegram/db/channels.js', () => ({
 	getChannelsNeedingAdminSync: getChannelsNeedingAdminSyncMock,
 	syncChannelAdmins: syncChannelAdminsMock,
 }));
+// گیت «اعلان روشن است؟» در سرویس تست می‌شود؛ این‌جا فقط مطمئن می‌شویم کرون
+// درست وصل شده و از کلید `admin_sync` استفاده می‌کند.
+vi.mock('../src/telegram/services/cronLog.js', () => ({ notifyCronLog: notifyCronLogMock }));
 
 const fakeEnv = { TELEGRAM_TOKEN: 'fake-token', my_database: {} };
 
@@ -38,6 +42,11 @@ describe('refreshChannelAdmins', () => {
 		expect(syncChannelAdminsMock).toHaveBeenNthCalledWith(1, fakeEnv.my_database, -100001, [1, 2]);
 		expect(syncChannelAdminsMock).toHaveBeenNthCalledWith(2, fakeEnv.my_database, -100002, [3]);
 		expect(result).toEqual({ synced: 2, added: 3, removed: 0, failed: 0 });
+		expect(notifyCronLogMock).toHaveBeenCalledTimes(1);
+		const [, keyArg, textArg, contextArg] = notifyCronLogMock.mock.calls[0];
+		expect(keyArg).toBe('admin_sync');
+		expect(textArg).toContain('همگام‌سازی');
+		expect(contextArg).toBe('refreshChannelAdmins');
 	});
 
 	it('keeps going and reports a failure count when one channel errors out', async () => {
