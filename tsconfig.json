@@ -6,6 +6,7 @@
 		"moduleResolution": "bundler",
 		"types": ["@cloudflare/workers-types"],
 		"strict": true,
+		"noUnusedLocals": true,
 		"skipLibCheck": true,
 		"resolveJsonModule": true,
 		"noEmit": true
