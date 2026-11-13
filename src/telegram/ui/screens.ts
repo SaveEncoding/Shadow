@@ -2,14 +2,45 @@ import { InlineKeyboard } from 'grammy';
 import { escapeHtml } from '../../core/text/escape.js';
 import { Role, roleLabel } from '../constants/roles.js';
 
-/** @param {number} [userRole] */
-export function homeText(userRole = Role.NORMAL) {
+/**
+ * شکلی از ردیف `channels` که این صفحه‌ها لازم دارند.
+ * عمداً محلی است (نه `ChannelRow` از لایه‌ی db) تا `ui` به `db` وابسته نشود؛
+ * از نظر ساختاری با ردیف واقعی سازگار است.
+ */
+export interface ChannelLike {
+	channel_id: number;
+	title: string;
+	username: string | null;
+	owner_id: number | null;
+	registered_by: number;
+	official_suffix: string | null;
+	official_suffix_entities: string | null;
+	suffix_skip_marker: string | null;
+}
+
+/** دو نوع ورودی «منتظر متن» که UI می‌شناسد */
+export type PendingKind = 'suffix' | 'skip';
+
+/** آمار نقش‌ها برای صفحه‌ی آمار */
+export interface RoleStatsView {
+	/** برچسب هر سطح نقش (RoleLabel) */
+	labels?: Record<string, string>;
+	counts: Record<string, number>;
+	total: number;
+}
+
+export interface StatsInfo {
+	channelCount: number;
+	roleStats?: RoleStatsView | null;
+	userRole: number;
+}
+
+export function homeText(userRole: number = Role.NORMAL): string {
 	const roleLine = userRole >= Role.EXEC_ADMIN ? `\nسطح دسترسی شما: <b>${roleLabel(userRole)}</b>` : '';
 	return `🏠 <b>منوی اصلی</b>${roleLine}\n\n` + `یکی از گزینه‌ها را انتخاب کنید.\n` + `<i>پیمایش داخل همین پیام انجام می‌شود.</i>`;
 }
 
-/** @param {number} [userRole] */
-export function homeKeyboard(userRole = Role.NORMAL) {
+export function homeKeyboard(userRole: number = Role.NORMAL): InlineKeyboard {
 	const kb = new InlineKeyboard()
 		.text('➕ ثبت کانال', 'm:a')
 		.text('📋 کانال‌های من', 'm:l')
@@ -31,7 +62,7 @@ export function homeKeyboard(userRole = Role.NORMAL) {
 	return kb;
 }
 
-export function addChannelText() {
+export function addChannelText(): string {
 	return (
 		`➕ <b>ثبت کانال جدید</b>\n\n` +
 		`<b>مرحله ۱:</b> بات را به‌عنوان <b>ادمین</b> به کانال اضافه کنید ` +
@@ -44,15 +75,11 @@ export function addChannelText() {
 	);
 }
 
-export function addChannelKeyboard() {
+export function addChannelKeyboard(): InlineKeyboard {
 	return new InlineKeyboard().text('🏠 منوی اصلی', 'm:h');
 }
 
-/**
- * @param {Array<object>} channels
- * @param {number} userId
- */
-export function channelsListText(channels, userId) {
+export function channelsListText(channels: readonly ChannelLike[], userId: number): string {
 	if (!channels.length) {
 		return `📋 <b>کانال‌های من</b>\n\n` + `هنوز کانالی ثبت نکرده‌اید.\n` + `از «ثبت کانال» یک پست فوروارد کنید.`;
 	}
@@ -67,8 +94,7 @@ export function channelsListText(channels, userId) {
 	return t;
 }
 
-/** @param {Array<object>} channels */
-export function channelsListKeyboard(channels) {
+export function channelsListKeyboard(channels: readonly ChannelLike[]): InlineKeyboard {
 	const kb = new InlineKeyboard();
 	for (const ch of channels) {
 		const label = truncate(ch.title || String(ch.channel_id), 28);
@@ -78,11 +104,7 @@ export function channelsListKeyboard(channels) {
 	return kb;
 }
 
-/**
- * @param {object} ch
- * @param {number} userId
- */
-export function channelDetailText(ch, userId) {
+export function channelDetailText(ch: ChannelLike, userId: number): string {
 	const un = ch.username ? `@${ch.username}` : '— (خصوصی)';
 	const role = ch.owner_id === userId ? 'مالک' : ch.registered_by === userId ? 'ثبت‌کننده' : 'ادمین';
 	const sfx = ch.official_suffix ? escapeHtml(String(ch.official_suffix).slice(0, 120)) : '<i>تنظیم نشده</i>';
@@ -99,8 +121,7 @@ export function channelDetailText(ch, userId) {
 	);
 }
 
-/** @param {number|string} channelId */
-export function channelDetailKeyboard(channelId) {
+export function channelDetailKeyboard(channelId: number | string): InlineKeyboard {
 	return new InlineKeyboard()
 		.text('✍️ پسوند رسمی', `m:cs:${channelId}`)
 		.text('⏭ مارکر رد', `m:sk:${channelId}`)
@@ -115,7 +136,7 @@ export function channelDetailKeyboard(channelId) {
 		.text('🏠 منوی اصلی', 'm:h');
 }
 
-export function channelSuffixHelpText(ch) {
+export function channelSuffixHelpText(ch: ChannelLike): string {
 	let current = ch.official_suffix ? escapeHtml(String(ch.official_suffix)) : '<i>خالی</i>';
 	if (ch.official_suffix && ch.official_suffix_entities) {
 		try {
@@ -134,8 +155,7 @@ export function channelSuffixHelpText(ch) {
 	);
 }
 
-/** @param {number|string} channelId */
-export function channelSuffixKeyboard(channelId) {
+export function channelSuffixKeyboard(channelId: number | string): InlineKeyboard {
 	return new InlineKeyboard()
 		.text('✏️ تنظیم پسوند', `m:cs:set:${channelId}`)
 		.text('🗑 پاک کردن', `m:cs:clr:${channelId}`)
@@ -144,7 +164,7 @@ export function channelSuffixKeyboard(channelId) {
 		.text('🏠 منوی اصلی', 'm:h');
 }
 
-export function channelSkipHelpText(ch) {
+export function channelSkipHelpText(ch: ChannelLike): string {
 	const current = ch.suffix_skip_marker ? `<code>${escapeHtml(ch.suffix_skip_marker)}</code>` : '<i>خالی (همه پست‌ها پسوند می‌گیرند)</i>';
 	return (
 		`⏭ <b>مارکر رد خودکار</b> — ${escapeHtml(ch.title)}\n\n` +
@@ -154,8 +174,7 @@ export function channelSkipHelpText(ch) {
 	);
 }
 
-/** @param {number|string} channelId */
-export function channelSkipKeyboard(channelId) {
+export function channelSkipKeyboard(channelId: number | string): InlineKeyboard {
 	return new InlineKeyboard()
 		.text('✏️ تنظیم مارکر', `m:sk:set:${channelId}`)
 		.text('🗑 پاک کردن', `m:sk:clr:${channelId}`)
@@ -164,12 +183,12 @@ export function channelSkipKeyboard(channelId) {
 		.text('🏠 منوی اصلی', 'm:h');
 }
 
-export function backToChannelKeyboard(channelId) {
+export function backToChannelKeyboard(channelId: number | string): InlineKeyboard {
 	return new InlineKeyboard().text('« بازگشت به کانال', `m:c:${channelId}`).text('🏠 منوی اصلی', 'm:h');
 }
 
 /** Waiting for the user to type the new suffix/marker. */
-export function awaitInputText(kind, channelTitle) {
+export function awaitInputText(kind: PendingKind, channelTitle: string): string {
 	const label = kind === 'suffix' ? 'پسوند رسمی' : 'مارکر رد';
 	return (
 		`✏️ <b>در انتظار ${label}</b>\n` +
@@ -180,27 +199,24 @@ export function awaitInputText(kind, channelTitle) {
 	);
 }
 
-/** @param {number|string} channelId @param {'suffix'|'skip'} kind */
-export function awaitInputKeyboard(channelId, kind) {
+export function awaitInputKeyboard(channelId: number | string, kind: PendingKind): InlineKeyboard {
 	const cancel = kind === 'suffix' ? `m:cs:x:${channelId}` : `m:sk:x:${channelId}`;
 	const back = kind === 'suffix' ? `m:cs:${channelId}` : `m:sk:${channelId}`;
 	return new InlineKeyboard().text('❌ انصراف', cancel).row().text('« بازگشت', back).text('🏠 منوی اصلی', 'm:h');
 }
 
-export function confirmClearText(kind, channelTitle) {
+export function confirmClearText(kind: PendingKind, channelTitle: string): string {
 	const label = kind === 'suffix' ? 'پسوند رسمی' : 'مارکر رد';
 	return `⚠️ <b>پاک کردن ${label}</b>\n` + `کانال: <b>${escapeHtml(channelTitle)}</b>\n\n` + `مطمئن هستید؟`;
 }
 
-/** @param {number|string} channelId @param {'suffix'|'skip'} kind */
-export function confirmClearKeyboard(channelId, kind) {
+export function confirmClearKeyboard(channelId: number | string, kind: PendingKind): InlineKeyboard {
 	const yes = kind === 'suffix' ? `m:cs:clr2:${channelId}` : `m:sk:clr2:${channelId}`;
 	const no = kind === 'suffix' ? `m:cs:${channelId}` : `m:sk:${channelId}`;
 	return new InlineKeyboard().text('✅ بله، پاک شود', yes).text('خیر', no).row().text('🏠 منوی اصلی', 'm:h');
 }
 
-/** @param {{ channelCount: number, roleStats?: object|null, userRole: number }} info */
-export function statsText(info) {
+export function statsText(info: StatsInfo): string {
 	let t = `📈 <b>آمار</b>\n\n`;
 	t += `• کانال‌های شما: <b>${info.channelCount}</b>\n`;
 	if (info.roleStats && info.userRole >= Role.EXEC_ADMIN) {
@@ -218,11 +234,11 @@ export function statsText(info) {
 	return t;
 }
 
-export function statsKeyboard() {
+export function statsKeyboard(): InlineKeyboard {
 	return new InlineKeyboard().text('🏠 منوی اصلی', 'm:h');
 }
 
-export function settingsText() {
+export function settingsText(): string {
 	return (
 		`⚙️ <b>تنظیمات</b>\n\n` +
 		`<b>در دسترس:</b>\n` +
@@ -235,11 +251,11 @@ export function settingsText() {
 	);
 }
 
-export function settingsKeyboard() {
+export function settingsKeyboard(): InlineKeyboard {
 	return new InlineKeyboard().text('🌐 زبان', 'm:soon:lang').text('🔔 اعلان‌ها', 'm:soon:notif').row().text('🏠 منوی اصلی', 'm:h');
 }
 
-export function helpText() {
+export function helpText(): string {
 	return (
 		`ℹ️ <b>راهنما</b>\n\n` +
 		`<b>ثبت کانال</b>\n` +
@@ -253,11 +269,11 @@ export function helpText() {
 	);
 }
 
-export function helpKeyboard() {
+export function helpKeyboard(): InlineKeyboard {
 	return new InlineKeyboard().text('📚 FAQ', 'm:soon:faq').text('📜 قوانین', 'm:soon:rules').row().text('🏠 منوی اصلی', 'm:h');
 }
 
-export function supportText() {
+export function supportText(): string {
 	return (
 		`📞 <b>پشتیبانی</b>\n\n` +
 		`برای گزارش مشکل یا پیشنهاد، به سازنده پیام دهید یا از گپ لاگ خطا (اگر تنظیم شده) استفاده کنید.\n\n` +
@@ -265,16 +281,16 @@ export function supportText() {
 	);
 }
 
-export function supportKeyboard() {
+export function supportKeyboard(): InlineKeyboard {
 	return new InlineKeyboard().text('🏠 منوی اصلی', 'm:h');
 }
 
-export function adminHubText(userRole) {
+export function adminHubText(userRole: number): string {
 	return `🛡 <b>پنل مدیریت ربات</b>\n\n` + `سطح شما: <b>${roleLabel(userRole)}</b>\n\n` + `مدیریت نقش کاربران، آمار و تنظیمات سراسری ربات.`;
 }
 
 /** Re-export shape used by admin panel keyboard with home back to m:h */
-export function adminHubKeyboard(userRole) {
+export function adminHubKeyboard(userRole: number): InlineKeyboard {
 	const kb = new InlineKeyboard().text('📈 آمار نقش‌ها', 'm:st').text('📋 کاربران ویژه', 'admin:list_privileged').row();
 	if (userRole >= Role.FOUNDER) {
 		kb.text('👥 مدیریت نقش‌ها', 'admin:roles').row();
@@ -284,8 +300,8 @@ export function adminHubKeyboard(userRole) {
 	return kb;
 }
 
-export function soonText(featureKey) {
-	const names = {
+export function soonText(featureKey: string): string {
+	const names: Record<string, string> = {
 		edit: 'ویرایش اطلاعات کانال',
 		adv: 'تنظیمات پیشرفته / ضد اسپم',
 		chstat: 'آمار تفصیلی کانال',
@@ -299,11 +315,11 @@ export function soonText(featureKey) {
 	return `🚧 <b>به‌زودی</b>\n\n` + `${escapeHtml(name)} هنوز در این نسخه فعال نشده است.\n` + `از منوی اصلی به بخش‌های آماده سر بزنید.`;
 }
 
-export function soonKeyboard() {
+export function soonKeyboard(): InlineKeyboard {
 	return new InlineKeyboard().text('🏠 منوی اصلی', 'm:h');
 }
 
-function truncate(s, n) {
+function truncate(s: unknown, n: number): string {
 	const t = String(s);
 	return t.length <= n ? t : t.slice(0, n - 1) + '…';
 }
