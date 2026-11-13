@@ -1,4 +1,5 @@
-import { InlineKeyboard } from 'grammy';
+import { InlineKeyboard, type Bot } from 'grammy';
+import type { Env } from '../../types.js';
 import { Role, RoleLabel, ASSIGNABLE_ROLES, roleLabel, isValidRole } from '../constants/roles.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { UserService } from '../services/userService.js';
@@ -10,7 +11,7 @@ import { renderScreen } from '../ui/render.js';
  * - panel / stats / settings callbacks (previously no-ops)
  * - role management UI for founder (and EXEC_ADMIN for VIP only if desired)
  */
-export function adminPanelFeature(bot, env) {
+export function adminPanelFeature(bot: Bot, env: Pick<Env, 'my_database' | 'FOUNDER_TELEGRAM_ID'>): void {
 	const userService = new UserService(env.my_database);
 	const needAdmin = requireRole(Role.EXEC_ADMIN, env);
 	const needFounder = requireRole(Role.FOUNDER, env);

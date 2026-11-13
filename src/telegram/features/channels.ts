@@ -1,11 +1,29 @@
+import type { Bot, Context } from 'grammy';
 import { registerChannel } from '../db/channels.js';
 import { maybeOfferSuffixApply } from './channelSuffix.js';
+import type { Env } from '../../types.js';
+
+/** grammY نوع Message/Chat را از ریشه export نمی‌کند؛ از Context مشتق می‌شوند. */
+type Message = NonNullable<Context['message']>;
+/** چتی که فوروارد از آن آمده می‌تواند کانال هم باشد (نه فقط چت‌های `message.chat`). */
+type ForwardOrigin = NonNullable<Message['forward_origin']>;
+type Chat = Extract<ForwardOrigin, { type: 'channel' }>['chat'];
+
+/**
+ * متن خطای تلگرام را از یک خطای ناشناخته بیرون می‌کشد.
+ * `catch` همیشه `unknown` می‌دهد؛ با `in` باریک می‌کنیم تا cast لازم نباشد.
+ */
+function errorDescription(err: unknown): string {
+	if (typeof err !== 'object' || err === null || !('description' in err)) return '';
+	const description = err.description;
+	return typeof description === 'string' ? description : '';
+}
 
 /**
  * If the message is a forwarded post from a channel, it returns that channel's information;
  * otherwise, it returns `null`. A pure function independent of grammY/D1 that is easy to test.
  */
-export function getForwardedChannel(message) {
+export function getForwardedChannel(message: Message | null | undefined): Chat | null {
 	const origin = message?.forward_origin;
 	if (origin?.type !== 'channel') {
 		return null;
@@ -14,7 +32,7 @@ export function getForwardedChannel(message) {
 }
 
 /** Does the assigned membership status indicate channel ownership or admin rights? */
-export function isChannelOwner(memberStatus) {
+export function isChannelOwner(memberStatus: string): boolean {
 	return memberStatus === 'administrator' || memberStatus === 'creator';
 }
 
@@ -24,7 +42,7 @@ export function isChannelOwner(memberStatus) {
  * to a channel, which Telegram auto-forwards channel posts into), this always returns
  * null, because channel registration must only happen through a direct chat with the bot.
  */
-export function getChannelToRegister(chatType, message) {
+export function getChannelToRegister(chatType: string | undefined, message: Message | null | undefined): Chat | null {
 	if (chatType !== 'private') {
 		return null;
 	}
@@ -35,8 +53,8 @@ export function getChannelToRegister(chatType, message) {
  * When the getChatMember call fails (not because the user is not an admin, but because
  * we couldn't check their status at all), it describes the error based on the Telegram error message.
  */
-export function describeChannelAccessError(err) {
-	const description = (err?.description ?? '').toLowerCase();
+export function describeChannelAccessError(err: unknown): string {
+	const description = errorDescription(err).toLowerCase();
 
 	if (description.includes('chat not found')) {
 		return '❌ این کانال شناسایی نشد. لطفاً پست رو دوباره از همون کانال فوروارد کنید.';
@@ -56,7 +74,7 @@ export function describeChannelAccessError(err) {
  * When `getChatMember` succeeds but the user is not an admin or owner, it displays a more specific message based on their status
  * (e.g., a regular member versus someone who is not a channel member at all).
  */
-export function describeNonOwnerStatus(memberStatus) {
+export function describeNonOwnerStatus(memberStatus: string): string {
 	if (memberStatus === 'left' || memberStatus === 'kicked') {
 		return '❌ شما عضو این کانال نیستید.';
 	}
@@ -67,7 +85,7 @@ export function describeNonOwnerStatus(memberStatus) {
  * Registering a channel by forwarding a post from that channel, after verifying that  
  * the user is indeed the admin/owner of that channel.
  */
-export function channelsFeature(bot, env) {
+export function channelsFeature(bot: Bot, env: Pick<Env, 'my_database'>): void {
 	// add_channel / my_channels callbacks → features/menu.js
 
 	// This handler must be registered in `FEATURES` before `echo`; for messages that are not channel forwards (in a private chat), `next()` is called so that `echo` can process them as well.
