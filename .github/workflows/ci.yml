@@ -1,0 +1,47 @@
+name: CI
+
+# چهار بررسی که تا امروز فقط دستی اجرا می‌شدند:
+#   typecheck (کل src) + typecheck هسته
+#   تست‌ها (vitest + D1 واقعی در workerd)
+#   قالب‌بندی (prettier)
+#   باندل واقعی ورکر (wrangler deploy --dry-run؛ هم اندازه، هم بایندینگ‌ها)
+#
+# نکته: deploy --dry-run نیست، فقط باندل می‌کند؛ توکن Cloudflare لازم نیست.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck (src)
+        run: npm run typecheck
+
+      - name: Typecheck (core, strict)
+        run: npm run typecheck:core
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Worker bundle (dry run)
+        run: npx wrangler deploy --dry-run --outdir=dist
+
+      - name: Tests
+        run: npm run test:run
