@@ -103,6 +103,7 @@ npm test
 - [x] Main menu with inline buttons (`homeInlineKeyboard`)
 - [x] Automatic registration of users who interact directly with the bot (private chat, command or reply to the bot in the group) in D1
 - [x] Automatic cleaning of inactive users (more than 30 days without interaction), except users with role >= VIP — with daily Cron Trigger + notification to admins
+- [x] Mute/unmute the cron report messages (daily cleanup, channel-admin sync) from the admin panel (`m:ad` → 🔔) — individual switches per cron plus a master switch; the jobs themselves always keep running
 - [x] **Add channel** feature: forward a post from the channel → verify admin/ownership User on the same channel (`getChatMember`) → Register in D1
 - [x] Detailed and separate error messages for each case (channel not recognized / bot not yet admin of the channel / user not admin)
 - [x] Bug fix: auto-forwarded posts from a channel to its connected chat group are no longer mistakenly considered as attempts to register the channel (this feature is only enabled in private chat with the bot)
