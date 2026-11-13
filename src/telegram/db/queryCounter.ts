@@ -116,6 +116,8 @@ export function countQueries(inner: D1Database): CountedDb {
 					return target.exec(sql);
 				};
 			}
+			// بقیه‌ی متدها (از جمله `withSession`) بدون شمارش رد می‌شوند؛ در این مخزن
+			// استفاده نمی‌شوند. اگر روزی استفاده شدند، باید مثل `prepare` پوشیده شوند.
 			const value = Reflect.get(target, key);
 			return typeof value === 'function' ? value.bind(target) : value;
 		},
