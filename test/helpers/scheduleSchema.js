@@ -11,6 +11,7 @@ export const SCHEDULE_SCHEMA = [
 	'CREATE INDEX IF NOT EXISTS idx_post_queue_ready ON post_queue(status, publish_at);',
 	'CREATE INDEX IF NOT EXISTS idx_post_queue_target ON post_queue(target_channel_id, status, publish_at);',
 	'CREATE INDEX IF NOT EXISTS idx_post_queue_collect ON post_queue(source_channel_id, media_group_id, status);',
+	'CREATE INDEX IF NOT EXISTS idx_post_queue_finalize ON post_queue(status, finalize_at);',
 	'CREATE TABLE IF NOT EXISTS post_queue_items ( queue_id INTEGER NOT NULL, source_message_id INTEGER NOT NULL, kind TEXT NOT NULL, file_id TEXT, text TEXT, entities TEXT, extra TEXT, PRIMARY KEY (queue_id, source_message_id), FOREIGN KEY (queue_id) REFERENCES post_queue(id) ON DELETE CASCADE );',
 	'CREATE TABLE IF NOT EXISTS post_seen ( source_channel_id INTEGER NOT NULL, source_message_id INTEGER NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (source_channel_id, source_message_id) );',
 	'CREATE TABLE IF NOT EXISTS post_poll_sources ( rule_id INTEGER PRIMARY KEY, username TEXT NOT NULL, cursor_message_id INTEGER NOT NULL DEFAULT 0, last_polled_at INTEGER, last_error TEXT, failures INTEGER NOT NULL DEFAULT 0, FOREIGN KEY (rule_id) REFERENCES post_sources(id) ON DELETE CASCADE );',

@@ -622,17 +622,35 @@ export async function finalizePost(db: D1Database, queueId: number, publishAt: n
 
 /** پست‌های آماده (وقت انتشار رسیده یا آلبوم تمام‌شده) */
 export async function listReadyPosts(db: D1Database, now: number, limit: number): Promise<number[]> {
-	const { results } = await db
-		.prepare(
-			`SELECT id FROM post_queue
-			 WHERE (status = 'scheduled' AND publish_at <= ?)
-			    OR (status = 'collecting' AND finalize_at IS NOT NULL AND finalize_at <= ?)
-			 ORDER BY publish_at ASC
-			 LIMIT ?`,
-		)
-		.bind(now, now, limit)
-		.all<{ id: number }>();
-	return (results ?? []).map((r) => Number(r.id));
+	// چرا دو SELECT و نه یک `OR`؟ چون در `OR`، SQLite هر دو شاخه را جمع می‌کند و
+	// برای `ORDER BY publish_at` یک TEMP B-TREE روی **همه‌ی** ردیف‌های سررسیده
+	// می‌سازد (یعنی `LIMIT` زودتر تمام نمی‌شود) و شاخه‌ی `collecting` فقط با
+	// پیشوند `status = ?` جلو می‌رود. با دو کوئری، هر شاخه روی ایندکس خودش مرتب
+	// است و بعد از `LIMIT` تمام می‌شود؛ ادغامشان در حافظه روی حداکثر ۲×limit ردیف
+	// انجام می‌شود. `batch` یعنی این دو در **یک** رفت‌وبرگشت به D1 می‌روند.
+	const [scheduled, collecting] = await db.batch<{ id: number; publish_at: number }>([
+		db
+			.prepare(
+				`SELECT id, publish_at FROM post_queue
+				 WHERE status = 'scheduled' AND publish_at <= ?
+				 ORDER BY publish_at ASC
+				 LIMIT ?`,
+			)
+			.bind(now, limit),
+		db
+			.prepare(
+				`SELECT id, publish_at FROM post_queue
+				 WHERE status = 'collecting' AND finalize_at IS NOT NULL AND finalize_at <= ?
+				 ORDER BY publish_at ASC
+				 LIMIT ?`,
+			)
+			.bind(now, limit),
+	]);
+
+	// یک ردیف یا `scheduled` است یا `collecting`، پس ادغام تکراری ندارد.
+	const ready = [...(scheduled?.results ?? []), ...(collecting?.results ?? [])];
+	ready.sort((a, b) => Number(a.publish_at) - Number(b.publish_at));
+	return ready.slice(0, limit).map((row) => Number(row.id));
 }
 
 /**

@@ -135,6 +135,7 @@ CREATE TABLE IF NOT EXISTS post_queue (
 CREATE INDEX IF NOT EXISTS idx_post_queue_ready ON post_queue(status, publish_at);
 CREATE INDEX IF NOT EXISTS idx_post_queue_target ON post_queue(target_channel_id, status, publish_at);
 CREATE INDEX IF NOT EXISTS idx_post_queue_collect ON post_queue(source_channel_id, media_group_id, status);
+CREATE INDEX IF NOT EXISTS idx_post_queue_finalize ON post_queue(status, finalize_at);
 
 CREATE TABLE IF NOT EXISTS post_queue_items (
   queue_id INTEGER NOT NULL,

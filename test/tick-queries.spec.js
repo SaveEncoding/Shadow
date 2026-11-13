@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import { publishDuePosts } from '../src/telegram/publishQueue.js';
-import { appendItem, createQueuedPost, finalizePost, listPendingPosts } from '../src/telegram/db/postQueue.js';
+import { appendItem, createQueuedPost, finalizePost, listPendingPosts, listReadyPosts } from '../src/telegram/db/postQueue.js';
 import { CHANNELS_TABLE, createScheduleTables, resetScheduleTables } from './helpers/scheduleSchema.js';
 import { countingDb } from './helpers/countingDb.js';
 
@@ -53,18 +53,20 @@ beforeEach(async () => {
 });
 
 describe('cron tick query budget', () => {
-	it('keeps an idle tick at 3 statements / 3 round trips', async () => {
+	it('keeps an idle tick at 4 statements / 3 round trips', async () => {
 		const { result, counter } = await tick();
 
 		expect(result.published).toBe(0);
-		expect(counter.total, counter.summary()).toBe(3);
+		// `listReadyPosts` حالا دو SELECT است (یکی برای scheduled، یکی collecting) که
+		// با `batch` در یک رفت‌وبرگشت می‌روند؛ پس یک statement بیشتر، همان ۳ رفت‌وبرگشت.
+		expect(counter.total, counter.summary()).toBe(4);
 		expect(counter.roundTrips).toBe(3);
 	});
 
 	it('adds only the hourly prune on the hourly tick', async () => {
 		const { counter } = await tick(TICK_WITH_PRUNE);
 		// pruneSeen + pruneEditSessions + prunePendingInputs
-		expect(counter.total, counter.summary()).toBe(6);
+		expect(counter.total, counter.summary()).toBe(7);
 	});
 
 	it('publishes one due post within 10 statements', async () => {
@@ -80,8 +82,8 @@ describe('cron tick query budget', () => {
 
 		const { result, counter } = await tick();
 		expect(result.published).toBe(1);
-		// ۳ کوئری تیک + ۵ کوئری انتشار همین پست (claim، پست، آیتم‌ها، کانال، markPublished)
-		expect(counter.total, counter.summary()).toBeLessThanOrEqual(10);
+		// ۴ کوئری تیک + ۶ کوئری انتشار همین پست (claim، پست، آیتم‌ها، کانال، markPublished، پیش‌نمایش)
+		expect(counter.total, counter.summary()).toBeLessThanOrEqual(11);
 	});
 
 	it('finalizes a due album with a bounded number of statements', async () => {
@@ -117,5 +119,59 @@ describe('cron tick query budget', () => {
 		const posts = await listPendingPosts(db, TARGET, 10);
 		expect(posts).toHaveLength(5);
 		expect(counter.total, counter.summary()).toBe(2);
+	});
+});
+
+describe('listReadyPosts', () => {
+	/** یک پست با زمان انتشار مشخص می‌سازد (scheduled) */
+	async function scheduledPost(publishAt) {
+		const id = await createQueuedPost(env.my_database, {
+			sourceChannelId: -100,
+			targetChannelId: TARGET,
+			mediaGroupId: null,
+			createdBy: 5,
+			now: NOW,
+		});
+		await appendItem(env.my_database, id, textItem(1, `پست ${id}`), NOW);
+		await finalizePost(env.my_database, id, publishAt, NOW);
+		return id;
+	}
+
+	/** یک پست در حال جمع‌آوری که مهلت آلبومش سر رسیده است */
+	async function collectingPost(publishAt) {
+		const id = await createQueuedPost(env.my_database, {
+			sourceChannelId: -100,
+			targetChannelId: TARGET,
+			mediaGroupId: 'g',
+			createdBy: 5,
+			now: publishAt,
+		});
+		await appendItem(env.my_database, id, textItem(1, `آلبوم ${id}`), publishAt, NOW - 1);
+		return id;
+	}
+
+	it('returns the earliest due posts when the backlog exceeds the limit', async () => {
+		const ids = [];
+		for (let i = 0; i < 30; i++) ids.push(await scheduledPost(NOW - 1000 + i));
+
+		const ready = await listReadyPosts(env.my_database, NOW, 10);
+		expect(ready).toHaveLength(10);
+		expect(ready).toEqual(ids.slice(0, 10));
+	});
+
+	it('does not return posts that are not due yet', async () => {
+		const due = await scheduledPost(NOW - 10);
+		await scheduledPost(NOW + 600);
+
+		const ready = await listReadyPosts(env.my_database, NOW, 10);
+		expect(ready).toEqual([due]);
+	});
+
+	it('merges due collecting posts in publish_at order', async () => {
+		const early = await collectingPost(NOW - 5000);
+		const late = await scheduledPost(NOW - 1);
+
+		const ready = await listReadyPosts(env.my_database, NOW, 10);
+		expect(ready).toEqual([early, late]);
 	});
 });
