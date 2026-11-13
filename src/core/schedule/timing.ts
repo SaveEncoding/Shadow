@@ -75,7 +75,7 @@ export function formatRemaining(publishAtSeconds: number, nowSeconds: number): s
 
 export function toPersianDigits(value: number | string): string {
 	const digits = '۰۱۲۳۴۵۶۷۸۹';
-	return String(value).replace(/\d/g, (d) => digits[Number(d)]);
+	return String(value).replace(/\d/g, (d) => digits[Number(d)]!);
 }
 
 /** «پنجشنبه ۲ آبان، ساعت ۱۴:۳۰» به وقت تهران */
