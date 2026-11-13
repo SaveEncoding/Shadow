@@ -8,6 +8,7 @@ import {
 	describeItems,
 	helpText,
 	manualCaptureText,
+	publishedNotificationText,
 	postDetailKeyboard,
 	postDetailText,
 	queueKeyboard,
@@ -271,6 +272,18 @@ describe('queue and post detail', () => {
 	it('labels statuses in Persian', () => {
 		expect(statusLabel('published')).toContain('منتشر');
 		expect(statusLabel('nonsense')).toBe('nonsense');
+	});
+
+	it('shows a warning line when the published post was not complete', () => {
+		const published = { ...post(), status: 'published', publishedAt: NOW, publishedMessageId: 5 };
+		const base = publishedNotificationText(published, 'کانال من', 'https://t.me/my_channel/5');
+
+		expect(base).toContain('منتشر شد');
+		expect(base).not.toContain('⚠️');
+
+		const withNote = publishedNotificationText(published, 'کانال من', 'https://t.me/my_channel/5', '۱ آیتم از آلبوم منتشر نشد');
+		expect(withNote).toContain('⚠️');
+		expect(withNote).toContain('۱ آیتم از آلبوم منتشر نشد');
 	});
 
 	it('keeps every callback under the 64-byte Telegram limit', () => {

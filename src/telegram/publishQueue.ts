@@ -136,7 +136,7 @@ export async function publishOne(api: SchedulerApi, db: D1Database, postId: numb
 	if (result.ok) {
 		await markPublished(db, postId, result.messageId, now);
 		const link = channelPostLink(channel?.username ?? null, result.messageId);
-		await upsertPreview(api, db, post, publishedNotificationText({ ...post, publishedAt: now }, title, link), null, now);
+		await upsertPreview(api, db, post, publishedNotificationText({ ...post, publishedAt: now }, title, link, result.note), null, now);
 		return { ok: true, status: 'published' };
 	}
 

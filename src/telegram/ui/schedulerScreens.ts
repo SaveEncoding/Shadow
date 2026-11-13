@@ -434,10 +434,12 @@ export function queuedNotificationText(post: QueuePost, channelTitle: string, no
 	return lines.join('\n');
 }
 
-export function publishedNotificationText(post: QueuePost, channelTitle: string, link: string | null): string {
+export function publishedNotificationText(post: QueuePost, channelTitle: string, link: string | null, note: string | null = null): string {
 	const lines = ['✅ <b>منتشر شد</b>', '', describeItems(post.items), '', `مقصد: <b>${escapeHtml(channelTitle)}</b>`];
 	if (post.publishedAt) lines.push(`🕒 ${formatTehran(post.publishedAt)}`);
 	if (link) lines.push('', `🔗 ${link}`);
+	// پست منتشر شده ولی کامل نبوده (مثلاً یک آیتم آلبوم حذف شده)؛ ادمین باید بداند
+	if (note) lines.push('', `⚠️ ${escapeHtml(note)}`);
 	return lines.join('\n');
 }
 
