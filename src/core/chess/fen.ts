@@ -67,7 +67,13 @@ export function parseFen(fen: string): Position {
 	const parts = fen.trim().split(/\s+/);
 	if (parts.length < 2) throw new FenError('FEN needs at least board and side to move');
 
-	const [boardPart, turnPart, castlingPart, epPart, halfPart, fullPart] = parts;
+	// `parts.length >= 2` بالا تضمین شده؛ بقیه اختیاری‌اند (FENهای کوتاه هم پذیرفته می‌شوند).
+	const boardPart = parts[0]!;
+	const turnPart = parts[1]!;
+	const castlingPart = parts[2];
+	const epPart = parts[3];
+	const halfPart = parts[4];
+	const fullPart = parts[5];
 	const place = boardPart.split('/');
 	if (place.length !== 8) throw new FenError(`FEN board must have 8 ranks, got ${place.length}`);
 
@@ -75,7 +81,7 @@ export function parseFen(fen: string): Position {
 	for (let r = 0; r < 8; r++) {
 		const rank = 7 - r; // رتبه‌ی اول FEN، رتبه‌ی هشتم تخته است
 		let file = 0;
-		for (const ch of place[r]) {
+		for (const ch of place[r]!) {
 			if (/[1-8]/.test(ch)) {
 				file += Number(ch);
 				if (file > 8) throw new FenError(`rank ${8 - r} overflows`);
@@ -136,7 +142,7 @@ export function toFen(pos: Position): string {
 		let out = '';
 		let empty = 0;
 		for (let file = 0; file < 8; file++) {
-			const piece = pos.board[squareAt(file, rank)];
+			const piece = pos.board[squareAt(file, rank)]!;
 			if (piece === 0) {
 				empty++;
 				continue;
@@ -145,7 +151,7 @@ export function toFen(pos: Position): string {
 				out += String(empty);
 				empty = 0;
 			}
-			const ch = PIECE_TO_CHAR[Math.abs(piece)];
+			const ch = PIECE_TO_CHAR[Math.abs(piece)]!;
 			out += piece > 0 ? ch.toUpperCase() : ch;
 		}
 		if (empty) out += String(empty);

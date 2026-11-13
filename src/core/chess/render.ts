@@ -48,7 +48,7 @@ export function renderBoardLines(pos: Position, options: BoardRenderOptions = {}
 		let line = `${rank + 1} `;
 		for (const file of files) {
 			const sq = rank * 8 + file;
-			const piece = pos.board[sq];
+			const piece = pos.board[sq]!;
 			let cell: string;
 			if (sq === options.selected) {
 				cell = SELECTED_CELL;

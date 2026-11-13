@@ -123,7 +123,7 @@ export function pseudoMoves(pos: Position): Move[] {
 	const promoRank = turn === 'w' ? 7 : 0;
 
 	for (let from = 0; from < 64; from++) {
-		const piece = board[from];
+		const piece = board[from]!;
 		if (piece === 0 || piece * sign <= 0) continue;
 
 		const type = Math.abs(piece);
@@ -146,7 +146,7 @@ export function pseudoMoves(pos: Position): Move[] {
 					const f = file + df;
 					if (f < 0 || f > 7) continue;
 					const to = oneRank * 8 + f;
-					const target = board[to];
+					const target = board[to]!;
 					if (target === KING * enemy) continue;
 					if (target !== 0 && target * enemy > 0) {
 						addPawnMove(out, from, to, piece, target, oneRank === promoRank);
@@ -165,7 +165,7 @@ export function pseudoMoves(pos: Position): Move[] {
 				const r = rank + dr;
 				if (!onBoard(f, r)) continue;
 				const to = r * 8 + f;
-				const target = board[to];
+				const target = board[to]!;
 				if (target !== 0 && target * sign > 0) continue;
 				if (target === KING * enemy) continue; // گرفتن شاه هرگز حرکت قانونی نیست
 				out.push({ from, to, piece, captured: target });
@@ -179,7 +179,7 @@ export function pseudoMoves(pos: Position): Move[] {
 			let r = rank + dr;
 			while (onBoard(f, r)) {
 				const to = r * 8 + f;
-				const target = board[to];
+				const target = board[to]!;
 				if (target === 0) {
 					out.push({ from, to, piece, captured: 0 });
 				} else {

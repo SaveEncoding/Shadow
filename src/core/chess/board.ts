@@ -25,13 +25,13 @@ export function onBoard(file: number, rank: number): boolean {
 
 /** شماره‌ی خانه ← نام جبری؛ مثلاً 4 → "e1" */
 export function squareName(sq: number): string {
-	return `${FILES[fileOf(sq)]}${rankOf(sq) + 1}`;
+	return `${FILES[fileOf(sq)]!}${rankOf(sq) + 1}`;
 }
 
 /** نام جبری ← شماره‌ی خانه؛ ورودی نامعتبر → null */
 export function parseSquare(name: string): Square | null {
 	if (typeof name !== 'string' || name.length !== 2) return null;
-	const file = FILES.indexOf(name[0].toLowerCase());
+	const file = FILES.indexOf(name.charAt(0).toLowerCase());
 	const rank = Number(name[1]) - 1;
 	if (file < 0 || !Number.isInteger(rank) || rank < 0 || rank > 7) return null;
 	return squareAt(file, rank);

@@ -74,11 +74,11 @@ function isEndgame(pos: Position): boolean {
 	let material = 0;
 	let queens = 0;
 	for (let i = 0; i < 64; i++) {
-		const p = pos.board[i];
+		const p = pos.board[i]!;
 		if (p === 0) continue;
 		const type = Math.abs(p);
 		if (type === KING) continue;
-		material += PIECE_VALUE[type];
+		material += PIECE_VALUE[type]!;
 		if (type === QUEEN) queens++;
 	}
 	return queens === 0 || material < 2400;
@@ -92,13 +92,13 @@ export function evaluate(pos: Position): number {
 	const endgame = isEndgame(pos);
 
 	for (let sq = 0; sq < 64; sq++) {
-		const piece = board[sq];
+		const piece = board[sq]!;
 		if (piece === 0) continue;
 
 		const type = Math.abs(piece);
 		const white = piece > 0;
 		const index = white ? sq : mirror(sq);
-		const value = PIECE_VALUE[type] + (type === KING ? (endgame ? KING_END_PST[index] : KING_MIDDLE_PST[index]) : PST[type][index]);
+		const value = PIECE_VALUE[type]! + (type === KING ? (endgame ? KING_END_PST[index]! : KING_MIDDLE_PST[index]!) : PST[type]![index]!);
 
 		score += white ? value : -value;
 

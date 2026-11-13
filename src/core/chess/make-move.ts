@@ -9,12 +9,12 @@
 import { CASTLE_BK, CASTLE_BQ, CASTLE_WK, CASTLE_WQ, PAWN, type Move, type Position, type Undo } from './types.js';
 
 const CASTLE_MASK = new Int8Array(64).fill(15);
-CASTLE_MASK[0] &= ~CASTLE_WQ; // a1
-CASTLE_MASK[4] &= ~(CASTLE_WK | CASTLE_WQ); // e1
-CASTLE_MASK[7] &= ~CASTLE_WK; // h1
-CASTLE_MASK[56] &= ~CASTLE_BQ; // a8
-CASTLE_MASK[60] &= ~(CASTLE_BK | CASTLE_BQ); // e8
-CASTLE_MASK[63] &= ~CASTLE_BK; // h8
+CASTLE_MASK[0] = CASTLE_MASK[0]! & ~CASTLE_WQ; // a1
+CASTLE_MASK[4] = CASTLE_MASK[4]! & ~(CASTLE_WK | CASTLE_WQ); // e1
+CASTLE_MASK[7] = CASTLE_MASK[7]! & ~CASTLE_WK; // h1
+CASTLE_MASK[56] = CASTLE_MASK[56]! & ~CASTLE_BQ; // a8
+CASTLE_MASK[60] = CASTLE_MASK[60]! & ~(CASTLE_BK | CASTLE_BQ); // e8
+CASTLE_MASK[63] = CASTLE_MASK[63]! & ~CASTLE_BK; // h8
 
 /** خانه‌ای که پیاده‌ی گرفته‌شده در en-passant روی آن است */
 export function capturedSquareFor(move: Move): number {
@@ -44,11 +44,11 @@ export function applyMove(pos: Position, move: Move): Undo {
 	if (move.castle) {
 		const rookFrom = move.castle === 'k' ? move.from + 3 : move.from - 4;
 		const rookTo = move.castle === 'k' ? move.from + 1 : move.from - 1;
-		board[rookTo] = board[rookFrom];
+		board[rookTo] = board[rookFrom]!;
 		board[rookFrom] = 0;
 	}
 
-	pos.castling &= CASTLE_MASK[move.from] & CASTLE_MASK[move.to];
+	pos.castling &= CASTLE_MASK[move.from]! & CASTLE_MASK[move.to]!;
 
 	// en-passant تنها بعد از پیشروی دو خانه‌ای پیاده معنا دارد
 	if (Math.abs(move.piece) === PAWN && Math.abs(move.to - move.from) === 16) {
@@ -84,7 +84,7 @@ export function undoMove(pos: Position, undo: Undo): void {
 	if (move.castle) {
 		const rookFrom = move.castle === 'k' ? move.from + 3 : move.from - 4;
 		const rookTo = move.castle === 'k' ? move.from + 1 : move.from - 1;
-		board[rookFrom] = board[rookTo];
+		board[rookFrom] = board[rookTo]!;
 		board[rookTo] = 0;
 	}
 
