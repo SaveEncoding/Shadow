@@ -94,6 +94,27 @@ describe('buildPublishPlan', () => {
 		expect(plan.args[2]).toMatchObject({ width: 720, height: 1280, duration: 12, supports_streaming: true });
 	});
 
+	it('puts the album caption on the first item only', () => {
+		// رگرسیون: کپشنِ آیتم‌های بعدی در تلگرام دیده نمی‌شود ولی پردازش می‌شود؛
+		// یک لینکِ شکسته در آن‌ها کل آلبوم را با WEBPAGE_CURL_FAILED رد می‌کرد.
+		const plan = buildPublishPlan(post([mediaItem('photo', 'a', 'متن'), mediaItem('photo', 'b', 'https://x.test/a')]), TARGET);
+		const media = plan.args[1];
+		expect(media[0]).toMatchObject({ type: 'photo', media: 'a', caption: 'متن' });
+		expect(media[1]).toMatchObject({ type: 'photo', media: 'b' });
+		expect(media[1].caption).toBeUndefined();
+		expect(media[1].caption_entities).toBeUndefined();
+	});
+
+	it('hoists the album caption when the first item has none', () => {
+		const item = { ...mediaItem('photo', 'b', 'کپشن اصلی'), sourceMessageId: 2 };
+		item.entities = [{ type: 'bold', offset: 0, length: 5 }];
+		const plan = buildPublishPlan(post([mediaItem('photo', 'a'), item]), TARGET);
+		const media = plan.args[1];
+		expect(media[0]).toMatchObject({ media: 'a', caption: 'کپشن اصلی' });
+		expect(media[0].caption_entities).toEqual([{ type: 'bold', offset: 0, length: 5 }]);
+		expect(media[1].caption).toBeUndefined();
+	});
+
 	it('groups several items into one album', () => {
 		const plan = buildPublishPlan(post([mediaItem('photo', 'a', 'اول'), mediaItem('photo', 'b'), mediaItem('video', 'c')]), TARGET);
 		expect(plan.method).toBe('sendMediaGroup');
@@ -212,6 +233,100 @@ describe('executePublishPlan', () => {
 		expect(result.ok).toBe(false);
 		expect(result.errorCode).toBe(403);
 		expect(result.error).toContain('not a member');
+	});
+
+	it('retries the album without the item Telegram could not fetch', async () => {
+		// رگرسیونِ واقعی: یک آلبوم ۴ عکسی که آیتم چهارمش فقط URL داشت و تلگرام
+		// نتوانست آن را بگیرد ⇒ `WEBPAGE_CURL_FAILED` و کل آلبوم رد شد.
+		const { api, calls } = stubApi((method, args) => {
+			if (method !== 'sendMediaGroup') return { message_id: 1 };
+			if (args[1].length === 4) {
+				const err = new Error('Bad Request: failed to send message #4 with the error message "WEBPAGE_CURL_FAILED"');
+				err.error_code = 400;
+				throw err;
+			}
+			return args[1].map((_, index) => ({ message_id: 900 + index }));
+		});
+
+		const items = [
+			mediaItem('photo', 'file-1', 'کپشن آلبوم'),
+			{ ...mediaItem('photo', 'file-2'), sourceMessageId: 2 },
+			{ ...mediaItem('photo', 'file-3'), sourceMessageId: 3 },
+			{ ...mediaItem('photo', null, null, {}), sourceMessageId: 4, extra: { sourceUrl: 'https://cdn.example/4.jpg' } },
+		];
+
+		const result = await executePublishPlan(api, buildPublishPlan(post(items), TARGET));
+
+		expect(result.ok).toBe(true);
+		expect(calls).toHaveLength(2);
+		expect(calls[1].method).toBe('sendMediaGroup');
+		expect(calls[1].args[1]).toHaveLength(3);
+		// کپشن روی آیتم اولِ آلبوم کوتاه‌شده حفظ می‌شود
+		expect(calls[1].args[1][0]).toMatchObject({ media: 'file-1', caption: 'کپشن آلبوم' });
+		expect(calls[1].args[1].map((entry) => entry.media)).not.toContain('https://cdn.example/4.jpg');
+	});
+
+	it('falls back to a single media send when only one item survives', async () => {
+		const { api, calls } = stubApi((method, args) => {
+			if (method === 'sendMediaGroup') {
+				const err = new Error('Bad Request: failed to send message #2 with the error message "WEBPAGE_CURL_FAILED"');
+				err.error_code = 400;
+				throw err;
+			}
+			return { message_id: 77 };
+		});
+
+		const items = [
+			mediaItem('photo', 'file-1', 'کپشن'),
+			{ ...mediaItem('photo', null), sourceMessageId: 2, extra: { sourceUrl: 'https://cdn.example/2.jpg' } },
+		];
+		const result = await executePublishPlan(api, buildPublishPlan(post(items), TARGET));
+
+		expect(result.ok).toBe(true);
+		expect(result.messageId).toBe(77);
+		expect(calls[1].method).toBe('sendPhoto');
+		expect(calls[1].args[1]).toBe('file-1');
+		expect(calls[1].args[2]).toMatchObject({ caption: 'کپشن' });
+	});
+
+	it('does not retry errors that are not about fetching a URL', async () => {
+		const { api, calls } = stubApi(() => {
+			const err = new Error('Forbidden: bot was kicked from the channel chat');
+			err.error_code = 403;
+			throw err;
+		});
+
+		const items = [
+			mediaItem('photo', 'file-1'),
+			{ ...mediaItem('photo', null), sourceMessageId: 2, extra: { sourceUrl: 'https://cdn.example/2.jpg' } },
+		];
+		const result = await executePublishPlan(api, buildPublishPlan(post(items), TARGET));
+
+		expect(result.ok).toBe(false);
+		expect(result.errorCode).toBe(403);
+		expect(calls).toHaveLength(1);
+	});
+
+	it('gives up when every album item is a URL and Telegram cannot fetch it', async () => {
+		const { api, calls } = stubApi(() => {
+			const err = new Error('Bad Request: failed to send message #1 with the error message "WEBPAGE_CURL_FAILED"');
+			err.error_code = 400;
+			throw err;
+		});
+
+		const items = [
+			{ ...mediaItem('photo', null, 'کپشن'), extra: { sourceUrl: 'https://cdn.example/1.jpg' } },
+			{ ...mediaItem('photo', null), sourceMessageId: 2, extra: { sourceUrl: 'https://cdn.example/2.jpg' } },
+		];
+		const result = await executePublishPlan(api, buildPublishPlan(post(items), TARGET));
+
+		expect(result.ok).toBe(false);
+		expect(result.error).toContain('WEBPAGE_CURL_FAILED');
+		// آیتم نام‌برده حذف می‌شود و بقیه یک بار دیگر امتحان می‌شوند؛ وقتی آن‌ها هم
+		// URL باشند و باز شکست بخورند، خطا به همان شکل قبل برمی‌گردد.
+		expect(calls[0].args[1]).toHaveLength(2);
+		expect(calls[1].method).toBe('sendPhoto');
+		expect(calls).toHaveLength(2);
 	});
 
 	it('reports unsupported plans without touching the network', async () => {
