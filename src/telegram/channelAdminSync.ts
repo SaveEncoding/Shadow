@@ -1,9 +1,7 @@
 import { Api } from 'grammy';
 import type { Env } from '../types.js';
 import { getChannelsNeedingAdminSync, syncChannelAdmins } from './db/channels.js';
-import { sendMessage } from './services/telegramService.js';
-import { getErrorLogTarget } from './db/settings.js';
-import { errorInfo } from './utils/errorInfo.js';
+import { notifyCronLog } from './services/cronLog.js';
 
 // Each execution synchronizes at most this many channels, ensuring that—even with a very large number of channels—
 // the execution time of each cron job remains limited and predictable. Full coverage is achieved over the course of several
@@ -47,26 +45,13 @@ export async function refreshChannelAdmins(
 
 	// Report the run's outcome to the log chat, same as runScheduledCleanup, so it
 	// can be tracked periodically instead of only living in console logs.
+	// از پنل مدیریت می‌شود فقط همین پیام را خاموش کرد؛ خودِ همگام‌سازی همیشه اجرا می‌شود.
 	const summary =
 		`🔄 همگام‌سازی ادمین‌های کانال انجام شد.\n` +
 		`${channels.length} کانال بررسی شد: +${totalAdded} ادمین اضافه، -${totalRemoved} ادمین حذف` +
 		(failed > 0 ? `، ${failed} کانال با خطا مواجه شد` : ``) +
 		`.`;
-	let logChatId = null;
-	try {
-		const target = await getErrorLogTarget(env.my_database);
-		logChatId = target.chatId;
-		if (logChatId !== null) {
-			await sendMessage(env, logChatId, summary, { threadId: target.threadId });
-		}
-	} catch (err) {
-		const info = errorInfo(err);
-		const reason = info.description || info.message || info.name || String(err) || 'unknown error';
-		console.error(
-			`[refreshChannelAdmins] Failed to notify log chat ${logChatId}: ${reason} (error_code=${info.errorCode ?? 'n/a'})`,
-			info.stack,
-		);
-	}
+	await notifyCronLog(env, 'admin_sync', summary, 'refreshChannelAdmins');
 
 	return { synced: channels.length, added: totalAdded, removed: totalRemoved, failed };
 }

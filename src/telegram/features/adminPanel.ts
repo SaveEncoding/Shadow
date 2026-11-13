@@ -4,8 +4,11 @@ import { Role, roleLabel, isValidRole } from '../constants/roles.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { UserService } from '../services/userService.js';
 import { userRoleActionsKeyboard } from '../keyboards/adminPanel.js';
-import { renderScreen } from '../ui/render.js';
+import { renderScreen, toast } from '../ui/render.js';
 import { errorText } from '../utils/errorInfo.js';
+import { cronNotifyKeyboard, cronNotifyText } from '../ui/screens.js';
+import { getCronNotifyState, setCronNotifyFlag } from '../db/cronNotify.js';
+import { cronNotifyFlag, isCronNotifyTarget, withCronNotifyFlag } from '../../core/settings/cronNotify.js';
 
 /**
  * Admin / founder control panel.
@@ -18,6 +21,31 @@ export function adminPanelFeature(bot: Bot, env: Pick<Env, 'my_database' | 'FOUN
 	const needFounder = requireRole(Role.FOUNDER, env);
 
 	// Menu entry points (panel/stats/settings/help) live in features/menu.js
+
+	// --- اعلان‌های خودکار کرون (فقط پیام، نه خودِ کرون) ---
+	// چرا در پنل مدیریت و نه تنظیمات کاربر؟ چون این یک تنظیم سراسریِ ربات است و
+	// گپ لاگ هم مال ادمین‌هاست؛ کاربر عادی نباید بتواند آن را قطع کند.
+	bot.callbackQuery('admin:cron', needAdmin, async (ctx) => {
+		const state = await getCronNotifyState(env.my_database);
+		await renderScreen(ctx, cronNotifyText(state), cronNotifyKeyboard(state));
+	});
+
+	bot.callbackQuery(/^admin:cron:t:(master|cleanup|admin_sync)$/, needAdmin, async (ctx) => {
+		const target = ctx.match?.[1];
+		if (!isCronNotifyTarget(target)) return toast(ctx, 'کلید نامعتبر است.');
+
+		// یک خواندن + یک نوشتن؛ وضعیت بعدی را بدون کوئری دوم می‌سازیم.
+		const state = await getCronNotifyState(env.my_database);
+		const next = withCronNotifyFlag(state, target, !cronNotifyFlag(state, target));
+
+		try {
+			await setCronNotifyFlag(env.my_database, target, cronNotifyFlag(next, target));
+		} catch (err) {
+			return toast(ctx, `ذخیره نشد: ${errorText(err)}`);
+		}
+
+		await renderScreen(ctx, cronNotifyText(next), cronNotifyKeyboard(next));
+	});
 
 	// --- Role management (founder-centric) ---
 
