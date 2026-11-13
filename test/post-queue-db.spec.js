@@ -22,6 +22,7 @@ import {
 	listReadyPosts,
 	listRulesForTarget,
 	listStuckPosts,
+	loadTickCandidates,
 	markFailed,
 	markMessageSeen,
 	markPublished,
@@ -353,6 +354,22 @@ describe('publishing guards', () => {
 
 		expect(await listStuckPosts(db, NOW + 60, 600)).toHaveLength(0);
 		expect(await listStuckPosts(db, NOW + 601, 600)).toEqual([id]);
+	});
+
+	it('loads stuck and ready ids in one round trip', async () => {
+		const db = env.my_database;
+		const stuck = await makeScheduledPost();
+		await claimForPublish(db, stuck, NOW);
+		const due = await makeScheduledPost('سررسیده', NOW - 10);
+
+		const { db: counted, counter } = countingDb(db);
+		const result = await loadTickCandidates(counted, NOW + 601, { limit: 10, stuckThresholdSeconds: 600 });
+
+		expect(result.stuck).toEqual([stuck]);
+		expect(result.ready).toEqual([due]);
+		// سه SELECT، یک رفت‌وبرگشت — همان چیزی که در تیک گران بود
+		expect(counter.total, counter.summary()).toBe(3);
+		expect(counter.roundTrips).toBe(1);
 	});
 
 	it('cancels and reschedules only active posts', async () => {
