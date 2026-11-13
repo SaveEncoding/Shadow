@@ -94,4 +94,31 @@ describe('tick metrics', () => {
 		expect(line.durationMs).toBeGreaterThanOrEqual(0);
 		expect(line).toMatchObject({ finalized: 0, published: 0, failed: 0, polled: 0, queued: 0 });
 	});
+
+	it('splits the tick into poll, publish and D1 time', async () => {
+		const { result } = await tick();
+		const metrics = result.metrics;
+
+		for (const field of ['durationMs', 'dbMs', 'pollMs', 'publishMs']) {
+			expect(Number.isFinite(metrics[field]), `${field} should be a number`).toBe(true);
+			expect(metrics[field]).toBeGreaterThanOrEqual(0);
+		}
+
+		// `dbMs` بخشی از `durationMs` است، نه چیزی جدا از آن.
+		expect(metrics.dbMs).toBeLessThanOrEqual(metrics.durationMs + 2);
+		// و دو فاز (پیش از پاک‌سازی ساعتی) نباید از کل بیشتر شوند.
+		expect(metrics.pollMs + metrics.publishMs).toBeLessThanOrEqual(metrics.durationMs + 2);
+	});
+
+	it('puts the phase durations on the log line with the same values', async () => {
+		const logs = [];
+		vi.spyOn(console, 'log').mockImplementation((line) => logs.push(line));
+
+		const { result } = await tick();
+		const line = logs.find((entry) => entry && typeof entry === 'object' && entry.event === 'cron.publish');
+
+		expect(line.dbMs).toBe(result.metrics.dbMs);
+		expect(line.pollMs).toBe(result.metrics.pollMs);
+		expect(line.publishMs).toBe(result.metrics.publishMs);
+	});
 });
