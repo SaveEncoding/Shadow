@@ -7,7 +7,7 @@ import siteStyles from './view/styles.css';
 import siteScript from './view/script.js.txt';
 
 // آدرس کنونیکال هر صفحه؛ همینجا برای صفحه‌ی جدید یه ورودی اضافه کن
-const HTML_PAGES = {
+const HTML_PAGES: Record<string, string> = {
 	'/': indexHtml,
 	'/about': aboutHtml,
 	'/telegram': telegramHtml,
@@ -15,21 +15,32 @@ const HTML_PAGES = {
 
 // آدرس‌های قدیمی/جایگزین که باید به نسخه‌ی کنونیکال ریدایرکت بشن
 // (جلوگیری از duplicate content برای سئو - گوگل هر دو رو یه صفحه‌ی جدا حساب نکنه)
-const REDIRECTS = {
+const REDIRECTS: Record<string, string> = {
 	'/index.html': '/',
 	'/about.html': '/about',
 	'/telegram.html': '/telegram',
 };
 
 // فایل‌های باینری (عکس، فونت و غیره) که مستقیم توی بیلد Worker باندل می‌شن
-const BINARY_ASSETS = {
+interface BinaryAsset {
+	data: ArrayBuffer;
+	contentType: string;
+}
+
+interface TextAsset {
+	data: string;
+	contentType: string;
+	maxAge: number;
+}
+
+const BINARY_ASSETS: Record<string, BinaryAsset> = {
 	'/image-1.jpg': { data: logoImage, contentType: 'image/jpeg' },
 };
 
 // فایل‌های متنی (CSS / JS) که به صورت رشته باندل و از همون origin سرو می‌شن.
 // نکته: اسکریپت سمت مرورگر با پسوند "script.js.txt" ذخیره شده تا esbuild/wrangler
 // اون رو متن خام در نظر بگیره، نه اینکه بخواد به عنوان کد داخل Worker اجراش کنه.
-const TEXT_ASSETS = {
+const TEXT_ASSETS: Record<string, TextAsset> = {
 	'/styles.css': { data: siteStyles, contentType: 'text/css; charset=UTF-8', maxAge: 300 },
 	'/script.js': { data: siteScript, contentType: 'text/javascript; charset=UTF-8', maxAge: 300 },
 };
@@ -37,7 +48,7 @@ const TEXT_ASSETS = {
 const ROBOTS_TXT = 'User-agent: *\nAllow: /\n';
 
 // هدرهای امنیتی پایه‌ای که روی تمام پاسخ‌ها اعمال می‌شن
-const SECURITY_HEADERS = {
+const SECURITY_HEADERS: Record<string, string> = {
 	'X-Content-Type-Options': 'nosniff',
 	'X-Frame-Options': 'SAMEORIGIN',
 	'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -46,11 +57,11 @@ const SECURITY_HEADERS = {
 	'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
 
-function withCommonHeaders(headers) {
+function withCommonHeaders(headers: Record<string, string>): Record<string, string> {
 	return { ...SECURITY_HEADERS, ...headers };
 }
 
-function htmlResponse(html, status, method) {
+function htmlResponse(html: string, status: number, method: string): Response {
 	return new Response(method === 'HEAD' ? null : html, {
 		status,
 		headers: withCommonHeaders({
@@ -60,7 +71,7 @@ function htmlResponse(html, status, method) {
 	});
 }
 
-function redirectResponse(location) {
+function redirectResponse(location: string): Response {
 	return new Response(null, {
 		status: 301,
 		headers: withCommonHeaders({
@@ -69,7 +80,7 @@ function redirectResponse(location) {
 	});
 }
 
-function textResponse(body, contentType, maxAge, method) {
+function textResponse(body: string, contentType: string, maxAge: number, method: string): Response {
 	return new Response(method === 'HEAD' ? null : body, {
 		status: 200,
 		headers: withCommonHeaders({
@@ -79,7 +90,7 @@ function textResponse(body, contentType, maxAge, method) {
 	});
 }
 
-function binaryResponse(data, contentType, method) {
+function binaryResponse(data: ArrayBuffer, contentType: string, method: string): Response {
 	return new Response(method === 'HEAD' ? null : data, {
 		status: 200,
 		headers: withCommonHeaders({
@@ -89,7 +100,7 @@ function binaryResponse(data, contentType, method) {
 	});
 }
 
-export async function handleWebsiteUpdate(request, env) {
+export async function handleWebsiteUpdate(request: Request, _env: unknown): Promise<Response> {
 	const url = new URL(request.url);
 	const method = request.method;
 
