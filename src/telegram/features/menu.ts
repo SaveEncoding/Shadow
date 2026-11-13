@@ -1,5 +1,8 @@
+import type { Bot, Context } from 'grammy';
 import { UserService } from '../services/userService.js';
 import { getChannels, getChannelByTelegramId, isUserChannelAdmin, setOfficialSuffix, setSuffixSkipMarker } from '../db/channels.js';
+import type { ChannelRow } from '../db/rows.js';
+import type { Env } from '../../types.js';
 import { Role, RoleLabel } from '../constants/roles.js';
 import { renderScreen, toast } from '../ui/render.js';
 import { sanitizeEntities } from '../utils/messageSuffix.js';
@@ -43,15 +46,15 @@ import {
  * Suffix / skip-marker can be set entirely via glass buttons + the next text message
  * (no dependency on /setsuffix for the happy path).
  */
-export function menuFeature(bot, env) {
+export function menuFeature(bot: Bot, env: Pick<Env, 'my_database' | 'FOUNDER_TELEGRAM_ID'>): void {
 	const userService = new UserService(env.my_database);
 
-	async function roleOf(ctx) {
+	async function roleOf(ctx: Context): Promise<number> {
 		if (!ctx.from?.id) return Role.NORMAL;
 		return userService.getEffectiveRole(ctx.from.id, env);
 	}
 
-	async function requireChannelAdmin(ctx, channelId) {
+	async function requireChannelAdmin(ctx: Context, channelId: number): Promise<ChannelRow | null> {
 		const allowed = await isUserChannelAdmin(env.my_database, channelId, ctx.from.id);
 		if (!allowed) {
 			await toast(ctx, 'دسترسی به این کانال ندارید.');
@@ -66,12 +69,12 @@ export function menuFeature(bot, env) {
 	}
 
 	/** پاک‌کردن «منتظر ورودی» این کاربر (اگر چیزی در انتظار باشد) */
-	const dropPending = async (ctx) => {
+	const dropPending = async (ctx: Context) => {
 		if (ctx.from?.id) await clearPendingInput(env.my_database, ctx.from.id);
 	};
 
 	// ----- Home -----
-	const goHome = async (ctx) => {
+	const goHome = async (ctx: Context) => {
 		await dropPending(ctx);
 		const role = await roleOf(ctx);
 		await renderScreen(ctx, homeText(role), homeKeyboard(role));
@@ -261,7 +264,7 @@ export function menuFeature(bot, env) {
 
 	// ----- Collect text while a glass-button flow is pending -----
 	// Registered before channelsFeature/echo; only consumes when pending is set.
-	bot.on('message:text', async (ctx, next) => {
+	bot.on('message:text', async (ctx: Context, next) => {
 		if (ctx.chat?.type !== 'private' || !ctx.from?.id) return next();
 
 		const pending = await getPendingInput(env.my_database, ctx.from.id, Math.floor(Date.now() / 1000));
