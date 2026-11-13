@@ -1,4 +1,5 @@
 import { InlineKeyboard } from 'grammy';
+import { escapeHtml } from '../../core/text/escape.js';
 import { Role, roleLabel } from '../constants/roles.js';
 
 /** @param {number} [userRole] */
@@ -300,10 +301,6 @@ export function soonText(featureKey) {
 
 export function soonKeyboard() {
 	return new InlineKeyboard().text('🏠 منوی اصلی', 'm:h');
-}
-
-function escapeHtml(str) {
-	return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function truncate(s, n) {
