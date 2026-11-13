@@ -29,7 +29,7 @@ export interface BoardRenderOptions {
 	/** از دید کدام رنگ؟ پیش‌فرض سفید */
 	perspective?: Color;
 	/** خانه‌هایی که مقصد قانونی‌اند (با نشانگر نمایش داده می‌شوند) */
-	targets?: number[];
+	targets?: readonly number[];
 	/** خانه‌ی انتخاب‌شده */
 	selected?: number;
 	/** نمایش مختصات a-h و 1-8 */

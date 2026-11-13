@@ -1,7 +1,7 @@
 import { InlineKeyboard } from 'grammy';
 import { Role, ASSIGNABLE_ROLES, roleLabel } from '../constants/roles.js';
 
-export function adminPanelKeyboard(viewerRole) {
+export function adminPanelKeyboard(viewerRole: number): InlineKeyboard {
 	const kb = new InlineKeyboard()
 		.text('📈 آمار نقش‌ها', 'stats')
 		.text('📋 کاربران ویژه', 'admin:list_privileged')
@@ -16,7 +16,7 @@ export function adminPanelKeyboard(viewerRole) {
 	return kb;
 }
 
-export function rolePickerKeyboard(targetId) {
+export function rolePickerKeyboard(targetId: number): InlineKeyboard {
 	const kb = new InlineKeyboard();
 	for (const r of ASSIGNABLE_ROLES) {
 		kb.text(roleLabel(r), `admin:setrole:${targetId}:${r}`).row();
@@ -24,7 +24,7 @@ export function rolePickerKeyboard(targetId) {
 	return kb;
 }
 
-export function userRoleActionsKeyboard(targetId, currentRole) {
+export function userRoleActionsKeyboard(targetId: number, currentRole: number): InlineKeyboard {
 	const kb = new InlineKeyboard();
 	for (const r of ASSIGNABLE_ROLES) {
 		const mark = r === currentRole ? '✓ ' : '';
