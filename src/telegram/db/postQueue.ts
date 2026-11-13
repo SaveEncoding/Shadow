@@ -809,12 +809,24 @@ export async function getPost(db: D1Database, id: number): Promise<QueuePost | n
  * هر دو حالت در یک `UPDATE` اتمیک هستند (`scheduled` و آلبومی که هنوز
  * `collecting` است)؛ قبلاً دو UPDATE پشت‌سرهم بود که هم یک رفت‌وبرگشت
  * اضافه داشت و هم برنده‌شدن را به ترتیب اجرا گره می‌زد.
+ *
+ * چرا `failed` هم قابل گرفتن است؟ چون تنها راهِ کاربر برای نجاتِ یک پستِ
+ * شکست‌خورده دکمه‌ی «انتشار الان» است (کرون فقط `scheduled`/`collecting` را
+ * برمی‌دارد). پستِ `failed` را هیچ مسیر خودکاری نمی‌فرستد، پس گرفتنش امن است.
+ *
+ * چرا `attempts` صفر می‌شود؟ تلاشِ دستی یعنی ادمین دوباره خواسته است. اگر
+ * شمارنده سر جایش می‌ماند، پستی که سقفِ ۳ تلاش را پر کرده با اولین خطای
+ * موقتِ بعدی بلافاصله می‌شکست. صفر کردن یعنی یک نردبانِ تلاشِ تازه — و چون
+ * هیچ مسیر خودکاری پستِ `failed` را برنمی‌دارد، حلقه‌ای درست نمی‌شود.
  */
 export async function claimForPublish(db: D1Database, id: number, now: number): Promise<boolean> {
 	const result = await db
 		.prepare(
-			`UPDATE post_queue SET status = 'publishing', updated_at = ?
-			 WHERE id = ? AND status IN ('scheduled', 'collecting')`,
+			`UPDATE post_queue
+			    SET status = 'publishing',
+			        updated_at = ?,
+			        attempts = CASE WHEN status = 'failed' THEN 0 ELSE attempts END
+			  WHERE id = ? AND status IN ('scheduled', 'collecting', 'failed')`,
 		)
 		.bind(now, id)
 		.run();

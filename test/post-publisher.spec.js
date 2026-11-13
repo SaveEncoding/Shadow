@@ -211,7 +211,7 @@ describe('executePublishPlan', () => {
 		const { api, calls } = stubApi(() => ({ message_id: 321 }));
 		const result = await executePublishPlan(api, buildPublishPlan(post([textItem('سلام')]), TARGET));
 
-		expect(result).toEqual({ ok: true, messageId: 321, error: null, errorCode: null });
+		expect(result).toEqual({ ok: true, messageId: 321, error: null, errorCode: null, note: null });
 		expect(calls[0].method).toBe('sendMessage');
 	});
 
@@ -258,6 +258,8 @@ describe('executePublishPlan', () => {
 		const result = await executePublishPlan(api, buildPublishPlan(post(items), TARGET));
 
 		expect(result.ok).toBe(true);
+		// ادمین باید بداند آلبوم کامل نبوده است
+		expect(result.note).toContain('۱ آیتم از آلبوم منتشر نشد');
 		expect(calls).toHaveLength(2);
 		expect(calls[1].method).toBe('sendMediaGroup');
 		expect(calls[1].args[1]).toHaveLength(3);

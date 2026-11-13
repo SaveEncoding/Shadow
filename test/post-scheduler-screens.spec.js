@@ -6,8 +6,10 @@ import {
 	channelScheduleText,
 	delayPickerKeyboard,
 	describeItems,
+	failedNotificationText,
 	helpText,
 	manualCaptureText,
+	publishedNotificationText,
 	postDetailKeyboard,
 	postDetailText,
 	queueKeyboard,
@@ -271,6 +273,30 @@ describe('queue and post detail', () => {
 	it('labels statuses in Persian', () => {
 		expect(statusLabel('published')).toContain('منتشر');
 		expect(statusLabel('nonsense')).toBe('nonsense');
+	});
+
+	it('explains an unfetchable-media failure instead of blaming permissions', () => {
+		const base = failedNotificationText({ ...post(), lastError: 'Forbidden: bot is not a member' }, 'کانال من');
+		expect(base).toContain('ادمین است');
+
+		const unfetchable = failedNotificationText(
+			{ ...post(), lastError: 'Bad Request: failed to send message #4 with the error message "WEBPAGE_CURL_FAILED"' },
+			'کانال من',
+		);
+		expect(unfetchable).toContain('نتوانست یکی از آیتم‌ها را خودش دریافت کند');
+		expect(unfetchable).not.toContain('ادمین است');
+	});
+
+	it('shows a warning line when the published post was not complete', () => {
+		const published = { ...post(), status: 'published', publishedAt: NOW, publishedMessageId: 5 };
+		const base = publishedNotificationText(published, 'کانال من', 'https://t.me/my_channel/5');
+
+		expect(base).toContain('منتشر شد');
+		expect(base).not.toContain('⚠️');
+
+		const withNote = publishedNotificationText(published, 'کانال من', 'https://t.me/my_channel/5', '۱ آیتم از آلبوم منتشر نشد');
+		expect(withNote).toContain('⚠️');
+		expect(withNote).toContain('۱ آیتم از آلبوم منتشر نشد');
 	});
 
 	it('keeps every callback under the 64-byte Telegram limit', () => {

@@ -11,6 +11,7 @@
  *   - یک مسیر کد به‌جای دو مسیر (کپی دست‌نخورده و ارسال ویرایش‌شده).
  */
 
+import { toPersianDigits } from '../../core/schedule/timing.js';
 import type { PostItem, QueuePost } from '../../core/schedule/types.js';
 import { MAX_CAPTION_LENGTH, splitTextWithEntities } from '../../core/text/split.js';
 import type { HtmlTextEntity } from '../../core/text/htmlToEntities.js';
@@ -55,6 +56,11 @@ export interface PublishResult {
 	messageId: number | null;
 	error: string | null;
 	errorCode: number | null;
+	/**
+	 * توضیح فارسی برای ادمین وقتی پست منتشر شده ولی **کامل** نبوده است
+	 * (مثلاً یک آیتمِ آلبوم حذف شده). `null` یعنی همه چیز کامل بوده.
+	 */
+	note: string | null;
 }
 
 const SINGLE_MEDIA_METHOD: Record<string, SendMethod> = {
@@ -346,7 +352,7 @@ export function describeTelegramError(err: unknown): { message: string; code: nu
  */
 export async function executePublishPlan(api: PublisherApi, plan: PublishPlan): Promise<PublishResult> {
 	if (plan.method === 'unsupported') {
-		return { ok: false, messageId: null, error: plan.reason, errorCode: null };
+		return { ok: false, messageId: null, error: plan.reason, errorCode: null, note: null };
 	}
 
 	// چند پیام: اگر یکی شکست بخورد، همان شکست برگردانده می‌شود تا ادمین بداند
@@ -356,11 +362,11 @@ export async function executePublishPlan(api: PublisherApi, plan: PublishPlan): 
 		for (const step of plan.steps) {
 			const result = await executePlanOnce(api, step);
 			if (!result.ok) {
-				return { ok: false, messageId: firstId, error: result.error, errorCode: result.errorCode };
+				return { ok: false, messageId: firstId, error: result.error, errorCode: result.errorCode, note: result.note };
 			}
 			if (firstId === null) firstId = result.messageId;
 		}
-		return { ok: firstId !== null, messageId: firstId, error: null, errorCode: null };
+		return { ok: firstId !== null, messageId: firstId, error: null, errorCode: null, note: null };
 	}
 
 	const result = await executePlanOnce(api, plan);
@@ -372,7 +378,15 @@ export async function executePublishPlan(api: PublisherApi, plan: PublishPlan): 
 		const shorter = albumWithoutFailingItem(plan, result.error);
 		if (shorter) {
 			console.warn('[postPublisher] Telegram could not fetch an album item; retrying without it:', result.error);
-			return executePlanOnce(api, shorter);
+			const retried = await executePlanOnce(api, shorter);
+			if (retried.ok) {
+				const dropped = plan.items - shorter.items;
+				return {
+					...retried,
+					note: `${toPersianDigits(dropped)} آیتم از آلبوم منتشر نشد، چون تلگرام نتوانست آن را دریافت کند.`,
+				};
+			}
+			return retried;
 		}
 	}
 
@@ -383,14 +397,14 @@ async function executePlanOnce(api: PublisherApi, plan: SingleStepPlan): Promise
 	try {
 		const fn = (api as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[plan.method];
 		if (typeof fn !== 'function') {
-			return { ok: false, messageId: null, error: `متد ${plan.method} در کلاینت موجود نیست.`, errorCode: null };
+			return { ok: false, messageId: null, error: `متد ${plan.method} در کلاینت موجود نیست.`, errorCode: null, note: null };
 		}
 		const result = (await fn.apply(api, plan.args)) as { message_id?: number } | Array<{ message_id?: number }>;
 		const messageId = Array.isArray(result) ? (result[0]?.message_id ?? null) : (result?.message_id ?? null);
-		return { ok: true, messageId: messageId === null ? null : Number(messageId), error: null, errorCode: null };
+		return { ok: true, messageId: messageId === null ? null : Number(messageId), error: null, errorCode: null, note: null };
 	} catch (err) {
 		const { message, code } = describeTelegramError(err);
-		return { ok: false, messageId: null, error: message, errorCode: code };
+		return { ok: false, messageId: null, error: message, errorCode: code, note: null };
 	}
 }
 
