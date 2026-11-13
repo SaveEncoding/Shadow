@@ -85,7 +85,7 @@ export function describeNonOwnerStatus(memberStatus: string): string {
  * Registering a channel by forwarding a post from that channel, after verifying that  
  * the user is indeed the admin/owner of that channel.
  */
-export function channelsFeature(bot: Bot, env: Pick<Env, 'my_database'>): void {
+export function channelsFeature(bot: Bot, env: Pick<Env, 'my_database' | 'TELEGRAM_TOKEN'>): void {
 	// add_channel / my_channels callbacks → features/menu.js
 
 	// This handler must be registered in `FEATURES` before `echo`; for messages that are not channel forwards (in a private chat), `next()` is called so that `echo` can process them as well.

@@ -1,4 +1,5 @@
-import { InlineKeyboard } from 'grammy';
+import { InlineKeyboard, type Bot, type Context } from 'grammy';
+import type { Env } from '../../types.js';
 import { escapeHtml } from '../../core/text/escape.js';
 import {
 	getChannelByTelegramId,
@@ -34,7 +35,23 @@ import { editMessageTextWithEntities, editMessageCaptionWithEntities } from '../
  * Formatting of the original body is preserved via Telegram entities
  * (not HTML round-trip).
  */
-export function channelSuffixFeature(bot, env) {
+/** env موردنیاز این فیچر: دیتابیس + توکن برای ویرایش پست کانال */
+export type SuffixEnv = Pick<Env, 'my_database' | 'TELEGRAM_TOKEN'>;
+
+/** نتیجه‌ی تلاش برای اعمال خودکار پسوند (برای تست و لاگ) */
+export interface SuffixApplyResult {
+	applied: boolean;
+	/** دلیل اعمال‌نشدن؛ `null` وقتی اعمال شد */
+	reason: string | null;
+}
+
+/** چتی که پسوند برایش بررسی می‌شود (کانال فوروارد‌شده یا ردیف کانال) */
+export interface SuffixChannel {
+	id: number;
+	title: string;
+}
+
+export function channelSuffixFeature(bot: Bot, env: SuffixEnv): void {
 	// /setsuffix <channel_id>
 	// then next line(s) or same-message remainder = suffix text
 	// /setsuffix <channel_id> clear  → remove suffix
@@ -290,7 +307,7 @@ export function channelSuffixFeature(bot, env) {
  * edited_channel_post is recognized as our own and skipped. An admin edit
  * that changes the body invalidates the stamp and allows re-application.
  */
-export async function autoApplySuffixToChannelPost(ctx, env) {
+export async function autoApplySuffixToChannelPost(ctx: Context, env: SuffixEnv): Promise<SuffixApplyResult> {
 	const post = ctx.channelPost ?? ctx.editedChannelPost;
 	if (!post) return { applied: false, reason: 'no_post' };
 
@@ -357,9 +374,9 @@ export async function autoApplySuffixToChannelPost(ctx, env) {
  * After a successful channel-forward registration path, offer "apply suffix"
  * when the channel already has an official_suffix and the message is editable.
  *
- * @returns {Promise<boolean>} true if a reply with the apply keyboard was sent
+ * @returns true if a reply with the apply keyboard was sent
  */
-export async function maybeOfferSuffixApply(ctx, env, channel) {
+export async function maybeOfferSuffixApply(ctx: Context, env: SuffixEnv, channel: SuffixChannel): Promise<boolean> {
 	const suffix = await getOfficialSuffix(env.my_database, channel.id);
 	if (!suffix?.text) return false;
 
