@@ -1,5 +1,6 @@
 import { InlineKeyboard } from 'grammy';
 import { escapeHtml } from '../../core/text/escape.js';
+import { CRON_NOTIFY_KEYS, isCronNotifyEnabled, type CronNotifyKey, type CronNotifyState } from '../../core/settings/cronNotify.js';
 import { Role, roleLabel } from '../constants/roles.js';
 
 /**
@@ -245,6 +246,7 @@ export function settingsText(): string {
 		`• گپ لاگ خطا (برای ادمین‌ها):\n` +
 		`  <code>/seterrorlog</code> در گروه مورد نظر\n` +
 		`  <code>/geterrorlog</code>\n` +
+		`• خاموش/روشن کردن پیام‌های خودکار کرون: پنل مدیریت → 🔔 اعلان‌های خودکار\n` +
 		`• نقش شما: <code>/whoami</code>\n\n` +
 		`<b>به‌زودی:</b>\n` +
 		`• زبان · اعلان‌های شخصی · مدیریت حساب`
@@ -295,8 +297,56 @@ export function adminHubKeyboard(userRole: number): InlineKeyboard {
 	if (userRole >= Role.FOUNDER) {
 		kb.text('👥 مدیریت نقش‌ها', 'admin:roles').row();
 	}
+	kb.text('🔔 اعلان‌های خودکار', 'admin:cron').row();
 	kb.text('⚙️ تنظیمات', 'm:se').row();
 	kb.text('🏠 منوی اصلی', 'm:h');
+	return kb;
+}
+
+/** برچسب فارسی هر کرون در صفحه‌ی اعلان‌ها */
+export const CRON_NOTIFY_LABEL: Record<CronNotifyKey, string> = {
+	cleanup: '🧹 پاک‌سازی روزانه کاربران',
+	admin_sync: '🔄 همگام‌سازی ادمین‌های کانال',
+};
+
+/**
+ * صفحه‌ی «اعلان‌های خودکار» (فقط ادمین‌ها).
+ * عمداً صریح می‌نویسیم که فقط پیام خاموش می‌شود، نه خودِ کرون؛ وگرنه ادمین
+ * فکر می‌کند با خاموش‌کردن پیام، پاک‌سازی/همگام‌سازی هم متوقف شده است.
+ */
+export function cronNotifyText(state: CronNotifyState): string {
+	const flag = (on: boolean) => (on ? '✅ روشن' : '⛔ خاموش');
+
+	let text = `🔔 <b>اعلان‌های خودکار</b>\n\n`;
+	text += `این کلیدها فقط <b>پیام گزارشی در گپ لاگ</b> را خاموش می‌کنند؛\n`;
+	text += `خودِ کارهای زمان‌بندی‌شده (پاک‌سازی و همگام‌سازی) طبق برنامه اجرا می‌شوند.\n\n`;
+	text += `حالت کلی: <b>${flag(state.master)}</b>\n`;
+
+	if (!state.master) {
+		text += `<i>تا وقتی حالت کلی خاموش است، هیچ‌کدام از پیام‌های زیر فرستاده نمی‌شود.</i>\n`;
+	}
+
+	for (const key of CRON_NOTIFY_KEYS) {
+		const effective = isCronNotifyEnabled(state, key);
+		const stored = state.items[key];
+		const note = stored && !effective ? ' <i>(فعلاً بی‌اثر: حالت کلی خاموش)</i>' : '';
+		text += `• ${CRON_NOTIFY_LABEL[key]}: <b>${flag(stored)}</b>${note}\n`;
+	}
+
+	return text;
+}
+
+/** دکمه‌های toggle؛ هر دکمه وضعیت فعلی خودش را نشان می‌دهد */
+export function cronNotifyKeyboard(state: CronNotifyState): InlineKeyboard {
+	const mark = (on: boolean) => (on ? '✅' : '⛔');
+
+	const kb = new InlineKeyboard().text(`${mark(state.master)} همه اعلان‌های خودکار`, 'admin:cron:t:master').row();
+
+	for (const key of CRON_NOTIFY_KEYS) {
+		kb.text(`${mark(state.items[key])} ${CRON_NOTIFY_LABEL[key]}`, `admin:cron:t:${key}`).row();
+	}
+
+	kb.text('« پنل مدیریت', 'm:ad').text('🏠 منوی اصلی', 'm:h');
 	return kb;
 }
 
