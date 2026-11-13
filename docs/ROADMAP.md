@@ -46,7 +46,7 @@
 | ۱.۹  | `Messenger` port                                      | `renderScreen`/`toast`/`sendMessage`/`editMessage` زیر یک پورت با پیاده‌سازی `adapters/telegram/messenger.ts`.                                                            |
 | ۱.۱۰ | `Clock`/`Ids` تزریقی                                  | حذف `Date.now()` و `crypto.randomUUID()` پراکنده؛ تست‌ها قطعی شوند.                                                                                                       |
 | ۱.۱۲ | رفع ۵ تست شکسته‌ی `telegram.spec` و `index.spec`      | ✅ انجام شد: ماک `menu.js` و `chess.js` اضافه شد و ماک `Error.js` به نام جدید (`reportError`) اصلاح شد. `npm test` کاملاً سبز.                                             |
-| ۱.۱۱ | `strict` برای هسته                                    | `tsconfig.core.json` با `strict: true` روی `src/core/**` + یک اسکریپت `npm run typecheck:core` در CI.                                                                     |
+| ۱.۱۱ | `strict` برای هسته                                    | ✅ `tsconfig.core.json` + `npm run typecheck:core`، و `strict` روی کل `src` (هیچ `.js` نمانده).                                                                           |
 
 **پایان فاز ۱:** افزودن فیچر جدید = یک پوشه + یک خط در `registry.ts`. هیچ فیچری به `ctx` گرام‌مایی وابسته نیست.
 
