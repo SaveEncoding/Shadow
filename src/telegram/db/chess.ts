@@ -10,18 +10,34 @@
  */
 
 import { START_FEN } from '../../core/chess/fen.js';
+import type { GameRecord } from '../../core/chess/index.js';
+import type { GameEndReason, GameResult } from '../../core/chess/types.js';
+import type { ChessGameRow } from './rows.js';
 
-/** @typedef {import('../../core/chess/index.js').GameRecord} GameRecord */
-/** @typedef {import('../../core/chess/types.js').GameResult} GameResult */
-/** @typedef {import('../../core/chess/types.js').GameEndReason} GameEndReason */
-/** @typedef {{ id: number, chatId: number, userId: number, mode: 'engine'|'local', level: number, seed: number, game: GameRecord }} StoredGame */
+/** یک بازی که UI و فیچر شطرنج با آن کار می‌کنند (نام‌ها camelCase، لایه‌ی دامنه) */
+export interface StoredGame {
+	id: number;
+	chatId: number;
+	userId: number;
+	mode: 'engine' | 'local';
+	level: number;
+	seed: number;
+	game: GameRecord;
+}
 
-/**
- * @param {D1Database} db
- * @param {{ chatId: number, userId: number, mode?: 'engine'|'local', level?: number, seed?: number, startFen?: string }} options
- * @returns {Promise<StoredGame>}
- */
-export async function startGame(db, { chatId, userId, mode = 'engine', level = 2, seed = 0, startFen = START_FEN }) {
+export interface StartGameOptions {
+	chatId: number;
+	userId: number;
+	mode?: 'engine' | 'local';
+	level?: number;
+	seed?: number;
+	startFen?: string;
+}
+
+export async function startGame(
+	db: D1Database,
+	{ chatId, userId, mode = 'engine', level = 2, seed = 0, startFen = START_FEN }: StartGameOptions,
+): Promise<StoredGame> {
 	await db
 		.prepare("UPDATE chess_games SET status = 'abandoned', updated_at = CURRENT_TIMESTAMP WHERE chat_id = ? AND status = 'active'")
 		.bind(chatId)
@@ -42,17 +58,37 @@ export async function startGame(db, { chatId, userId, mode = 'engine', level = 2
 		mode,
 		level,
 		seed,
-		game: /** @type {GameRecord} */ ({ startFen, fen: startFen, moves: [], result: null, reason: null }),
+		game: { startFen, fen: startFen, moves: [], result: null, reason: null },
 	};
 }
 
+const GAME_RESULTS: readonly GameResult[] = ['1-0', '0-1', '1/2-1/2'];
+const GAME_END_REASONS: readonly GameEndReason[] = [
+	'checkmate',
+	'stalemate',
+	'insufficient-material',
+	'fifty-move',
+	'threefold',
+	'resignation',
+	'timeout',
+	'agreement',
+];
+
 /**
- * ردیف D1 ← شیء دامنه.
- * تنها جای مجاز برای cast: مرز دیتابیس (SQLite رشته برمی‌گرداند، دامنه نوع اتحادی می‌خواهد).
- * @param {any} row
- * @returns {StoredGame|null}
+ * اعتبارسنجی مقدار متنی دیتابیس به‌جای cast کور.
+ * مقدار ناشناخته (ردیف دست‌کاری‌شده یا نسخه‌ی قدیمی‌تر) `null` می‌شود، که همان
+ * رفتار «بازی تمام‌نشده» است — بهتر از پرتاب خطا در وسط رندر صفحه.
  */
-function rowToGame(row) {
+function toResult(raw: string | null): GameResult | null {
+	return raw != null && (GAME_RESULTS as readonly string[]).includes(raw) ? (raw as GameResult) : null;
+}
+
+function toReason(raw: string | null): GameEndReason | null {
+	return raw != null && (GAME_END_REASONS as readonly string[]).includes(raw) ? (raw as GameEndReason) : null;
+}
+
+/** ردیف D1 ← شیء دامنه (SQLite رشته/عدد برمی‌گرداند، دامنه نوع اتحادی می‌خواهد) */
+function rowToGame(row: ChessGameRow | null): StoredGame | null {
 	if (!row) return null;
 	return {
 		id: Number(row.id),
@@ -65,14 +101,13 @@ function rowToGame(row) {
 			startFen: String(row.start_fen),
 			fen: String(row.fen),
 			moves: parseMoves(row.moves),
-			result: /** @type {GameResult|null} */ (row.result ? String(row.result) : null),
-			reason: /** @type {GameEndReason|null} */ (row.reason ? String(row.reason) : null),
+			result: toResult(row.result),
+			reason: toReason(row.reason),
 		},
 	};
 }
 
-/** @param {unknown} raw */
-function parseMoves(raw) {
+function parseMoves(raw: unknown): string[] {
 	if (typeof raw !== 'string' || raw.length === 0) return [];
 	try {
 		const parsed = JSON.parse(raw);
@@ -83,25 +118,17 @@ function parseMoves(raw) {
 	}
 }
 
-/**
- * بازی فعال یک چت (یا null).
- * @param {D1Database} db
- * @param {number} chatId
- */
-export async function getActiveGame(db, chatId) {
+/** بازی فعال یک چت (یا null) */
+export async function getActiveGame(db: D1Database, chatId: number): Promise<StoredGame | null> {
 	const row = await db
 		.prepare("SELECT * FROM chess_games WHERE chat_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1")
 		.bind(chatId)
-		.first();
+		.first<ChessGameRow>();
 	return rowToGame(row);
 }
 
-/**
- * @param {D1Database} db
- * @param {number} id
- */
-export async function getGame(db, id) {
-	const row = await db.prepare('SELECT * FROM chess_games WHERE id = ?').bind(id).first();
+export async function getGame(db: D1Database, id: number): Promise<StoredGame | null> {
+	const row = await db.prepare('SELECT * FROM chess_games WHERE id = ?').bind(id).first<ChessGameRow>();
 	return rowToGame(row);
 }
 
@@ -109,13 +136,9 @@ export async function getGame(db, id) {
  * ذخیره‌ی وضعیت جدید. اگر `expectedFen` داده شود، فقط وقتی می‌نویسد که
  * ردیف هنوز همان وضعیت را داشته باشد.
  *
- * @param {D1Database} db
- * @param {number} id
- * @param {GameRecord} game
- * @param {string} [expectedFen]
- * @returns {Promise<boolean>} آیا نوشته شد؟
+ * @returns آیا نوشته شد؟
  */
-export async function saveGame(db, id, game, expectedFen) {
+export async function saveGame(db: D1Database, id: number, game: GameRecord, expectedFen?: string): Promise<boolean> {
 	const result = expectedFen
 		? await db
 				.prepare(
@@ -139,14 +162,16 @@ export async function saveGame(db, id, game, expectedFen) {
 
 /**
  * بستن بازی (پایان یا رها شدن).
- * @param {D1Database} db
- * @param {number} id
- * @param {GameRecord} game
- * @param {'finished'|'abandoned'} [status]
- * @param {string} [expectedFen] اگر داده شود، فقط وقتی می‌نویسد که وضعیت هنوز همان باشد
- * @returns {Promise<boolean>}
+ *
+ * @param expectedFen اگر داده شود، فقط وقتی می‌نویسد که وضعیت هنوز همان باشد
  */
-export async function closeGame(db, id, game, status = 'finished', expectedFen) {
+export async function closeGame(
+	db: D1Database,
+	id: number,
+	game: GameRecord,
+	status: 'finished' | 'abandoned' = 'finished',
+	expectedFen?: string,
+): Promise<boolean> {
 	const result = expectedFen
 		? await db
 				.prepare(
@@ -168,13 +193,15 @@ export async function closeGame(db, id, game, status = 'finished', expectedFen) 
 	return Number(result.meta?.changes ?? 0) > 0;
 }
 
-/**
- * آمار کاربر در حالت بازی با موتور (کاربر همیشه سفید است).
- * @param {D1Database} db
- * @param {number} userId
- * @returns {Promise<{ played: number, wins: number, losses: number, draws: number }>}
- */
-export async function getChessStats(db, userId) {
+export interface ChessStats {
+	played: number;
+	wins: number;
+	losses: number;
+	draws: number;
+}
+
+/** آمار کاربر در حالت بازی با موتور (کاربر همیشه سفید است) */
+export async function getChessStats(db: D1Database, userId: number): Promise<ChessStats> {
 	const row = await db
 		.prepare(
 			`SELECT
@@ -186,7 +213,7 @@ export async function getChessStats(db, userId) {
 			 WHERE user_id = ? AND mode = 'engine' AND status = 'finished'`,
 		)
 		.bind(userId)
-		.first();
+		.first<{ played: number | null; wins: number | null; losses: number | null; draws: number | null }>();
 
 	return {
 		played: Number(row?.played ?? 0),

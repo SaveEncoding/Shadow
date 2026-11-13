@@ -35,3 +35,28 @@ export interface ChannelAdminRow {
 	user_id: number;
 	added_at: string | null;
 }
+
+/** ردیف جدول `bot_settings` (کلید-مقدار) */
+export interface SettingRow {
+	key: string;
+	value: string;
+	updated_at: string | null;
+}
+
+/** ردیف جدول `chess_games`؛ `moves` آرایه‌ی JSON از SAN است */
+export interface ChessGameRow {
+	id: number;
+	chat_id: number;
+	user_id: number;
+	mode: string;
+	level: number;
+	seed: number;
+	start_fen: string;
+	fen: string;
+	moves: string;
+	status: string;
+	result: string | null;
+	reason: string | null;
+	created_at: string | null;
+	updated_at: string | null;
+}
