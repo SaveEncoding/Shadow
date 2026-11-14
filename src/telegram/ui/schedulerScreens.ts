@@ -444,7 +444,7 @@ export function publishedNotificationText(post: QueuePost, channelTitle: string,
 	return lines.join('\n');
 }
 
-export function failedNotificationText(post: QueuePost, channelTitle: string): string {
+export function failedNotificationText(post: QueuePost, channelTitle: string, hint: string | null = null): string {
 	return [
 		'⚠️ <b>انتشار ناموفق بود</b>',
 		'',
@@ -453,10 +453,14 @@ export function failedNotificationText(post: QueuePost, channelTitle: string): s
 		post.lastError ? `خطا: <code>${escapeHtml(post.lastError.slice(0, 200))}</code>` : '',
 		'',
 		// راهنمایی باید با خطا جور باشد: برای «تلگرام نتوانست دریافت کند» گفتنِ
-		// «بات را ادمین کن» گمراه‌کننده است و وقتِ ادمین را می‌گیرد.
-		isUnfetchableUrlError(post.lastError)
-			? '<i>تلگرام نتوانست یکی از آیتم‌ها را خودش دریافت کند؛ معمولاً یعنی منبع فقط لینک دارد (بدون file_id) و آن لینک از سرورهای تلگرام در دسترس نیست. اگر پست آلبوم بود، آیتم‌های سالم در تلاشِ دوم منتشر می‌شوند.</i>'
-			: '<i>مطمئن شو بات در کانال مقصد ادمین است و اجازه‌ی ارسال دارد.</i>',
+		// «بات را ادمین کن» گمراه‌کننده است و وقتِ ادمین را می‌گیرد. اگر فراخوان
+		// توضیحِ دقیق‌تری دارد (چند آیتم لینک‌محور، کدام هاست، خطای اسپول) همان
+		// را نشان می‌دهیم.
+		hint !== null
+			? `<i>${escapeHtml(hint)}</i>`
+			: isUnfetchableUrlError(post.lastError)
+				? '<i>تلگرام نتوانست یکی از آیتم‌ها را خودش دریافت کند؛ معمولاً یعنی منبع فقط لینک دارد (بدون file_id) و آن لینک از سرورهای تلگرام در دسترس نیست. اگر پست آلبوم بود، آیتم‌های سالم در تلاشِ دوم منتشر می‌شوند.</i>'
+				: '<i>مطمئن شو بات در کانال مقصد ادمین است و اجازه‌ی ارسال دارد.</i>',
 	]
 		.filter(Boolean)
 		.join('\n');

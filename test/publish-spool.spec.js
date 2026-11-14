@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import { publishOne } from '../src/telegram/publishQueue.js';
+import { mediaFetchHint } from '../src/telegram/publishQueue.js';
 import { appendItem, createQueuedPost, finalizePost, getPost } from '../src/telegram/db/postQueue.js';
 import { CHANNELS_TABLE, createScheduleTables, resetScheduleTables } from './helpers/scheduleSchema.js';
 
@@ -132,5 +133,49 @@ describe('re-spooling right before publish', () => {
 		expect(api.calls.some((c) => c.method === 'deleteMessage')).toBe(true);
 		// و برای تلاشِ بعدی ذخیره شده است
 		expect((await getPost(env.my_database, postId)).items[0].fileId).toBe('file-from-spool');
+	});
+
+	it('falls back to the URL when re-spooling fails, and says so in the failure message', async () => {
+		const postId = await queueUrlOnlyPost();
+		const api = new SpoolApi({ spoolFails: true, publishFails: 'Bad Request: failed to get HTTP URL content' });
+
+		const result = await publishOne(api, env.my_database, postId, NOW + 10);
+
+		expect(result.ok).toBe(false);
+		// تلاشِ دوم با خودِ لینک انجام شده است (رفتار قبلی)
+		const toChannel = api.calls.filter((c) => c.method === 'sendPhoto' && c.args[0] === TARGET);
+		expect(toChannel[0].args[1]).toBe(CDN);
+
+		const text = api.texts().join('\n');
+		expect(text).toContain('cdn4.telegram-cdn.org');
+		expect(text).toContain('file_id');
+		expect(text).toContain('failed to get HTTP URL content');
+		// و نه آن راهنماییِ غلط
+		expect(text).not.toContain('ادمین است و اجازه‌ی ارسال دارد');
+	});
+});
+
+describe('mediaFetchHint', () => {
+	const post = (items) => ({ items });
+
+	it('names the hosts and the failed spool attempt', () => {
+		const hint = mediaFetchHint(
+			post([{ kind: 'photo', fileId: null, extra: { sourceUrl: CDN } }]),
+			'Bad Request: failed to get HTTP URL content',
+			'Bad Request: failed to get HTTP URL content',
+		);
+		expect(hint).toContain('cdn4.telegram-cdn.org');
+		expect(hint).toContain('۱ آیتم');
+		expect(hint).toContain('file_id هم ناموفق بود');
+	});
+
+	it('stays silent when the error is not about fetching', () => {
+		expect(
+			mediaFetchHint(post([{ kind: 'photo', fileId: null, extra: { sourceUrl: CDN } }]), 'Forbidden: bot is not a member', null),
+		).toBeNull();
+	});
+
+	it('stays silent when every item has a file_id', () => {
+		expect(mediaFetchHint(post([{ kind: 'photo', fileId: 'f1', extra: null }]), 'failed to get HTTP URL content', null)).toBeNull();
 	});
 });
