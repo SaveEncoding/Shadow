@@ -229,7 +229,7 @@ interface AlbumMediaEntry {
  * برای User-Agentِ خودش. کدش ۴۰۰ است، پس در حلقه‌ی انتشار «غیرقابل تلاش مجدد»
  * حساب می‌شود و پست برای همیشه می‌شکست.
  */
-const UNFETCHABLE_URL_ERRORS = /WEBPAGE_(CURL_FAILED|MEDIA_EMPTY|NOT_FOUND|URL_INVALID)/i;
+const UNFETCHABLE_URL_ERRORS = /WEBPAGE_(CURL_FAILED|MEDIA_EMPTY|NOT_FOUND|URL_INVALID)|failed to get http url content/i;
 
 export function isUnfetchableUrlError(message: string | null): boolean {
 	return message !== null && UNFETCHABLE_URL_ERRORS.test(message);

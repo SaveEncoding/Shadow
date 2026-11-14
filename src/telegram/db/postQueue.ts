@@ -910,6 +910,25 @@ export async function updateItemContent(
 	await db.prepare('UPDATE post_queue SET edited = 1, updated_at = ? WHERE id = ?').bind(now, queueId).run();
 }
 
+/**
+ * ذخیره‌ی `file_id` (و ابعاد) که بعد از ثبت آیتم به دست آمده است.
+ *
+ * چرا جدا از `appendItem`؟ چون `appendItem` از `INSERT OR IGNORE` استفاده
+ * می‌کند: برای آیتم تازه درست است، ولی برای به‌روزرسانیِ ردیفی که از قبل
+ * وجود دارد هیچ تغییری اعمال نمی‌کرد. این فقط همان یک ردیف را عوض می‌کند.
+ */
+export async function updateItemMedia(
+	db: D1Database,
+	queueId: number,
+	sourceMessageId: number,
+	media: { fileId: string; width?: number; height?: number },
+): Promise<void> {
+	await db
+		.prepare(`UPDATE post_queue_items SET file_id = ? WHERE queue_id = ? AND source_message_id = ?`)
+		.bind(media.fileId, queueId, sourceMessageId)
+		.run();
+}
+
 /** آیتمی که در حال حاضر در صف است و به این پیام مبدأ اشاره می‌کند (برای ویرایش پست مبدأ) */
 export async function findItemBySourceMessage(
 	db: D1Database,

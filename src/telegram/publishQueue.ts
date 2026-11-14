@@ -45,6 +45,7 @@ import {
 } from './db/postQueue.js';
 import { prunePendingInputs } from './db/pendingInput.js';
 import { countQueries } from './db/queryCounter.js';
+import { ensureFileIds } from './mediaSpool.js';
 import { pollDueSources } from './pollSources.js';
 import { pollDueXSources } from './xPoll.js';
 import { isXSourcesEnabled, resolveXProvider } from './xSource.js';
@@ -120,6 +121,17 @@ export async function publishOne(api: SchedulerApi, db: D1Database, postId: numb
 
 	const channel = await getChannelByTelegramId(db, post.targetChannelId);
 	const title = channel?.title ?? String(post.targetChannelId);
+
+	// آیتم‌هایی که فقط لینک دارند (منبع وبی که `file_id` نگرفته) در لحظه‌ی ارسال
+	// وابسته‌اند به اینکه سرور تلگرام بتواند همان لحظه آن لینک را بگیرد؛ اگر
+	// نتواند، کل پست با `failed to get HTTP URL content` شکست می‌خورد. درست پیش از
+	// ارسال یک بارِ دیگر `file_id` می‌گیریم تا این وابستگی از بین برود.
+	const spool = await ensureFileIds(api, db, post);
+	if (spool.spooled > 0) {
+		console.log(`[publishQueue] got file_id for ${spool.spooled} item(s) of post ${postId} right before publishing`);
+	} else if (spool.error) {
+		console.warn(`[publishQueue] re-spool failed for post ${postId}, publishing with the URL:`, spool.error);
+	}
 
 	const plan = buildPublishPlan(post, post.targetChannelId);
 
