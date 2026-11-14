@@ -22,6 +22,7 @@ import {
 	SECONDS_PER_MINUTE,
 	STUCK_PUBLISH_SECONDS,
 	retryDelaySeconds,
+	toPersianDigits,
 } from '../core/schedule/timing.js';
 import type { QueuePost } from '../core/schedule/types.js';
 import { getChannelByTelegramId } from './db/channels.js';
@@ -45,10 +46,17 @@ import {
 } from './db/postQueue.js';
 import { prunePendingInputs } from './db/pendingInput.js';
 import { countQueries } from './db/queryCounter.js';
+import { ensureFileIds, itemSourceUrl } from './mediaSpool.js';
 import { pollDueSources } from './pollSources.js';
 import { pollDueXSources } from './xPoll.js';
 import { isXSourcesEnabled, resolveXProvider } from './xSource.js';
-import { describeTelegramError, executePublishPlan, buildPublishPlan, type PublisherApi } from './services/postPublisher.js';
+import {
+	describeTelegramError,
+	executePublishPlan,
+	buildPublishPlan,
+	isUnfetchableUrlError,
+	type PublisherApi,
+} from './services/postPublisher.js';
 import { failedNotificationText, postDetailKeyboard, publishedNotificationText, queuedNotificationText } from './ui/schedulerScreens.js';
 
 /** کلاینتی که برای انتشار و اعلان لازم است (تزریق‌پذیر برای تست) */
@@ -107,6 +115,37 @@ export async function upsertPreview(
 	}
 }
 
+/** هاست یک لینک، برای نمایش در پیام ادمین (بدون پارامترها) */
+function urlHost(value: string): string {
+	try {
+		return new URL(value).host;
+	} catch {
+		return value.slice(0, 48);
+	}
+}
+
+/**
+ * توضیحِ دقیقِ «چرا تلگرام نتوانست رسانه را بگیرد»، وقتی آیتم‌ها فقط لینک دارند.
+ *
+ * پیامِ پیش‌فرض در این حالت گمراه‌کننده است («بات را ادمین کن»)، چون مشکل
+ * دسترسی نیست: آیتم `file_id` ندارد و تلگرام باید لینک را خودش دانلود کند.
+ * این‌جا می‌گوییم دقیقاً چند آیتم لینک‌محور است، از کدام هاست، و آخرین تلاشِ
+ * ما برای گرفتن `file_id` به چه خطایی خورده — تا دفعه‌ی بعد حدس نزنیم.
+ */
+export function mediaFetchHint(post: QueuePost, error: string | null, spoolError: string | null): string | null {
+	if (!isUnfetchableUrlError(error)) return null;
+	const linked = post.items.filter((item) => itemSourceUrl(item) !== null);
+	if (linked.length === 0) return null;
+
+	const hosts = [...new Set(linked.map((item) => urlHost(itemSourceUrl(item)!)))];
+	const lines = [
+		`${toPersianDigits(linked.length)} آیتم این پست فقط لینک دارد (${hosts.join('، ')}) و file_id ندارد؛`,
+		'تلگرام باید آن را خودش دانلود می‌کرد و نتوانست.',
+	];
+	if (spoolError) lines.push(`تلاشِ ما برای گرفتن file_id هم ناموفق بود: ${spoolError}`);
+	return lines.join(' ');
+}
+
 /**
  * انتشار یک پست مشخص (هم برای کرون، هم برای دکمه‌ی «انتشار الان»).
  * قفل گرفتن داخل همین تابع است، پس فراخوانی دوباره بی‌خطر است.
@@ -120,6 +159,17 @@ export async function publishOne(api: SchedulerApi, db: D1Database, postId: numb
 
 	const channel = await getChannelByTelegramId(db, post.targetChannelId);
 	const title = channel?.title ?? String(post.targetChannelId);
+
+	// آیتم‌هایی که فقط لینک دارند (منبع وبی که `file_id` نگرفته) در لحظه‌ی ارسال
+	// وابسته‌اند به اینکه سرور تلگرام بتواند همان لحظه آن لینک را بگیرد؛ اگر
+	// نتواند، کل پست با `failed to get HTTP URL content` شکست می‌خورد. درست پیش از
+	// ارسال یک بارِ دیگر `file_id` می‌گیریم تا این وابستگی از بین برود.
+	const spool = await ensureFileIds(api, db, post);
+	if (spool.spooled > 0) {
+		console.log(`[publishQueue] got file_id for ${spool.spooled} item(s) of post ${postId} right before publishing`);
+	} else if (spool.error) {
+		console.warn(`[publishQueue] re-spool failed for post ${postId}, publishing with the URL:`, spool.error);
+	}
 
 	const plan = buildPublishPlan(post, post.targetChannelId);
 
@@ -148,7 +198,14 @@ export async function publishOne(api: SchedulerApi, db: D1Database, postId: numb
 	await markFailed(db, postId, result.error ?? 'خطای نامشخص', now, canRetry ? now + retryDelaySeconds(attempts) : null, attempts);
 
 	if (!canRetry) {
-		await upsertPreview(api, db, post, failedNotificationText({ ...post, lastError: result.error }, title), null, now);
+		await upsertPreview(
+			api,
+			db,
+			post,
+			failedNotificationText({ ...post, lastError: result.error }, title, mediaFetchHint(post, result.error, spool.error)),
+			null,
+			now,
+		);
 	}
 
 	return { ok: false, status: canRetry ? 'retry-scheduled' : 'failed' };
